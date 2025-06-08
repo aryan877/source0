@@ -1,5 +1,5 @@
 {
-  "name": "t3-chat-clone",
+  "name": "t3-cloneathon",
   "private": true,
   "scripts": {
     "build": "turbo run build",
