@@ -1,3 +1,5 @@
+"use client";
+
 import { BoltIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { Avatar, Chip, Select, SelectItem } from "@heroui/react";
 

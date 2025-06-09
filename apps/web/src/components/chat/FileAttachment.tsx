@@ -1,3 +1,5 @@
+"use client";
+
 import { DocumentTextIcon, PhotoIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button, Card, CardBody } from "@heroui/react";
 
