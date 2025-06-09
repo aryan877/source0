@@ -12,7 +12,7 @@ import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import CodeBlock from "./CodeBlock";
+import CodeBlock from "./code-block";
 
 interface MessageBubbleProps {
   message: UIMessage;

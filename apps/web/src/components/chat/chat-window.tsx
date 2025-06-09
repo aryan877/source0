@@ -16,8 +16,8 @@ import {
   Textarea,
 } from "@heroui/react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { FileAttachment } from "./FileAttachment";
-import MessageBubble from "./MessageBubble";
+import { FileAttachment } from "./file-attachment";
+import MessageBubble from "./message-bubble";
 
 interface ChatWindowProps {
   chatId: string;

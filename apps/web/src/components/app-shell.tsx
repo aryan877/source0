@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Sidebar } from "./Sidebar";
+import { Sidebar } from "./sidebar";
 
 interface AppShellProps {
   children: React.ReactNode;
