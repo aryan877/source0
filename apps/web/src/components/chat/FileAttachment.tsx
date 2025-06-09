@@ -11,7 +11,7 @@ interface FileAttachmentProps {
 export const FileAttachment = ({ files, onRemove }: FileAttachmentProps) => {
   const getFileIcon = (file: File) => {
     if (file.type.startsWith("image/")) {
-      return <PhotoIcon className="text-primary h-5 w-5" />;
+      return <PhotoIcon className="h-5 w-5 text-primary" />;
     }
     return <DocumentTextIcon className="h-5 w-5" />;
   };
@@ -30,10 +30,10 @@ export const FileAttachment = ({ files, onRemove }: FileAttachmentProps) => {
         <Card key={index} className="max-w-[300px]">
           <CardBody className="p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-content2 flex-shrink-0 rounded-lg p-2">{getFileIcon(file)}</div>
+              <div className="flex-shrink-0 rounded-lg bg-content2 p-2">{getFileIcon(file)}</div>
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="max-w-[200px] truncate text-sm font-semibold">{file.name}</span>
-                <span className="text-default-500 text-xs">{formatFileSize(file.size)}</span>
+                <span className="text-xs text-default-500">{formatFileSize(file.size)}</span>
               </div>
               <Button
                 variant="light"

@@ -8,7 +8,6 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ params }: ChatPageProps) {
-  // Use React.use() to unwrap the Promise in client components
   const { id } = use(params);
 
   return <ChatWindow chatId={id} />;
