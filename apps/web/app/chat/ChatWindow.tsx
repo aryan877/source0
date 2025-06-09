@@ -194,7 +194,7 @@ export const ChatWindow = ({ chatId }: ChatWindowProps) => {
 
       {/* File Attachments */}
       {attachedFiles.length > 0 && (
-        <div className="border-t px-6 py-4">
+        <div className="border-divider border-t px-6 py-4">
           <FileAttachment
             files={attachedFiles}
             onRemove={(index) => setAttachedFiles((prev) => prev.filter((_, i) => i !== index))}
@@ -203,7 +203,7 @@ export const ChatWindow = ({ chatId }: ChatWindowProps) => {
       )}
 
       {/* Input Area */}
-      <div className="bg-content1 border-t p-6">
+      <div className="bg-content1 border-divider border-t p-6">
         <div className="mx-auto max-w-4xl">
           <div className="border-default-200 bg-content2 flex items-end gap-3 rounded-2xl border p-4">
             <input
