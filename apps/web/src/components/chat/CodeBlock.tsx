@@ -36,7 +36,11 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     if (!shouldShowLineNumbers) return null;
     const lines = children.split("\n");
     return lines.map((_, index) => (
-      <div key={index} className="select-none pr-3 text-right text-xs leading-6 text-default-400">
+      <div
+        key={index}
+        className="select-none text-right font-mono text-sm text-default-400"
+        style={{ lineHeight: "1.5" }}
+      >
         {index + 1}
       </div>
     ));
@@ -57,14 +61,17 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
         </Button>
       </div>
       <div className="overflow-x-auto">
-        <div className="flex">
+        <div className="flex items-start">
           {shouldShowLineNumbers && (
-            <div className="flex flex-col border-r border-divider bg-content2/30 px-3 py-4">
+            <div className="flex flex-col border-r border-divider bg-content2/30 px-4 py-4">
               {lineNumbers}
             </div>
           )}
-          <div className="flex-1 p-4">
-            <div className="syntax-highlighting font-mono text-sm leading-6">
+          <div className="flex-1 py-4 pl-4 pr-4">
+            <div
+              className="syntax-highlighting font-mono text-sm [&>pre]:!m-0 [&>pre]:!p-0 [&_code]:!m-0 [&_code]:!p-0"
+              style={{ lineHeight: "1.5" }}
+            >
               <Lowlight
                 language={language}
                 value={children}
