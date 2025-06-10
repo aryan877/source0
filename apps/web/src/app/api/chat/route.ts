@@ -7,6 +7,19 @@ import { streamText, type Message } from "ai";
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
+// Helper function to detect potential code patterns and suggest language hints
+function enhanceSystemMessageWithCodeGuidance(): string {
+  return `You are a helpful AI assistant. Format responses clearly:
+
+- Use ## headers to organize sections
+- Use numbered lists for steps: 1. 2. 3.
+- Use bullet points for items: - item
+- Use **bold** for important terms
+- Use \`code\` for technical terms
+- Always specify language: \`\`\`python \`\`\`javascript etc.
+- Keep it clean and scannable`;
+}
+
 export async function POST(req: Request) {
   try {
     const {
@@ -126,6 +139,9 @@ export async function POST(req: Request) {
     if (modelConfig.capabilities.includes("pdf")) {
       systemMessage += "You can read and analyze PDF documents. ";
     }
+
+    // Always add code formatting guidance for better syntax highlighting
+    systemMessage += "\n\n" + enhanceSystemMessageWithCodeGuidance();
 
     const finalMessages: Message[] = systemMessage
       ? [

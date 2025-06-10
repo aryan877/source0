@@ -16,6 +16,7 @@ export default {
         montserrat: ["Montserrat", "sans-serif"],
         palanquin: ["Palanquin", "sans-serif"],
         geistmono: ["Geist Mono", "monospace"],
+        inter: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {
         accent: {
@@ -31,46 +32,31 @@ export default {
           900: "oklch(0.47 0.157 37.304)",
           950: "oklch(0.47 0.157 37.304)",
         },
-        // Syntax highlighting colors
-        syntax: {
-          text: {
-            light: "#383a42",
-            dark: "#abb2bf",
-          },
-          comment: {
-            light: "#a0a1a7",
-            dark: "#5c6370",
-          },
-          keyword: {
-            light: "#a626a4",
-            dark: "#c678dd",
-          },
-          string: {
-            light: "#50a14f",
-            dark: "#98c379",
-          },
-          number: {
-            light: "#986801",
-            dark: "#d19a66",
-          },
-          function: {
-            light: "#4078f2",
-            dark: "#61afef",
-          },
-          variable: {
-            light: "#e45649",
-            dark: "#e06c75",
-          },
-          tag: {
-            light: "#e45649",
-            dark: "#e06c75",
-          },
+      },
+      animation: {
+        "fade-in": "fadeIn 0.3s ease-out",
+        "slide-up": "slideUp 0.3s ease-out",
+        "pulse-soft": "pulseSoft 1.5s ease-in-out infinite",
+      },
+      keyframes: {
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        slideUp: {
+          "0%": { transform: "translateY(10px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+        pulseSoft: {
+          "0%, 100%": { opacity: "0.6" },
+          "50%": { opacity: "1" },
         },
       },
     },
   },
   darkMode: "class",
   plugins: [
+    typography,
     heroui({
       defaultTheme: "light",
       layout: {},
@@ -283,67 +269,5 @@ export default {
         },
       },
     }),
-    typography,
-    // Custom plugin for syntax highlighting
-    function ({ addUtilities, theme }) {
-      const syntaxColors = theme("colors.syntax");
-
-      addUtilities({
-        ".syntax-highlighting": {
-          "& .hljs": {
-            background: "transparent !important",
-            color: syntaxColors.text.light,
-          },
-          "& .hljs-comment, & .hljs-quote": {
-            color: syntaxColors.comment.light,
-            "font-style": "italic",
-          },
-          "& .hljs-keyword, & .hljs-selector-tag, & .hljs-subst": {
-            color: syntaxColors.keyword.light,
-          },
-          "& .hljs-string, & .hljs-doctag": {
-            color: syntaxColors.string.light,
-          },
-          "& .hljs-number, & .hljs-literal": {
-            color: syntaxColors.number.light,
-          },
-          "& .hljs-title, & .hljs-section, & .hljs-function .hljs-title": {
-            color: syntaxColors.function.light,
-          },
-          "& .hljs-variable, & .hljs-attr": {
-            color: syntaxColors.variable.light,
-          },
-          "& .hljs-tag": {
-            color: syntaxColors.tag.light,
-          },
-        },
-        ".dark .syntax-highlighting": {
-          "& .hljs": {
-            color: syntaxColors.text.dark,
-          },
-          "& .hljs-comment, & .hljs-quote": {
-            color: syntaxColors.comment.dark,
-          },
-          "& .hljs-keyword, & .hljs-selector-tag, & .hljs-subst": {
-            color: syntaxColors.keyword.dark,
-          },
-          "& .hljs-string, & .hljs-doctag": {
-            color: syntaxColors.string.dark,
-          },
-          "& .hljs-number, & .hljs-literal": {
-            color: syntaxColors.number.dark,
-          },
-          "& .hljs-title, & .hljs-section, & .hljs-function .hljs-title": {
-            color: syntaxColors.function.dark,
-          },
-          "& .hljs-variable, & .hljs-attr": {
-            color: syntaxColors.variable.dark,
-          },
-          "& .hljs-tag": {
-            color: syntaxColors.tag.dark,
-          },
-        },
-      });
-    },
   ],
 };
