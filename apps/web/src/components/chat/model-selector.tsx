@@ -30,6 +30,8 @@ import {
 import {
   Avatar,
   Button,
+  Checkbox,
+  CheckboxGroup,
   Chip,
   Dropdown,
   DropdownItem,
@@ -114,7 +116,13 @@ const CompactFilters = ({
   const hasActiveFilters = selectedCapabilities.length > 0 || selectedProvider || showFreeOnly;
 
   return (
-    <Dropdown closeOnSelect={false} shouldBlockScroll={false} backdrop="transparent">
+    <Dropdown
+      closeOnSelect={false}
+      shouldBlockScroll={false}
+      backdrop="transparent"
+      placement="right-start"
+      offset={10}
+    >
       <DropdownTrigger>
         <Button
           variant="flat"
@@ -153,61 +161,32 @@ const CompactFilters = ({
                 )}
               </div>
 
-              <Select
-                placeholder="Select capabilities..."
-                selectionMode="multiple"
-                selectedKeys={new Set(selectedCapabilities)}
-                onSelectionChange={(keys) => {
-                  const selectedKeys = Array.from(keys) as ModelCapability[];
-                  onCapabilitiesChange(selectedKeys);
-                }}
+              <CheckboxGroup
+                value={selectedCapabilities}
+                onValueChange={(value) => onCapabilitiesChange(value as ModelCapability[])}
                 size="sm"
-                isMultiline
-                disallowEmptySelection={false}
-                hideEmptyContent
+                orientation="vertical"
                 classNames={{
-                  trigger: selectedCapabilities.length > 0 ? "h-auto min-h-8 py-1" : "h-8 min-h-8",
-                  value: "text-xs",
-                }}
-                renderValue={(items) => {
-                  if (items.length === 0) {
-                    return <span className="text-foreground-500">Select capabilities...</span>;
-                  }
-
-                  return (
-                    <div className="flex flex-wrap gap-1">
-                      {items.map((item) => (
-                        <Chip
-                          key={item.key}
-                          size="sm"
-                          variant="flat"
-                          className="h-5 text-xs"
-                          onClose={() => {
-                            const newCapabilities = selectedCapabilities.filter(
-                              (cap) => cap !== item.key
-                            );
-                            onCapabilitiesChange(newCapabilities);
-                          }}
-                        >
-                          <div className="flex items-center gap-1">
-                            <CapabilityIcon capability={item.key as ModelCapability} />
-                            {CAPABILITY_LABELS[item.key as ModelCapability]}
-                          </div>
-                        </Chip>
-                      ))}
-                    </div>
-                  );
+                  wrapper: "gap-1",
                 }}
               >
                 {availableCapabilities.map((capability) => (
-                  <SelectItem
+                  <Checkbox
                     key={capability}
-                    startContent={<CapabilityIcon capability={capability} />}
+                    value={capability}
+                    size="sm"
+                    classNames={{
+                      base: "max-w-full",
+                      label: "text-xs font-normal",
+                    }}
                   >
-                    {CAPABILITY_LABELS[capability]}
-                  </SelectItem>
+                    <div className="flex items-center gap-2">
+                      <CapabilityIcon capability={capability} />
+                      {CAPABILITY_LABELS[capability]}
+                    </div>
+                  </Checkbox>
                 ))}
-              </Select>
+              </CheckboxGroup>
             </div>
           </DropdownItem>
 
@@ -622,7 +601,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                           }
                         }}
                         classNames={{
-                          base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                          base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
                         }}
                       >
                         {renderModelItem(model, true, true)}
@@ -663,7 +642,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                         }
                       }}
                       classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
                       }}
                     >
                       {renderModelItem(model, true, true)}
@@ -700,7 +679,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                         }
                       }}
                       classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
                       }}
                     >
                       {renderModelItem(model, false, true)}
