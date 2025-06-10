@@ -141,11 +141,11 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       )}
 
       {/* Input Area */}
-      <div className="p-4">
+      <div className="px-4 pb-0 pt-4">
         <div className="mx-auto max-w-3xl">
           {/* Form */}
           <form onSubmit={handleFormSubmit}>
-            <div className="relative w-full rounded-2xl border border-default-200 bg-content2 p-3">
+            <div className="relative w-full rounded-t-2xl border border-b-0 border-default-200 bg-content2 p-3">
               {/* Textarea */}
               <Textarea
                 value={input}
