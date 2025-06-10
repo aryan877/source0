@@ -1,138 +1,716 @@
 "use client";
 
-import { BoltIcon, LockClosedIcon } from "@heroicons/react/24/outline";
-import { Avatar, Chip, Select, SelectItem } from "@heroui/react";
+import {
+  CAPABILITY_LABELS,
+  MODELS,
+  getModelById,
+  type ModelCapability,
+  type ModelConfig,
+} from "@/config/models";
+import { useModelSelectorStore } from "@/stores/model-selector-store";
+import {
+  filterModelsByCapabilities,
+  filterModelsByFree,
+  filterModelsByProvider,
+  getAvailableCapabilities,
+  getAvailableProviders,
+} from "@/utils/favorites";
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowLeftIcon,
+  BoltIcon,
+  ChevronDownIcon,
+  CpuChipIcon,
+  DocumentIcon,
+  EyeIcon,
+  LockClosedIcon,
+  MagnifyingGlassIcon,
+  StarIcon,
+} from "@heroicons/react/24/outline";
+import {
+  Avatar,
+  Button,
+  Chip,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSection,
+  DropdownTrigger,
+  Input,
+  Select,
+  SelectItem,
+  Switch,
+  Tooltip,
+} from "@heroui/react";
+import { Pin, PinOff } from "lucide-react";
+import React, { useCallback, useMemo } from "react";
 
 interface ModelSelectorProps {
   value: string;
   onValueChange: (value: string) => void;
 }
 
-const models = [
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    description: "Fast, efficient responses",
-    isFree: true,
-    provider: "Google",
-  },
-  {
-    id: "gpt-4.5",
-    name: "GPT-4.5",
-    description: "Most capable model",
-    isFree: false,
-    provider: "OpenAI",
-  },
-  {
-    id: "gpt-3.5-turbo",
-    name: "GPT-3.5 Turbo",
-    description: "Balanced performance",
-    isFree: false,
-    provider: "OpenAI",
-  },
-  {
-    id: "claude-4-opus",
-    name: "Claude 4 Opus",
-    description: "Superior reasoning",
-    isFree: false,
-    provider: "Anthropic",
-  },
-  {
-    id: "claude-3.5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    description: "High performance",
-    isFree: false,
-    provider: "Anthropic",
-  },
-  {
-    id: "deepseek-chat",
-    name: "DeepSeek Chat",
-    description: "Advanced reasoning",
-    isFree: false,
-    provider: "DeepSeek",
-  },
-  {
-    id: "deepseek-v2",
-    name: "DeepSeek V2",
-    description: "Latest version",
-    isFree: false,
-    provider: "DeepSeek",
-  },
-];
+const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability }) => {
+  const iconMap = {
+    image: <EyeIcon className="h-4 w-4 text-blue-500" />,
+    pdf: <DocumentIcon className="h-4 w-4 text-red-500" />,
+    search: <MagnifyingGlassIcon className="h-4 w-4 text-green-500" />,
+    reasoning: <CpuChipIcon className="h-4 w-4 text-purple-500" />,
+  };
+  return iconMap[capability] || null;
+});
+CapabilityIcon.displayName = "CapabilityIcon";
 
-export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
-  const selectedModel = models.find((m) => m.id === value);
+const ModelAvatar = React.memo(({ model }: { model: ModelConfig }) => {
+  const providerColors = {
+    Google: "success",
+    OpenAI: "primary",
+    Anthropic: "secondary",
+    Meta: "warning",
+    DeepSeek: "danger",
+    xAI: "default",
+    Qwen: "success",
+  } as const;
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-default-600 text-sm font-medium">Model:</span>
-      <Select
-        selectedKeys={[value]}
-        onSelectionChange={(keys) => {
-          const selectedKey = Array.from(keys)[0] as string;
-          onValueChange(selectedKey);
-        }}
-        className="w-[240px]"
-        renderValue={() => (
-          <div className="flex items-center gap-3">
-            <Avatar
-              size="sm"
-              icon={
-                selectedModel?.isFree ? (
-                  <BoltIcon className="h-4 w-4" />
-                ) : (
-                  <LockClosedIcon className="h-4 w-4" />
-                )
-              }
-              color={selectedModel?.isFree ? "success" : "default"}
-            />
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-semibold">{selectedModel?.name}</span>
-              <span className="text-default-500 text-xs">{selectedModel?.provider}</span>
+    <Avatar
+      size="sm"
+      icon={
+        model.isFree ? <BoltIcon className="h-4 w-4" /> : <LockClosedIcon className="h-4 w-4" />
+      }
+      color={model.isFree ? providerColors[model.provider] : "default"}
+      className="flex-shrink-0"
+    />
+  );
+});
+ModelAvatar.displayName = "ModelAvatar";
+
+const PinIcon = React.memo(({ isPinned }: { isPinned: boolean }) =>
+  isPinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />
+);
+PinIcon.displayName = "PinIcon";
+
+// Compact filter dropdown component
+const CompactFilters = ({
+  selectedCapabilities,
+  onCapabilitiesChange,
+  selectedProvider,
+  onProviderChange,
+  showFreeOnly,
+  onFreeOnlyChange,
+  onClearFilters,
+}: {
+  selectedCapabilities: ModelCapability[];
+  onCapabilitiesChange: (capabilities: ModelCapability[]) => void;
+  selectedProvider: ModelConfig["provider"] | null;
+  onProviderChange: (provider: ModelConfig["provider"] | null) => void;
+  showFreeOnly: boolean;
+  onFreeOnlyChange: (value: boolean) => void;
+  onClearFilters: () => void;
+}) => {
+  const availableCapabilities = useMemo(() => getAvailableCapabilities(MODELS), []);
+  const availableProviders = useMemo(() => getAvailableProviders(MODELS), []);
+
+  const hasActiveFilters = selectedCapabilities.length > 0 || selectedProvider || showFreeOnly;
+
+  return (
+    <Dropdown closeOnSelect={false} shouldBlockScroll={false} backdrop="transparent">
+      <DropdownTrigger>
+        <Button
+          variant="flat"
+          size="sm"
+          startContent={<AdjustmentsHorizontalIcon className="h-4 w-4" />}
+          endContent={<ChevronDownIcon className="h-3 w-3" />}
+          className={`h-7 text-xs ${hasActiveFilters ? "border-primary text-primary" : ""}`}
+          disableRipple
+        >
+          Filters{" "}
+          {hasActiveFilters &&
+            `(${selectedCapabilities.length + (selectedProvider ? 1 : 0) + (showFreeOnly ? 1 : 0)})`}
+        </Button>
+      </DropdownTrigger>
+
+      <DropdownMenu closeOnSelect={false} className="w-80">
+        <DropdownSection title="Filter Options">
+          <DropdownItem
+            key="capabilities-filter"
+            textValue="Capabilities"
+            closeOnSelect={false}
+            classNames={{ base: "cursor-default p-2 data-[hover=true]:bg-transparent" }}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">Capabilities</span>
+                {selectedCapabilities.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="light"
+                    onPress={() => onCapabilitiesChange([])}
+                    className="h-5 px-1 text-xs"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              <Select
+                placeholder="Select capabilities..."
+                selectionMode="multiple"
+                selectedKeys={new Set(selectedCapabilities)}
+                onSelectionChange={(keys) => {
+                  const selectedKeys = Array.from(keys) as ModelCapability[];
+                  onCapabilitiesChange(selectedKeys);
+                }}
+                size="sm"
+                isMultiline
+                disallowEmptySelection={false}
+                hideEmptyContent
+                classNames={{
+                  trigger: selectedCapabilities.length > 0 ? "h-auto min-h-8 py-1" : "h-8 min-h-8",
+                  value: "text-xs",
+                }}
+                renderValue={(items) => {
+                  if (items.length === 0) {
+                    return <span className="text-foreground-500">Select capabilities...</span>;
+                  }
+
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {items.map((item) => (
+                        <Chip
+                          key={item.key}
+                          size="sm"
+                          variant="flat"
+                          className="h-5 text-xs"
+                          onClose={() => {
+                            const newCapabilities = selectedCapabilities.filter(
+                              (cap) => cap !== item.key
+                            );
+                            onCapabilitiesChange(newCapabilities);
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <CapabilityIcon capability={item.key as ModelCapability} />
+                            {CAPABILITY_LABELS[item.key as ModelCapability]}
+                          </div>
+                        </Chip>
+                      ))}
+                    </div>
+                  );
+                }}
+              >
+                {availableCapabilities.map((capability) => (
+                  <SelectItem
+                    key={capability}
+                    startContent={<CapabilityIcon capability={capability} />}
+                  >
+                    {CAPABILITY_LABELS[capability]}
+                  </SelectItem>
+                ))}
+              </Select>
+            </div>
+          </DropdownItem>
+
+          <DropdownItem
+            key="provider-filter"
+            textValue="Provider"
+            closeOnSelect={false}
+            classNames={{ base: "cursor-default p-2 data-[hover=true]:bg-transparent" }}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">Provider</span>
+                {selectedProvider && (
+                  <Button
+                    size="sm"
+                    variant="light"
+                    onPress={() => onProviderChange(null)}
+                    className="h-5 px-1 text-xs"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+
+              <Select
+                placeholder="Select provider..."
+                selectedKeys={selectedProvider ? new Set([selectedProvider]) : new Set()}
+                onSelectionChange={(keys) => {
+                  const selectedKey = Array.from(keys)[0] as ModelConfig["provider"];
+                  onProviderChange(selectedKey || null);
+                }}
+                size="sm"
+                disallowEmptySelection={false}
+                hideEmptyContent
+                classNames={{
+                  trigger: "h-8 min-h-8",
+                  value: "text-xs",
+                }}
+                renderValue={(items) => {
+                  if (items.length === 0) {
+                    return <span className="text-foreground-500">Select provider...</span>;
+                  }
+                  return (
+                    <span className="text-xs font-medium text-foreground">
+                      {Array.from(items)[0]?.textValue}
+                    </span>
+                  );
+                }}
+              >
+                {availableProviders.map((provider) => (
+                  <SelectItem key={provider}>{provider}</SelectItem>
+                ))}
+              </Select>
+            </div>
+          </DropdownItem>
+
+          <DropdownItem
+            key="free-only-filter"
+            textValue="Free Only"
+            closeOnSelect={false}
+            classNames={{ base: "cursor-default p-2 data-[hover=true]:bg-transparent" }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Free models only</span>
+              <Switch size="sm" isSelected={showFreeOnly} onValueChange={onFreeOnlyChange} />
+            </div>
+          </DropdownItem>
+
+          {hasActiveFilters ? (
+            <DropdownItem
+              key="clear-all"
+              textValue="Clear All Filters"
+              closeOnSelect={false}
+              classNames={{ base: "cursor-default p-2 data-[hover=true]:bg-transparent" }}
+            >
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-danger">Reset Filters</span>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  onPress={onClearFilters}
+                  className="h-7 w-full text-xs"
+                  startContent={
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  }
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            </DropdownItem>
+          ) : null}
+        </DropdownSection>
+      </DropdownMenu>
+    </Dropdown>
+  );
+};
+
+// Model filtering hook
+function useModelFiltering(
+  searchQuery: string,
+  selectedCapabilities: ModelCapability[],
+  selectedProvider: ModelConfig["provider"] | null,
+  showFreeOnly: boolean,
+  favorites: string[]
+) {
+  return useMemo(() => {
+    let models = [...MODELS];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      models = models.filter((model) => {
+        const searchText = `${model.name} ${model.provider} ${model.description}`.toLowerCase();
+        return searchText.includes(query);
+      });
+    }
+
+    if (selectedCapabilities.length > 0) {
+      models = filterModelsByCapabilities(models, selectedCapabilities);
+    }
+
+    if (selectedProvider) {
+      models = filterModelsByProvider(models, selectedProvider);
+    }
+
+    if (showFreeOnly) {
+      models = filterModelsByFree(models, true);
+    }
+
+    return models.sort((a, b) => {
+      const aIsFav = favorites.includes(a.id);
+      const bIsFav = favorites.includes(b.id);
+
+      if (aIsFav && !bIsFav) return -1;
+      if (!aIsFav && bIsFav) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [searchQuery, selectedCapabilities, selectedProvider, showFreeOnly, favorites]);
+}
+
+export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
+  const {
+    isOpen,
+    viewMode,
+    searchQuery,
+    selectedCapabilities,
+    selectedProvider,
+    showFreeOnly,
+    favorites,
+    setIsOpen,
+    setViewMode,
+    setSearchQuery,
+    setSelectedCapabilities,
+    setSelectedProvider,
+    setShowFreeOnly,
+    toggleFavorite,
+    clearFilters,
+    resetState,
+  } = useModelSelectorStore();
+
+  const selectedModel = getModelById(value);
+
+  const filteredModels = useModelFiltering(
+    searchQuery,
+    selectedCapabilities,
+    selectedProvider,
+    showFreeOnly,
+    favorites
+  );
+
+  const filteredFavorites = useMemo(() => {
+    if (!searchQuery.trim()) return favorites;
+
+    const query = searchQuery.toLowerCase();
+    return favorites.filter((modelId) => {
+      const model = getModelById(modelId);
+      if (!model) return false;
+      const searchText = `${model.name} ${model.provider} ${model.description}`.toLowerCase();
+      return searchText.includes(query);
+    });
+  }, [favorites, searchQuery]);
+
+  const handleToggleFavorite = useCallback(
+    (modelId: string) => {
+      toggleFavorite(modelId);
+    },
+    [toggleFavorite]
+  );
+
+  const handleModelSelect = useCallback(
+    (modelId: string) => {
+      onValueChange(modelId);
+      setIsOpen(false);
+    },
+    [onValueChange, setIsOpen]
+  );
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+    },
+    [setIsOpen]
+  );
+
+  const renderModelItem = (model: ModelConfig, isFavorite: boolean, showPinOnHover = false) => (
+    <div className="group relative flex w-full items-center gap-3">
+      <ModelAvatar model={model} />
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold">{model.name}</span>
+          {model.isFree && (
+            <Chip color="success" variant="flat" size="sm" className="text-xs">
+              Free
+            </Chip>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 text-xs text-default-500">
+          <span className="truncate">{model.provider}</span>
+          {model.capabilities.length > 0 && (
+            <>
+              <span className="hidden sm:inline">•</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {model.capabilities.map((capability) => (
+                  <Tooltip
+                    key={capability}
+                    content={CAPABILITY_LABELS[capability]}
+                    placement="top"
+                    delay={500}
+                    closeDelay={100}
+                    showArrow
+                    size="sm"
+                  >
+                    <div>
+                      <CapabilityIcon capability={capability} />
+                    </div>
+                  </Tooltip>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="line-clamp-2 break-words text-xs text-default-400">{model.description}</p>
+      </div>
+
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {!model.isFree && (
+          <Chip variant="flat" size="sm" className="text-xs">
+            Pro
+          </Chip>
+        )}
+      </div>
+
+      {/* Pin button for expanded view - positioned at top corner */}
+      {showPinOnHover && (
+        <div className="absolute -right-1 -top-1 z-10">
+          <Button
+            isIconOnly
+            size="sm"
+            variant="flat"
+            className="h-6 w-6 min-w-6 border border-divider/60 bg-background/95 opacity-0 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:border-primary/40 group-hover:opacity-100"
+            onPress={() => handleToggleFavorite(model.id)}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            aria-label={isFavorite ? "Unpin from favorites" : "Pin to favorites"}
+          >
+            <PinIcon isPinned={isFavorite} />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <Dropdown
+      isOpen={isOpen}
+      onOpenChange={handleOpenChange}
+      closeOnSelect={false}
+      shouldBlockScroll={true}
+      backdrop="opaque"
+    >
+      <DropdownTrigger>
+        <Button
+          variant="flat"
+          size="sm"
+          className="h-8 min-w-0 max-w-[200px] justify-between bg-content2 px-3 sm:max-w-[250px]"
+          endContent={<ChevronDownIcon className="h-3 w-3 flex-shrink-0" />}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-col items-start">
+              <span className="truncate text-xs font-medium">
+                {selectedModel?.name || "Select Model"}
+              </span>
             </div>
           </div>
-        )}
-      >
-        {models.map((model) => (
-          <SelectItem key={model.id}>
-            <div className="flex w-full items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Avatar
-                  size="sm"
-                  icon={
-                    model.isFree ? (
-                      <BoltIcon className="h-5 w-5" />
-                    ) : (
-                      <LockClosedIcon className="h-5 w-5" />
-                    )
-                  }
-                  color={model.isFree ? "success" : "default"}
-                />
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">{model.name}</span>
-                    {model.isFree && (
-                      <Chip color="success" variant="flat" size="sm">
-                        Free
-                      </Chip>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-default-600 text-xs">{model.description}</span>
-                    <span className="text-default-400 text-xs">•</span>
-                    <span className="text-default-500 text-xs font-medium">{model.provider}</span>
-                  </div>
+        </Button>
+      </DropdownTrigger>
+
+      <DropdownMenu
+        closeOnSelect={false}
+        className={viewMode === "expanded" ? "w-80 sm:w-96" : "w-72 sm:w-80"}
+        classNames={{
+          base: `${viewMode === "expanded" ? "max-h-[85vh]" : "max-h-[70vh]"} overflow-hidden flex flex-col`,
+          list: "overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-default-300 [&::-webkit-scrollbar-thumb]:rounded-lg [&>*]:mr-3",
+        }}
+        autoFocus="first"
+        shouldFocusWrap
+        topContent={
+          <div className="flex-shrink-0 border-b border-divider px-1 py-2">
+            {viewMode === "expanded" ? (
+              <>
+                <div className="flex items-center justify-between gap-2 px-2 py-1">
+                  <Button
+                    variant="light"
+                    size="sm"
+                    startContent={<ArrowLeftIcon className="h-4 w-4" />}
+                    onPress={() => resetState()}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Back to Favorites
+                  </Button>
+
+                  <CompactFilters
+                    selectedCapabilities={selectedCapabilities}
+                    onCapabilitiesChange={setSelectedCapabilities}
+                    selectedProvider={selectedProvider}
+                    onProviderChange={setSelectedProvider}
+                    showFreeOnly={showFreeOnly}
+                    onFreeOnlyChange={setShowFreeOnly}
+                    onClearFilters={clearFilters}
+                  />
                 </div>
-              </div>
-              {!model.isFree && (
-                <Chip variant="flat" size="sm">
-                  Login required
-                </Chip>
+
+                <div className="px-2 py-1">
+                  <Input
+                    placeholder="Search models..."
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                    startContent={<MagnifyingGlassIcon className="h-4 w-4" />}
+                    size="sm"
+                    isClearable
+                    onClear={() => setSearchQuery("")}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="px-2 py-1">
+                  <Input
+                    placeholder="Search favorites..."
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                    startContent={<MagnifyingGlassIcon className="h-4 w-4" />}
+                    size="sm"
+                    isClearable
+                    onClear={() => setSearchQuery("")}
+                  />
+                </div>
+
+                <div className="px-2 py-1">
+                  <Button
+                    variant="flat"
+                    size="sm"
+                    startContent={<StarIcon className="h-4 w-4" />}
+                    onPress={() => setViewMode("expanded")}
+                    className="h-7 w-full justify-start text-xs"
+                    color="primary"
+                  >
+                    Browse All Models
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        }
+      >
+        {viewMode === "normal" ? (
+          <>
+            {/* Favorites */}
+            <DropdownSection title="Favorites" classNames={{ base: "mt-3" }}>
+              {filteredFavorites.length === 0 ? (
+                <DropdownItem key="no-favorites" isDisabled textValue="No favorites">
+                  {favorites.length === 0 ? "No favorites yet" : "No favorites match search"}
+                </DropdownItem>
+              ) : (
+                filteredFavorites
+                  .map((modelId) => {
+                    const model = getModelById(modelId);
+                    if (!model) return null;
+
+                    return (
+                      <DropdownItem
+                        key={`fav-${model.id}`}
+                        textValue={model.name}
+                        closeOnSelect={false}
+                        onClick={(event) => {
+                          const target = event.target as HTMLElement;
+                          const isPinButton = target.closest('[aria-label*="favorites"]');
+
+                          if (!isPinButton) {
+                            handleModelSelect(model.id);
+                          }
+                        }}
+                        classNames={{
+                          base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                        }}
+                      >
+                        {renderModelItem(model, true, true)}
+                      </DropdownItem>
+                    );
+                  })
+                  .filter(Boolean)
               )}
-            </div>
-          </SelectItem>
-        ))}
-      </Select>
-    </div>
+            </DropdownSection>
+          </>
+        ) : (
+          <>
+            {/* Favorites Section in Expanded View */}
+            {filteredModels.filter((model) => favorites.includes(model.id)).length > 0 && (
+              <DropdownSection
+                title={`Favorites (${filteredModels.filter((model) => favorites.includes(model.id)).length})`}
+                showDivider={
+                  filteredModels.filter((model) => !favorites.includes(model.id)).length > 0
+                }
+                classNames={{
+                  base: "mt-3",
+                  heading: "text-sm font-semibold text-primary px-3 py-2",
+                }}
+              >
+                {filteredModels
+                  .filter((model) => favorites.includes(model.id))
+                  .map((model) => (
+                    <DropdownItem
+                      key={`fav-${model.id}`}
+                      textValue={model.name}
+                      closeOnSelect={false}
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement;
+                        const isPinButton = target.closest('[aria-label*="favorites"]');
+
+                        if (!isPinButton) {
+                          handleModelSelect(model.id);
+                        }
+                      }}
+                      classNames={{
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                      }}
+                    >
+                      {renderModelItem(model, true, true)}
+                    </DropdownItem>
+                  ))}
+              </DropdownSection>
+            )}
+
+            {/* Other Models Section in Expanded View */}
+            <DropdownSection
+              title={`Other Models (${filteredModels.filter((model) => !favorites.includes(model.id)).length})`}
+              classNames={{
+                heading: "text-sm font-semibold text-primary px-3 py-2",
+              }}
+            >
+              {filteredModels.filter((model) => !favorites.includes(model.id)).length === 0 ? (
+                <DropdownItem key="no-other-models" isDisabled textValue="No other models">
+                  All models are in favorites
+                </DropdownItem>
+              ) : (
+                filteredModels
+                  .filter((model) => !favorites.includes(model.id))
+                  .map((model) => (
+                    <DropdownItem
+                      key={`other-${model.id}`}
+                      textValue={model.name}
+                      closeOnSelect={false}
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement;
+                        const isPinButton = target.closest('[aria-label*="favorites"]');
+
+                        if (!isPinButton) {
+                          handleModelSelect(model.id);
+                        }
+                      }}
+                      classNames={{
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors",
+                      }}
+                    >
+                      {renderModelItem(model, false, true)}
+                    </DropdownItem>
+                  ))
+              )}
+            </DropdownSection>
+          </>
+        )}
+      </DropdownMenu>
+    </Dropdown>
   );
 };

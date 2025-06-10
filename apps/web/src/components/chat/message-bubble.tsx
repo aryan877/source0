@@ -39,48 +39,6 @@ const MessageBubble = memo(({ message, onRetry, onFork }: MessageBubbleProps) =>
     onFork(message.id);
   }, [onFork, message.id]);
 
-  const attachments = useMemo(() => {
-    if (!message.experimental_attachments?.length) return null;
-
-    return (
-      <div className="mb-4">
-        {message.experimental_attachments.map((attachment, index) => {
-          if (
-            attachment.url?.startsWith("data:image/") ||
-            attachment.contentType?.startsWith("image/")
-          ) {
-            return (
-              <div key={index} className="mb-3 max-w-sm overflow-hidden rounded-lg">
-                <Image
-                  src={attachment.url}
-                  alt={attachment.name || "Image"}
-                  width={400}
-                  height={300}
-                  className="h-auto w-full rounded-lg object-cover"
-                  unoptimized
-                />
-              </div>
-            );
-          }
-
-          return (
-            <div key={index} className="mb-3 flex items-center gap-3 rounded-xl bg-content1 p-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-content2 text-lg">
-                📎
-              </div>
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium">
-                  {attachment.name || "Attachment"}
-                </span>
-                <span className="text-xs text-default-500">{attachment.contentType}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }, [message.experimental_attachments]);
-
   const markdownComponents = useMemo(
     () =>
       ({
@@ -244,6 +202,48 @@ const MessageBubble = memo(({ message, onRetry, onFork }: MessageBubbleProps) =>
     [isUser]
   );
 
+  const renderAttachments = () => {
+    if (!message.experimental_attachments?.length) return null;
+
+    return (
+      <div className="mb-4">
+        {message.experimental_attachments.map((attachment, index) => {
+          if (
+            attachment.url?.startsWith("data:image/") ||
+            attachment.contentType?.startsWith("image/")
+          ) {
+            return (
+              <div key={index} className="mb-3 max-w-sm overflow-hidden rounded-lg">
+                <Image
+                  src={attachment.url}
+                  alt={attachment.name || "Image"}
+                  width={400}
+                  height={300}
+                  className="h-auto w-full rounded-lg object-cover"
+                  unoptimized
+                />
+              </div>
+            );
+          }
+
+          return (
+            <div key={index} className="mb-3 flex items-center gap-3 rounded-xl bg-content1 p-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-content2 text-lg">
+                📎
+              </div>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-medium">
+                  {attachment.name || "Attachment"}
+                </span>
+                <span className="text-xs text-default-500">{attachment.contentType}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div
       className={`group flex gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}
@@ -269,7 +269,7 @@ const MessageBubble = memo(({ message, onRetry, onFork }: MessageBubbleProps) =>
       >
         <div className={`${isUser ? "rounded-xl bg-primary px-6 py-4" : ""} w-full`}>
           {/* Experimental Attachments */}
-          {attachments}
+          {renderAttachments()}
 
           {/* Message Text */}
           {contentToRender && (
