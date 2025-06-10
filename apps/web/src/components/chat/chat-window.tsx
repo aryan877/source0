@@ -1,6 +1,7 @@
 "use client";
 
-import { DEFAULT_MODEL, type ReasoningLevel } from "@/config/models";
+import { type ReasoningLevel } from "@/config/models";
+import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat } from "@ai-sdk/react";
 import { PaperAirplaneIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
@@ -15,7 +16,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
+  const { selectedModel } = useModelSelectorStore();
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel>("medium");
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -93,7 +94,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     <div className="flex h-full flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-4 overflow-x-hidden px-4 py-6 pt-8">
+        <div className="mx-auto max-w-3xl space-y-6 overflow-x-hidden px-4 py-8">
           {messages.map((message) => (
             <div key={message.id} className="w-full overflow-hidden">
               <MessageBubble
@@ -141,7 +142,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       )}
 
       {/* Input Area */}
-      <div className="px-4 pb-0 pt-4">
+      <div className="px-4 pb-0 pt-4" suppressHydrationWarning>
         <div className="mx-auto max-w-3xl">
           {/* Form */}
           <form onSubmit={handleFormSubmit}>
@@ -167,7 +168,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
               <div className="flex items-center justify-between gap-2 pt-2">
                 {/* Left side - Model Controls (includes attachment) */}
                 <div className="flex items-center gap-2">
-                  <ModelSelector value={selectedModel} onValueChange={setSelectedModel} />
+                  <ModelSelector />
                   <ModelControls
                     selectedModel={selectedModel}
                     reasoningLevel={reasoningLevel}

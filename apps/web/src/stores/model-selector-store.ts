@@ -1,4 +1,9 @@
-import { type ModelCapability, type ModelConfig, DEFAULT_FAVORITES } from "@/config/models";
+import {
+  type ModelCapability,
+  type ModelConfig,
+  DEFAULT_FAVORITES,
+  DEFAULT_MODEL,
+} from "@/config/models";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -16,6 +21,12 @@ interface ModelSelectorState {
   // Favorites State
   favorites: string[];
 
+  // Selected Model State
+  selectedModel: string;
+
+  // Hydration State
+  hasHydrated: boolean;
+
   // Actions
   setIsOpen: (isOpen: boolean) => void;
   toggleDropdown: () => void;
@@ -26,9 +37,11 @@ interface ModelSelectorState {
   setShowFreeOnly: (showFreeOnly: boolean) => void;
   setFavorites: (favorites: string[]) => void;
   toggleFavorite: (modelId: string) => void;
+  setSelectedModel: (modelId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
   closeAndReset: () => void;
+  setHasHydrated: (hasHydrated: boolean) => void;
 }
 
 export const useModelSelectorStore = create<ModelSelectorState>()(
@@ -42,6 +55,8 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedProvider: null,
       showFreeOnly: false,
       favorites: [],
+      selectedModel: DEFAULT_MODEL,
+      hasHydrated: false,
 
       // Actions
       setIsOpen: (isOpen) => {
@@ -83,6 +98,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         set({ favorites: newFavorites });
       },
 
+      setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+
+      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+
       clearFilters: () => {
         set({
           searchQuery: "",
@@ -115,11 +134,22 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
     }),
     {
       name: "model-selector-storage",
-      partialize: (state) => ({ favorites: state.favorites }), // Only persist favorites
+      partialize: (state) => ({
+        favorites: state.favorites,
+        selectedModel: state.selectedModel,
+      }), // Persist both favorites and selected model
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
         if (state && state.favorites.length === 0) {
           state.favorites = [...DEFAULT_FAVORITES];
+        }
+        // Initialize with default model if none exists
+        if (state && !state.selectedModel) {
+          state.selectedModel = DEFAULT_MODEL;
+        }
+        // Mark as hydrated after rehydration
+        if (state) {
+          state.hasHydrated = true;
         }
       },
     }

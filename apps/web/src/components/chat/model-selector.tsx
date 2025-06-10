@@ -45,11 +45,11 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { Pin, PinOff } from "lucide-react";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 interface ModelSelectorProps {
-  value: string;
-  onValueChange: (value: string) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
 const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability }) => {
@@ -343,6 +343,8 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     selectedProvider,
     showFreeOnly,
     favorites,
+    selectedModel: storeSelectedModel,
+    hasHydrated,
     setIsOpen,
     setViewMode,
     setSearchQuery,
@@ -350,11 +352,22 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     setSelectedProvider,
     setShowFreeOnly,
     toggleFavorite,
+    setSelectedModel,
+    setHasHydrated,
     clearFilters,
     resetState,
   } = useModelSelectorStore();
 
-  const selectedModel = getModelById(value);
+  // Ensure hydration happens on client side
+  useEffect(() => {
+    if (!hasHydrated) {
+      setHasHydrated(true);
+    }
+  }, [hasHydrated, setHasHydrated]);
+
+  // Use store value if no external value provided
+  const currentSelectedModel = value ?? storeSelectedModel;
+  const selectedModel = getModelById(currentSelectedModel);
 
   const filteredModels = useModelFiltering(
     searchQuery,
@@ -385,10 +398,11 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
 
   const handleModelSelect = useCallback(
     (modelId: string) => {
-      onValueChange(modelId);
+      setSelectedModel(modelId);
+      onValueChange?.(modelId);
       setIsOpen(false);
     },
-    [onValueChange, setIsOpen]
+    [onValueChange, setSelectedModel, setIsOpen]
   );
 
   const handleOpenChange = useCallback(
@@ -469,6 +483,25 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
       )}
     </div>
   );
+
+  // Don't render until hydrated to prevent flash of default content
+  if (!hasHydrated) {
+    return (
+      <Button
+        variant="flat"
+        size="sm"
+        className="h-8 min-w-0 max-w-[200px] justify-between bg-content2 px-3 sm:max-w-[250px]"
+        endContent={<ChevronDownIcon className="h-3 w-3 flex-shrink-0" />}
+        isDisabled
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-col items-start">
+            <span className="truncate text-xs font-medium">Loading...</span>
+          </div>
+        </div>
+      </Button>
+    );
+  }
 
   return (
     <Dropdown
