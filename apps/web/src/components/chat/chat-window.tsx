@@ -1,11 +1,12 @@
 "use client";
 
 import { type ReasoningLevel } from "@/config/models";
+import { useChatScroll } from "@/hooks";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat } from "@ai-sdk/react";
-import { PaperAirplaneIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { ArrowDownIcon, PaperAirplaneIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileAttachment } from "./file-attachment";
 import MessageBubble from "./message-bubble";
 import { ModelControls } from "./model-controls";
@@ -20,6 +21,9 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel>("medium");
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { messages, input, setInput, handleSubmit, status, stop, reload, error } = useChat({
     api: "/api/chat",
@@ -33,7 +37,39 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const isLoading = status === "submitted" || status === "streaming";
 
-  // Memoize callback functions to prevent child re-renders
+  const messagesEndRef = useChatScroll(messages.length);
+
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const threshold = 200;
+    const isScrolledUp =
+      container.scrollHeight - container.scrollTop - container.clientHeight > threshold;
+    setShowScrollToBottom(isScrolledUp);
+  }, []);
+
+  // Stable scroll listener setup
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Improved manual scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    const element = messagesEndRef.current;
+    if (!element) return;
+
+    element.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stable callback functions
   const handleRetryMessage = useCallback(() => {
     reload();
   }, [reload]);
@@ -45,7 +81,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const handleFileAttach = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     setAttachedFiles((prev) => [...prev, ...files]);
-    // Clear the input value to allow selecting the same file again
     event.target.value = "";
   }, []);
 
@@ -72,8 +107,10 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         experimental_attachments: fileList,
       });
 
-      // Clear attachments after sending
       setAttachedFiles([]);
+
+      // Auto-scroll on form submit - this will trigger via messagesEndRef hook
+      // when messages.length changes, providing better UX
     },
     [attachedFiles, handleSubmit, input]
   );
@@ -88,15 +125,39 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     [handleFormSubmit]
   );
 
-  const canSubmit = (input.trim().length > 0 || attachedFiles.length > 0) && !isLoading;
+  // Memoize computed values
+  const canSubmit = useMemo(
+    () => (input.trim().length > 0 || attachedFiles.length > 0) && !isLoading,
+    [input, attachedFiles.length, isLoading]
+  );
+
+  // Memoize the scroll to bottom button
+  const scrollToBottomButton = useMemo(() => {
+    if (!showScrollToBottom) return null;
+
+    return (
+      <div className="absolute -top-12 left-1/2 z-10 -translate-x-1/2">
+        <Button
+          isIconOnly
+          size="sm"
+          radius="full"
+          className="bg-content1/80 shadow-md backdrop-blur-md"
+          onPress={scrollToBottom}
+          aria-label="Scroll to bottom"
+        >
+          <ArrowDownIcon className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }, [showScrollToBottom, scrollToBottom]);
 
   return (
     <div className="flex h-full flex-col">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 overflow-x-hidden px-4 py-8">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
           {messages.map((message) => (
-            <div key={message.id} className="w-full overflow-hidden">
+            <div key={message.id} className="w-full max-w-full">
               <MessageBubble
                 message={message}
                 onRetry={handleRetryMessage}
@@ -107,7 +168,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
           {/* Chat-level streaming indicator */}
           {isLoading && (
-            <div className="mx-auto max-w-3xl px-4">
+            <div className="w-full max-w-full overflow-hidden">
               <div className="flex gap-4">
                 <div className="flex max-w-[75%] flex-col items-start gap-2">
                   <div className="rounded-xl bg-content2 px-4 py-3">
@@ -121,6 +182,9 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
               </div>
             </div>
           )}
+
+          {/* Auto-scroll target - this ref automatically scrolls when messages change */}
+          <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
 
@@ -143,7 +207,10 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
       {/* Input Area */}
       <div className="px-4 pb-0 pt-4" suppressHydrationWarning>
-        <div className="mx-auto max-w-3xl">
+        <div className="relative mx-auto max-w-3xl">
+          {/* Scroll to Bottom Button */}
+          {scrollToBottomButton}
+
           {/* Form */}
           <form onSubmit={handleFormSubmit}>
             <div className="relative w-full rounded-t-2xl border border-b-0 border-default-200 bg-content2 p-3">
