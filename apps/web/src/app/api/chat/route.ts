@@ -29,15 +29,7 @@ const logServerError = (error: Error, context: string, data: Record<string, unkn
 
 // Helper function to detect potential code patterns and suggest language hints
 function enhanceSystemMessageWithCodeGuidance(): string {
-  return `You are a helpful AI assistant. Format responses clearly:
-
-- Use ## headers to organize sections
-- Use numbered lists for steps: 1. 2. 3.
-- Use bullet points for items: - item
-- Use **bold** for important terms
-- Use \`code\` for technical terms
-- Always specify language: \`\`\`python \`\`\`javascript etc.
-- Keep it clean and scannable`;
+  return `You are a helpful AI assistant. Respond naturally and clearly. When sharing code, use proper markdown code blocks with language specification for syntax highlighting.`;
 }
 
 // Dynamic model mapping based on provider and model configuration
