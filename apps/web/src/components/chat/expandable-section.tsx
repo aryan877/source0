@@ -35,16 +35,19 @@ const ExpandableSection = memo(
     }, []);
 
     return (
-      <div className="my-2">
+      <div className="my-3">
         <button
           onClick={handleToggle}
-          className="flex w-full items-center gap-2 py-2 text-left transition-colors hover:text-foreground/80"
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-content1/50"
         >
-          <div className="flex h-4 w-4 items-center justify-center text-foreground/60">{icon}</div>
+          <div className="flex h-3.5 w-3.5 items-center justify-center text-foreground/50">
+            {icon}
+          </div>
 
-          <span className="flex-1 text-sm text-foreground/70">{title}</span>
+          <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/60">
+            {title}
+          </span>
 
-          {/* Loading spinner - only show when isLoading is true */}
           {isLoading && (
             <div className="mr-2">
               <LoadingSpinner />
@@ -52,20 +55,28 @@ const ExpandableSection = memo(
           )}
 
           <div
-            className={`flex h-4 w-4 items-center justify-center text-foreground/40 transition-transform duration-200 ${
+            className={`flex h-3.5 w-3.5 items-center justify-center text-foreground/30 transition-transform duration-200 ${
               isExpanded ? "rotate-180" : ""
             }`}
           >
-            <ChevronDownIcon className="h-3 w-3" />
+            <ChevronDownIcon className="h-2.5 w-2.5" />
           </div>
         </button>
 
         <div
-          className={`overflow-hidden transition-all duration-200 ease-in-out ${
-            isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+          className={`grid transition-all duration-200 ease-in-out ${
+            isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
           }`}
         >
-          <div className="pb-2 pl-6">{children}</div>
+          <div className="overflow-hidden">
+            <div className="px-3 pb-3 pt-1">
+              <div className="rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
+                <div className="leading-relaxed text-foreground/70 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
+                  {children}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

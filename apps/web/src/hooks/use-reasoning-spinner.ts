@@ -1,6 +1,12 @@
 import type { UIMessage } from "ai";
 import { useRef } from "react";
 
+/**
+ * This hook uses a ref to memoize the results of checking message parts.
+ * It avoids re-scanning the entire `parts` array on every render,
+ * which is crucial for performance during rapid streaming updates.
+ * It only scans new parts of the message that have arrived since the last render.
+ */
 function useMemoizedParts(message: UIMessage) {
   const cache = useRef({
     messageId: "",
@@ -9,6 +15,7 @@ function useMemoizedParts(message: UIMessage) {
     checkedLength: 0,
   });
 
+  // Reset cache for new messages
   if (cache.current.messageId !== message.id) {
     cache.current = {
       messageId: message.id,
@@ -22,6 +29,7 @@ function useMemoizedParts(message: UIMessage) {
   const currentLength = parts.length;
   const { checkedLength } = cache.current;
 
+  // Only check new parts since last render
   if (currentLength > checkedLength) {
     const newParts = parts.slice(checkedLength);
 
@@ -50,6 +58,7 @@ interface UseReasoningSpinnerOptions {
 export function useReasoningSpinner({ message, isLoading }: UseReasoningSpinnerOptions) {
   const { hasReasoningPart, hasTextPart } = useMemoizedParts(message);
 
+  // Show spinner when loading with reasoning but no text yet
   const isReasoningStreaming = isLoading && hasReasoningPart && !hasTextPart;
 
   return {
