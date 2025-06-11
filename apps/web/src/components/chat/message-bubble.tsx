@@ -213,9 +213,7 @@ const MessageBubble = memo(
                 defaultExpanded={false}
                 isLoading={isReasoningStreaming}
               >
-                <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
-                  {part.reasoning}
-                </div>
+                <MessageContent content={part.reasoning} />
               </ExpandableSection>
             );
 
