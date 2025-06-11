@@ -469,24 +469,26 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
             <div className="w-full max-w-full overflow-hidden">
               <div className="flex gap-4">
                 <div className="flex max-w-[75%] flex-col items-start gap-2">
-                  <div className="rounded-xl bg-content2 px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {[0, 1, 2].map((index) => (
-                        <motion.div
-                          key={index}
-                          className="h-1 w-1 rounded-full bg-current"
-                          animate={{
-                            opacity: [0.3, 1, 0.3],
-                            scale: [1, 1.2, 1],
-                          }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            delay: index * 0.2,
-                            ease: "easeInOut",
-                          }}
-                        />
-                      ))}
+                  <div className="px-1 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {[0, 1, 2].map((index) => (
+                          <motion.div
+                            key={index}
+                            className="h-1 w-1 rounded-full bg-foreground/40"
+                            animate={{
+                              opacity: [0.3, 1, 0.3],
+                              scale: [1, 1.2, 1],
+                            }}
+                            transition={{
+                              duration: 1.5,
+                              repeat: Infinity,
+                              delay: index * 0.2,
+                              ease: "easeInOut",
+                            }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

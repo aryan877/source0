@@ -328,6 +328,7 @@ export async function POST(req: Request) {
     });
 
     return result.toDataStreamResponse({
+      sendReasoning: true,
       getErrorMessage: (error) => {
         const serverError = error instanceof Error ? error : new Error(String(error));
         logServerError(serverError, "Data Stream Response Error", requestContext);

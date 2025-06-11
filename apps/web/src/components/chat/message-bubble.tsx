@@ -130,19 +130,27 @@ const MessageBubble = memo(
                 icon={<WrenchScrewdriverIcon className="h-4 w-4" />}
                 variant="tool"
               >
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-medium text-default-700">Tool Call</h4>
-                    <div className="mt-1 rounded bg-content2/50 p-2">
-                      <code className="text-xs text-default-600">{toolName}</code>
+                    <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                      <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
+                      Tool Call
+                    </h4>
+                    <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
+                      <code className="font-mono text-sm font-medium text-foreground/80">
+                        {toolName}
+                      </code>
                     </div>
                   </div>
 
                   {toolInvocation.args && (
                     <div>
-                      <h4 className="text-sm font-medium text-default-700">Arguments</h4>
-                      <div className="mt-1 rounded bg-content2/50 p-2">
-                        <pre className="whitespace-pre-wrap text-xs text-default-600">
+                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
+                        Arguments
+                      </h4>
+                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
+                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground/80">
                           {JSON.stringify(toolInvocation.args, null, 2)}
                         </pre>
                       </div>
@@ -151,9 +159,12 @@ const MessageBubble = memo(
 
                   {isComplete && "result" in toolInvocation && (
                     <div>
-                      <h4 className="text-sm font-medium text-default-700">Result</h4>
-                      <div className="mt-1 rounded bg-content2/50 p-2">
-                        <pre className="whitespace-pre-wrap text-xs text-default-600">
+                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
+                        Result
+                      </h4>
+                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
+                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground/80">
                           {typeof toolInvocation.result === "string"
                             ? toolInvocation.result
                             : JSON.stringify(toolInvocation.result, null, 2)}
@@ -162,18 +173,23 @@ const MessageBubble = memo(
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 text-xs text-default-500">
+                  <div className="flex items-center gap-3 border-t border-divider/20 pt-2">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
+                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ${
                         isComplete
                           ? "bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400"
                           : "bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400"
                       }`}
                     >
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${isComplete ? "bg-success-500" : "bg-warning-500"}`}
+                      ></div>
                       {isComplete ? "Completed" : "In Progress"}
                     </span>
                     {toolInvocation.step && (
-                      <span className="text-default-400">Step {toolInvocation.step}</span>
+                      <span className="text-xs font-medium text-foreground/60">
+                        Step {toolInvocation.step}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -182,48 +198,16 @@ const MessageBubble = memo(
           }
 
           case "reasoning":
-            // Handle reasoning parts with expandable section
+            // Handle reasoning parts with minimal, clean display
             return (
               <ExpandableSection
                 key={index}
-                title="AI Reasoning"
+                title="Reasoning"
                 icon={<CpuChipIcon className="h-4 w-4" />}
-                variant="reasoning"
+                defaultExpanded={false}
               >
-                <div className="space-y-3">
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <div className="whitespace-pre-wrap text-sm text-default-700">
-                      {part.reasoning}
-                    </div>
-                  </div>
-
-                  {part.details && part.details.length > 0 && (
-                    <div>
-                      <h4 className="mb-2 text-sm font-medium text-default-700">Details</h4>
-                      <div className="space-y-2">
-                        {part.details.map((detail, detailIndex) => (
-                          <div key={detailIndex} className="rounded bg-content2/30 p-2">
-                            {detail.type === "text" ? (
-                              <div>
-                                <div className="whitespace-pre-wrap text-xs text-default-600">
-                                  {detail.text}
-                                </div>
-                                {detail.signature && (
-                                  <div className="mt-1 text-xs text-default-500">
-                                    Signature: {detail.signature}
-                                  </div>
-                                )}
-                              </div>
-                            ) : detail.type === "redacted" ? (
-                              <div className="text-xs italic text-default-500">
-                                [Redacted content - {detail.data.length} characters]
-                              </div>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
+                  {part.reasoning}
                 </div>
               </ExpandableSection>
             );
@@ -238,27 +222,39 @@ const MessageBubble = memo(
                 icon={<LinkIcon className="h-4 w-4" />}
                 variant="source"
               >
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <a
                       href={part.source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
                     >
-                      <LinkIcon className="h-3 w-3" />
-                      {part.source.url}
+                      <LinkIcon className="h-4 w-4" />
+                      <span className="break-all">{part.source.url}</span>
                     </a>
                   </div>
 
                   {part.source.title && (
                     <div>
-                      <h4 className="text-sm font-medium text-default-700">Title</h4>
-                      <div className="mt-1 text-sm text-default-600">{part.source.title}</div>
+                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
+                        Title
+                      </h4>
+                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
+                        <div className="text-sm font-medium text-foreground/80">
+                          {part.source.title}
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  <div className="text-xs text-default-500">Source: {domain}</div>
+                  <div className="flex items-center gap-2 border-t border-divider/20 pt-2">
+                    <span className="text-xs font-medium text-foreground/60">Source:</span>
+                    <span className="rounded bg-content2/50 px-2 py-1 font-mono text-xs text-foreground/70">
+                      {domain}
+                    </span>
+                  </div>
                 </div>
               </ExpandableSection>
             );
