@@ -1,4 +1,4 @@
-import { getModelById, type ReasoningLevel } from "@/config/models";
+import { getModelById, MODELS, type ModelConfig, type ReasoningLevel } from "@/config/models";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
@@ -18,6 +18,62 @@ function enhanceSystemMessageWithCodeGuidance(): string {
 - Use \`code\` for technical terms
 - Always specify language: \`\`\`python \`\`\`javascript etc.
 - Keep it clean and scannable`;
+}
+
+// Dynamic model mapping based on provider and model configuration
+function getModelMapping(modelConfig: ModelConfig) {
+  // Check if model has apiModelName (source of truth)
+  if (!modelConfig.apiModelName) {
+    return {
+      provider: null,
+      model: null,
+      supported: false,
+      message: `API model name not configured for ${modelConfig.name}`,
+    };
+  }
+
+  switch (modelConfig.provider) {
+    case "Google":
+      return {
+        provider: google,
+        model: modelConfig.apiModelName,
+        supported: true,
+      };
+
+    case "OpenAI":
+      return {
+        provider: openai,
+        model: modelConfig.apiModelName,
+        supported: true,
+      };
+
+    case "Anthropic":
+      return {
+        provider: anthropic,
+        model: modelConfig.apiModelName,
+        supported: true,
+      };
+
+    case "Meta":
+    case "DeepSeek":
+    case "xAI":
+    case "Qwen":
+      // These providers are not yet supported by AI SDK
+      return {
+        provider: null,
+        model: null,
+        supported: false,
+        message: `${modelConfig.name} (${modelConfig.provider}) support is coming soon. Currently supported: OpenAI, Google Gemini, and Anthropic Claude models.`,
+      };
+
+    default:
+      return {
+        provider: null,
+        model: null,
+        supported: false,
+        message: `Provider ${modelConfig.provider} is not yet supported.`,
+      };
+  }
 }
 
 export async function POST(req: Request) {
@@ -41,7 +97,7 @@ export async function POST(req: Request) {
       return new Response(
         JSON.stringify({
           error: "Invalid model selection",
-          details: `Model ${model} not found`,
+          details: `Model ${model} not found. Available models: ${MODELS.map((m) => m.id).join(", ")}`,
         }),
         {
           status: 400,
@@ -50,61 +106,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Model mappings for different providers
-    const modelMappings = {
-      // Google/Gemini models
-      "gemini-2.0-flash": { provider: google, model: "gemini-2.0-flash-exp" },
-      "gemini-2.5-flash": { provider: google, model: "gemini-1.5-flash" },
-      "gemini-2.5-flash-thinking": { provider: google, model: "gemini-1.5-flash" },
-      "gemini-2.5-pro": { provider: google, model: "gemini-1.5-pro" },
+    // Get dynamic model mapping
+    const modelMapping = getModelMapping(modelConfig);
 
-      // OpenAI models
-      "gpt-4o": { provider: openai, model: "gpt-4o" },
-      "gpt-4o-mini": { provider: openai, model: "gpt-4o-mini" },
-      "gpt-4.5": { provider: openai, model: "gpt-4o" }, // Fallback until available
-      "o3-mini": { provider: openai, model: "gpt-4o-mini" }, // Fallback until available
-      "o4-mini": { provider: openai, model: "gpt-4o-mini" }, // Fallback until available
-
-      // Anthropic models
-      "claude-3.5-sonnet": { provider: anthropic, model: "claude-3-5-sonnet-20241022" },
-      "claude-3.7-sonnet": { provider: anthropic, model: "claude-3-5-sonnet-20241022" }, // Using latest available
-      "claude-4-sonnet": { provider: anthropic, model: "claude-3-5-sonnet-20241022" }, // Fallback until available
-      "claude-4-opus": { provider: anthropic, model: "claude-3-opus-20240229" }, // Using Claude 3 Opus for now
-
-      // For models not yet supported by AI SDK, we'll return an error with helpful message
-      "llama-3.3-70b": null,
-      "llama-4-scout": null,
-      "llama-4-maverick": null,
-      "deepseek-v3-base": null,
-      "deepseek-v3-chat": null,
-      "deepseek-r1-preview": null,
-      "deepseek-r1-zero": null,
-      "grok-3": null,
-      "grok-3-mini": null,
-      "qwq-32b": null,
-      "qwen-2.5-32b": null,
-    };
-
-    const modelMapping = modelMappings[model as keyof typeof modelMappings];
-
-    if (modelMapping === null) {
+    if (!modelMapping.supported) {
       return new Response(
         JSON.stringify({
           error: "Model not yet supported",
-          details: `${modelConfig.name} (${modelConfig.provider}) support is coming soon. Currently supported: OpenAI, Google Gemini, and Anthropic Claude models.`,
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (!modelMapping) {
-      return new Response(
-        JSON.stringify({
-          error: "Model mapping not found",
-          details: `No mapping configured for model ${model}`,
+          details: modelMapping.message,
         }),
         {
           status: 400,
@@ -116,7 +125,16 @@ export async function POST(req: Request) {
     // Prepare system message based on capabilities
     let systemMessage = "";
 
-    if (modelConfig.capabilities.includes("reasoning") && reasoningLevel) {
+    // Check if provider supports reasoning effort at API level
+    const supportsReasoningEffortAPI =
+      modelConfig.provider === "OpenAI" && modelConfig.capabilities.includes("reasoning");
+
+    if (
+      modelConfig.capabilities.includes("reasoning") &&
+      reasoningLevel &&
+      !supportsReasoningEffortAPI
+    ) {
+      // Use system message approach for providers without native reasoning effort API
       systemMessage += `You are an AI assistant with ${reasoningLevel} level reasoning capabilities. `;
       if (reasoningLevel === "high") {
         systemMessage +=
@@ -150,26 +168,19 @@ export async function POST(req: Request) {
         ]
       : messages;
 
-    // Configure model-specific parameters
-    let temperature = 0.7;
-    let maxTokens = modelConfig.maxTokens || 4000;
-
-    // Adjust parameters based on model capabilities
-    if (modelConfig.capabilities.includes("reasoning")) {
-      if (reasoningLevel === "high") {
-        temperature = 0.3; // Lower temperature for more focused reasoning
-        maxTokens = Math.min(maxTokens, 8000); // Allow more tokens for detailed reasoning
-      } else if (reasoningLevel === "low") {
-        temperature = 0.9; // Higher temperature for faster responses
-      }
-    }
-
-    const result = streamText({
-      model: modelMapping.provider(modelMapping.model),
+    // Prepare streamText parameters
+    const baseParams = {
+      model: modelMapping.provider!(modelMapping.model!),
       messages: finalMessages,
-      maxTokens,
-      temperature,
-    });
+    };
+
+    // Add reasoning effort for supported providers (OpenAI)
+    const streamParams =
+      supportsReasoningEffortAPI && reasoningLevel
+        ? { ...baseParams, reasoningEffort: reasoningLevel }
+        : baseParams;
+
+    const result = streamText(streamParams);
 
     return result.toDataStreamResponse();
   } catch (error) {
