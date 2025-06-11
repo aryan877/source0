@@ -206,7 +206,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       behavior: "smooth",
       block: "end",
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messagesEndRef]);
 
   // Generate random chat ID
   const generateChatId = useCallback(() => {
