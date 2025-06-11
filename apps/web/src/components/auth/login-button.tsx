@@ -18,7 +18,10 @@ export function LoginButton({ className }: LoginButtonProps) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
+          redirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/auth/callback`
+              : "/api/auth/callback",
         },
       });
       if (error) throw error;

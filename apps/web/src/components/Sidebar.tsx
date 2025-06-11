@@ -1,5 +1,6 @@
 "use client";
 
+import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowRightOnRectangleIcon,
@@ -45,6 +46,8 @@ interface SidebarProps {
   onOpenSettings: () => void;
   isMobileOpen: boolean;
   onMobileToggle: (open: boolean) => void;
+  isCollapsed: boolean;
+  onToggle: () => void;
 }
 
 const mockChats: Chat[] = [
@@ -75,13 +78,15 @@ export const Sidebar = ({
   onOpenSettings,
   isMobileOpen,
   onMobileToggle,
+  isCollapsed,
+  onToggle,
 }: SidebarProps) => {
   const [chats, setChats] = useState<Chat[]>(mockChats);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { user, signOut } = useAuth();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const windowObj = useWindow();
 
   // Prevent hydration mismatch by only rendering theme switcher after mount
   useEffect(() => {
@@ -127,12 +132,12 @@ export const Sidebar = ({
     signOut();
   };
 
-  const handleToggleSidebar = () => {
-    // On mobile, use the mobile toggle, on desktop use collapse
-    if (window.innerWidth < 1024) {
-      onMobileToggle(!isMobileOpen);
+  const handleToggle = () => {
+    if (!windowObj) return;
+    if (windowObj.innerWidth < 1024) {
+      onMobileToggle(true);
     } else {
-      setIsCollapsed(!isCollapsed);
+      onToggle();
     }
   };
 
@@ -176,15 +181,9 @@ export const Sidebar = ({
         <div className="border-b border-divider p-3">
           <div className="mb-3 flex items-center justify-between">
             {!isCollapsed && <h2 className="text-lg font-bold text-foreground">DefinitelyNotT3</h2>}
-            <Button
-              variant="light"
-              size="sm"
-              isIconOnly
-              onPress={handleToggleSidebar}
-              className="h-8 w-8"
-            >
-              {(isCollapsed && window.innerWidth >= 1024) ||
-              (!isMobileOpen && window.innerWidth < 1024) ? (
+            <Button variant="light" size="sm" isIconOnly onPress={handleToggle} className="h-8 w-8">
+              {(isCollapsed && windowObj && windowObj.innerWidth >= 1024) ||
+              (!isMobileOpen && windowObj && windowObj.innerWidth < 1024) ? (
                 <Bars3Icon className="h-4 w-4" />
               ) : (
                 <XMarkIcon className="h-4 w-4" />

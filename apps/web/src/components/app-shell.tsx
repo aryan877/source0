@@ -1,5 +1,6 @@
 "use client";
 
+import { useWindow } from "@/hooks/use-window";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./sidebar";
@@ -11,8 +12,10 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const [selectedChatId, setSelectedChatId] = useState<string>("main");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const windowObj = useWindow();
 
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
@@ -46,15 +49,17 @@ export function AppShell({ children }: AppShellProps) {
   // Close mobile sidebar on window resize to desktop
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        // lg breakpoint
+      if (!windowObj) return;
+      if (windowObj.innerWidth >= 1024) {
         setIsMobileSidebarOpen(false);
       }
     };
 
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    if (windowObj) {
+      windowObj.addEventListener("resize", handleResize);
+      return () => windowObj.removeEventListener("resize", handleResize);
+    }
+  }, [windowObj]);
 
   // Determine current chat ID based on pathname
   const currentChatId = (() => {
@@ -75,6 +80,8 @@ export function AppShell({ children }: AppShellProps) {
         onOpenSettings={handleOpenSettings}
         isMobileOpen={isMobileSidebarOpen}
         onMobileToggle={setIsMobileSidebarOpen}
+        isCollapsed={isCollapsed}
+        onToggle={() => setIsCollapsed(!isCollapsed)}
       />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
     </div>
