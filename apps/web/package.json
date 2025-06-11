@@ -24,6 +24,7 @@
     "@heroui/toast": "^2.0.9",
     "@heroui/use-theme": "^2.1.6",
     "@repo/ui": "workspace:*",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@tailwindcss/typography": "^0.5.16",
     "ai": "4.3.16",

@@ -1,5 +1,6 @@
 // Main layout components
 export { AppShell } from "./app-shell";
+export { ConditionalAppShell } from "./conditional-app-shell";
 export { Sidebar } from "./sidebar";
 
 // Chat components

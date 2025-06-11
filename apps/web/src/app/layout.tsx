@@ -1,4 +1,4 @@
-import { AppShell } from "@/components";
+import { ConditionalAppShell } from "@/components";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geist.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <ConditionalAppShell>{children}</ConditionalAppShell>
         </Providers>
       </body>
     </html>

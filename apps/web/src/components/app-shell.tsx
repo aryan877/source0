@@ -9,29 +9,43 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const [selectedChatId, setSelectedChatId] = useState<string>("1");
+  const [selectedChatId, setSelectedChatId] = useState<string>("main");
   const router = useRouter();
   const pathname = usePathname();
 
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
-    router.push(`/chat/${chatId}`);
+    if (chatId === "main") {
+      router.push("/");
+    } else {
+      router.push(`/chat/${chatId}`);
+    }
+  };
+
+  const handleNewChat = () => {
+    router.push("/");
   };
 
   const handleOpenSettings = () => {
     router.push("/settings");
   };
 
-  // Extract chat ID from current path if we're on a chat route
-  const currentChatId = pathname.startsWith("/chat/")
-    ? pathname.split("/")[2] || selectedChatId
-    : selectedChatId;
+  // Determine current chat ID based on pathname
+  const currentChatId = (() => {
+    if (pathname === "/") {
+      return "main";
+    } else if (pathname.startsWith("/chat/")) {
+      return pathname.split("/")[2] || "main";
+    }
+    return selectedChatId;
+  })();
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar
         selectedChatId={currentChatId}
         onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
       />
       <main className="flex min-w-0 flex-1 flex-col">{children}</main>

@@ -6,6 +6,7 @@ import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat } from "@ai-sdk/react";
 import { ArrowDownIcon, PaperAirplaneIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
+import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileAttachment } from "./file-attachment";
 import MessageBubble from "./message-bubble";
@@ -22,6 +23,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const router = useRouter();
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +71,11 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Generate random chat ID
+  const generateChatId = useCallback(() => {
+    return Math.random().toString(36).substring(2, 15);
+  }, []);
+
   // Stable callback functions
   const handleRetryMessage = useCallback(() => {
     reload();
@@ -94,6 +101,13 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
       if (!input.trim() && attachedFiles.length === 0) return;
 
+      // If we're on the main chat and this is the first message, navigate to a specific chat
+      if (chatId === "main" && messages.length === 0) {
+        const newChatId = generateChatId();
+        router.push(`/chat/${newChatId}`);
+        return;
+      }
+
       const fileList =
         attachedFiles.length > 0
           ? ({
@@ -112,7 +126,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       // Auto-scroll on form submit - this will trigger via messagesEndRef hook
       // when messages.length changes, providing better UX
     },
-    [attachedFiles, handleSubmit, input]
+    [attachedFiles, handleSubmit, input, chatId, messages.length, generateChatId, router]
   );
 
   const handleKeyDown = useCallback(

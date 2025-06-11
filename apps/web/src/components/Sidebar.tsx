@@ -1,6 +1,8 @@
 "use client";
 
+import { useAuth } from "@/hooks/useAuth";
 import {
+  ArrowRightOnRectangleIcon,
   Bars3Icon,
   ChatBubbleLeftRightIcon,
   CodeBracketIcon,
@@ -9,6 +11,7 @@ import {
   MoonIcon,
   PlusIcon,
   SunIcon,
+  UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -17,7 +20,13 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   ScrollShadow,
+  useDisclosure,
 } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -32,6 +41,7 @@ interface Chat {
 interface SidebarProps {
   selectedChatId: string;
   onSelectChat: (chatId: string) => void;
+  onNewChat: () => void;
   onOpenSettings: () => void;
 }
 
@@ -56,11 +66,18 @@ const mockChats: Chat[] = [
   },
 ];
 
-export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: SidebarProps) => {
+export const Sidebar = ({
+  selectedChatId,
+  onSelectChat,
+  onNewChat,
+  onOpenSettings,
+}: SidebarProps) => {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { user, signOut } = useAuth();
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Prevent hydration mismatch by only rendering theme switcher after mount
   useEffect(() => {
@@ -68,14 +85,8 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
   }, []);
 
   const handleNewChat = () => {
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "New Chat",
-      lastMessage: "",
-      timestamp: "now",
-    };
-    setChats([newChat, ...chats]);
-    onSelectChat(newChat.id);
+    // Use the passed onNewChat prop to navigate to home
+    onNewChat();
   };
 
   const handleForkChat = (chatId: string) => {
@@ -107,6 +118,11 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
   // Use resolvedTheme for more reliable theme detection
   const currentTheme = resolvedTheme || theme;
 
+  const handleSignOut = () => {
+    onClose();
+    signOut();
+  };
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -119,12 +135,12 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
 
       {/* Sidebar */}
       <div
-        className={`bg-content1 border-divider flex h-full flex-col border-r transition-all duration-300 ease-in-out ${isCollapsed ? "w-16" : "w-72"} lg:relative lg:translate-x-0 ${isCollapsed ? "fixed z-50 lg:relative" : "fixed z-50 lg:relative"} `}
+        className={`flex h-full flex-col border-r border-divider bg-content1 transition-all duration-300 ease-in-out ${isCollapsed ? "w-16" : "w-72"} lg:relative lg:translate-x-0 ${isCollapsed ? "fixed z-50 lg:relative" : "fixed z-50 lg:relative"} `}
       >
         {/* Header */}
-        <div className="border-divider border-b p-3">
+        <div className="border-b border-divider p-3">
           <div className="mb-3 flex items-center justify-between">
-            {!isCollapsed && <h2 className="text-foreground text-lg font-bold">DefinitelyNotT3</h2>}
+            {!isCollapsed && <h2 className="text-lg font-bold text-foreground">DefinitelyNotT3</h2>}
             <Button
               variant="light"
               size="sm"
@@ -163,12 +179,12 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
 
         {/* Search */}
         {!isCollapsed && (
-          <div className="border-divider border-b p-3">
+          <div className="border-b border-divider p-3">
             <div className="relative">
               <input
                 type="text"
                 placeholder="Search your threads..."
-                className="bg-content2 border-divider focus:ring-primary/50 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
@@ -182,7 +198,7 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
                 key={chat.id}
                 className={`group relative cursor-pointer rounded-lg transition-all duration-200 ${
                   selectedChatId === chat.id
-                    ? "bg-primary/10 border-primary/20 border"
+                    ? "border border-primary/20 bg-primary/10"
                     : "hover:bg-content2"
                 } ${isCollapsed ? "p-2" : "p-3"} `}
                 onClick={() => onSelectChat(chat.id)}
@@ -190,8 +206,8 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
                 {isCollapsed ? (
                   // Collapsed view - only icon
                   <div className="flex items-center justify-center">
-                    <div className="bg-content2 rounded-md p-1.5">
-                      <ChatBubbleLeftRightIcon className="text-default-600 h-4 w-4" />
+                    <div className="rounded-md bg-content2 p-1.5">
+                      <ChatBubbleLeftRightIcon className="h-4 w-4 text-default-600" />
                     </div>
                   </div>
                 ) : (
@@ -199,17 +215,17 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center gap-2">
-                        <div className="bg-content2 rounded-md p-1">
-                          <ChatBubbleLeftRightIcon className="text-default-600 h-3 w-3" />
+                        <div className="rounded-md bg-content2 p-1">
+                          <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
                         </div>
-                        <h3 className="text-foreground truncate text-sm font-medium">
+                        <h3 className="truncate text-sm font-medium text-foreground">
                           {chat.title}
                         </h3>
                       </div>
-                      <p className="text-default-500 mb-1 truncate text-xs leading-relaxed">
+                      <p className="mb-1 truncate text-xs leading-relaxed text-default-500">
                         {chat.lastMessage}
                       </p>
-                      <p className="text-default-400 text-xs">{chat.timestamp}</p>
+                      <p className="text-xs text-default-400">{chat.timestamp}</p>
                     </div>
 
                     <div className="opacity-0 transition-opacity group-hover:opacity-100">
@@ -259,7 +275,66 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
         </ScrollShadow>
 
         {/* Bottom Actions */}
-        <div className="border-divider space-y-1 border-t p-2">
+        <div className="space-y-1 border-t border-divider p-2">
+          {/* User Info & Logout */}
+          {user && (
+            <div className="space-y-1">
+              {isCollapsed ? (
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button variant="light" size="sm" isIconOnly className="h-8 w-full">
+                      <UserIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu>
+                    <DropdownItem key="user" isReadOnly>
+                      <div className="text-xs">
+                        <p className="font-medium">{user.user_metadata?.full_name || "User"}</p>
+                        <p className="text-default-500">{user.email}</p>
+                      </div>
+                    </DropdownItem>
+                    <DropdownItem
+                      key="logout"
+                      color="danger"
+                      startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
+                      onPress={onOpen}
+                    >
+                      Sign Out
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              ) : (
+                <>
+                  {/* User Info */}
+                  <div className="rounded-lg bg-content2 p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
+                        <UserIcon className="h-3 w-3 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-foreground">
+                          {user.user_metadata?.full_name || "User"}
+                        </p>
+                        <p className="truncate text-xs text-default-500">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logout Button */}
+                  <Button
+                    variant="light"
+                    size="sm"
+                    className="h-8 w-full justify-start gap-2 text-danger"
+                    onPress={onOpen}
+                    startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
+                  >
+                    <span className="text-sm font-medium">Sign Out</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Theme Switcher */}
           <div className="flex items-center justify-between">
             {mounted ? (
@@ -334,6 +409,24 @@ export const Sidebar = ({ selectedChatId, onSelectChat, onOpenSettings }: Sideba
           )}
         </div>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="sm">
+        <ModalContent>
+          <ModalHeader>Sign Out</ModalHeader>
+          <ModalBody>
+            <p className="text-default-600">Are you sure you want to sign out?</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={onClose}>
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleSignOut}>
+              Sign Out
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   );
 };
