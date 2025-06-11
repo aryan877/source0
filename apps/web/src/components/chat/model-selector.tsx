@@ -25,6 +25,7 @@ import {
   EyeIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
+  PhotoIcon,
   StarIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -58,6 +59,7 @@ const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability
     pdf: <DocumentIcon className="h-4 w-4 text-red-500" />,
     search: <MagnifyingGlassIcon className="h-4 w-4 text-green-500" />,
     reasoning: <CpuChipIcon className="h-4 w-4 text-purple-500" />,
+    "image-generation": <PhotoIcon className="h-4 w-4 text-orange-500" />,
   };
   return iconMap[capability] || null;
 });
@@ -533,10 +535,13 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
         className={viewMode === "expanded" ? "w-80 sm:w-96" : "w-72 sm:w-80"}
         classNames={{
           base: `${viewMode === "expanded" ? "max-h-[85vh]" : "max-h-[70vh]"} overflow-hidden flex flex-col`,
-          list: "overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-default-300 [&::-webkit-scrollbar-thumb]:rounded-lg [&>*]:mr-3",
+          list: "overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-default-300 [&::-webkit-scrollbar-thumb]:rounded-lg [&>*]:mr-3 [&_[data-focus-visible=true]]:outline-none [&_[data-focus-visible=true]]:ring-0 [&_[data-focus-visible=true]]:shadow-none",
         }}
         autoFocus="first"
         shouldFocusWrap
+        itemClasses={{
+          base: "data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
+        }}
         topContent={
           <div className="flex-shrink-0 border-b border-divider px-1 py-2">
             {viewMode === "expanded" ? (
@@ -634,7 +639,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                           }
                         }}
                         classNames={{
-                          base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
+                          base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
                         }}
                       >
                         {renderModelItem(model, true, true)}
@@ -675,7 +680,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                         }
                       }}
                       classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
                       }}
                     >
                       {renderModelItem(model, true, true)}
@@ -688,6 +693,10 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
             <DropdownSection
               title={`Other Models (${filteredModels.filter((model) => !favorites.includes(model.id)).length})`}
               classNames={{
+                base:
+                  filteredModels.filter((model) => favorites.includes(model.id)).length === 0
+                    ? "mt-3"
+                    : "",
                 heading: "text-sm font-semibold text-primary px-3 py-2",
               }}
             >
@@ -712,7 +721,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                         }
                       }}
                       classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0",
+                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
                       }}
                     >
                       {renderModelItem(model, false, true)}

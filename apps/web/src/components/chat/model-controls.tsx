@@ -1,12 +1,11 @@
 "use client";
 
 import { getModelById, type ReasoningLevel } from "@/config/models";
+import { ChevronDownIcon, MagnifyingGlassIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import {
-  ChevronDownIcon,
-  CpuChipIcon,
-  MagnifyingGlassIcon,
-  PaperClipIcon,
-} from "@heroicons/react/24/outline";
+  CpuChipIcon as CpuChipIconSolid,
+  MagnifyingGlassIcon as MagnifyingGlassIconSolid,
+} from "@heroicons/react/24/solid";
 import {
   Button,
   Dropdown,
@@ -71,7 +70,7 @@ export const ModelControls = ({
 
   const reasoningLevelLabels = {
     low: "Low",
-    medium: "Med",
+    medium: "Medium",
     high: "High",
   } as const;
 
@@ -91,7 +90,7 @@ export const ModelControls = ({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       {/* Hidden file input */}
       <input
         type="file"
@@ -109,11 +108,11 @@ export const ModelControls = ({
             <Button
               variant="flat"
               size="sm"
-              className="h-8 min-w-0 bg-content2 px-2"
-              startContent={<CpuChipIcon className="h-3 w-3" />}
-              endContent={<ChevronDownIcon className="h-3 w-3" />}
+              className="h-8 min-w-0 border-2 border-primary/20 bg-content2 px-3 transition-all duration-200 hover:border-primary/40 hover:bg-content3"
+              startContent={<CpuChipIconSolid className="h-3.5 w-3.5 text-primary" />}
+              endContent={<ChevronDownIcon className="h-3 w-3 text-default-500" />}
             >
-              <span className="hidden text-xs sm:inline">
+              <span className="hidden text-xs font-medium sm:inline">
                 {reasoningLevelLabels[reasoningLevel]}
               </span>
             </Button>
@@ -132,7 +131,7 @@ export const ModelControls = ({
                 key={level}
                 textValue={level}
                 classNames={{
-                  base: "p-2",
+                  base: "p-3",
                 }}
               >
                 <div className="flex flex-col gap-1">
@@ -152,19 +151,41 @@ export const ModelControls = ({
       {/* Search Toggle */}
       {hasSearch && (
         <Tooltip
-          content={searchEnabled ? "Web search enabled" : "Enable web search"}
+          content={
+            <div className="flex flex-col gap-1 p-1">
+              <span className="font-medium">
+                {searchEnabled ? "Web Search: ON" : "Web Search: OFF"}
+              </span>
+              <span className="text-xs text-default-400">
+                {searchEnabled
+                  ? "Click to disable web search"
+                  : "Click to enable web search for real-time information"}
+              </span>
+            </div>
+          }
           placement="top"
-          delay={500}
+          delay={300}
         >
           <Button
-            variant={searchEnabled ? "solid" : "flat"}
+            variant="flat"
             size="sm"
-            className="h-8 min-w-0 px-2"
-            color={searchEnabled ? "primary" : "default"}
-            startContent={<MagnifyingGlassIcon className="h-3 w-3" />}
+            className={`h-8 min-w-0 px-3 transition-all duration-200 ${
+              searchEnabled
+                ? "border-2 border-success bg-success/10 text-success hover:bg-success/20"
+                : "border-2 border-default-200 bg-content2 hover:border-default-300 hover:bg-content3"
+            }`}
+            startContent={
+              searchEnabled ? (
+                <MagnifyingGlassIconSolid className="h-3.5 w-3.5" />
+              ) : (
+                <MagnifyingGlassIcon className="h-3.5 w-3.5" />
+              )
+            }
             onPress={() => onSearchToggle(!searchEnabled)}
           >
-            <span className="hidden text-xs sm:inline">Search</span>
+            <span className="hidden text-xs font-medium sm:inline">
+              {searchEnabled ? "Search ON" : "Search"}
+            </span>
           </Button>
         </Tooltip>
       )}
@@ -176,7 +197,7 @@ export const ModelControls = ({
             variant="flat"
             size="sm"
             isIconOnly
-            className="h-8 w-8 flex-shrink-0"
+            className="h-8 w-8 flex-shrink-0 border-2 border-default-200 bg-content2 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content3"
             onPress={() => fileInputRef.current?.click()}
             isDisabled={isLoading}
           >

@@ -2,10 +2,30 @@ import { getModelById, MODELS, type ModelConfig, type ReasoningLevel } from "@/c
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
-import { streamText, type Message } from "ai";
+import { xai } from "@ai-sdk/xai";
+import {
+  experimental_generateImage as generateImage,
+  streamText,
+  type JSONValue,
+  type Message,
+} from "ai";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
+
+// Simplified server-side error logger
+const logServerError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
+  const isDevelopment = process.env.NODE_ENV === "development";
+  console.error(`🚨 [API Error - ${context}]`, {
+    error: {
+      message: error.message,
+      name: error.name,
+      stack: isDevelopment ? error.stack : undefined,
+    },
+    ...data,
+  });
+  // In production, integrate with a logging service (e.g., Sentry, DataDog)
+};
 
 // Helper function to detect potential code patterns and suggest language hints
 function enhanceSystemMessageWithCodeGuidance(): string {
@@ -54,16 +74,22 @@ function getModelMapping(modelConfig: ModelConfig) {
         supported: true,
       };
 
+    case "xAI":
+      return {
+        provider: xai,
+        model: modelConfig.apiModelName,
+        supported: true,
+      };
+
     case "Meta":
     case "DeepSeek":
-    case "xAI":
     case "Qwen":
       // These providers are not yet supported by AI SDK
       return {
         provider: null,
         model: null,
         supported: false,
-        message: `${modelConfig.name} (${modelConfig.provider}) support is coming soon. Currently supported: OpenAI, Google Gemini, and Anthropic Claude models.`,
+        message: `${modelConfig.name} (${modelConfig.provider}) support is coming soon. Currently supported: OpenAI, Google Gemini, Anthropic Claude, and xAI Grok models.`,
       };
 
     default:
@@ -73,6 +99,30 @@ function getModelMapping(modelConfig: ModelConfig) {
         supported: false,
         message: `Provider ${modelConfig.provider} is not yet supported.`,
       };
+  }
+}
+
+// Helper to handle image generation requests using AI SDK
+async function handleImageGeneration(prompt: string, modelConfig: ModelConfig): Promise<string> {
+  if (!modelConfig.capabilities.includes("image-generation")) {
+    throw new Error("Model does not support image generation");
+  }
+
+  if (modelConfig.provider !== "OpenAI") {
+    throw new Error("Only OpenAI models support image generation currently");
+  }
+
+  try {
+    const { image } = await generateImage({
+      model: openai.image(modelConfig.apiModelName!),
+      prompt: prompt,
+      size: "1024x1024", // Supported size for gpt-image-1
+    });
+
+    return image.base64;
+  } catch (error) {
+    console.error("Image generation error:", error);
+    throw error;
   }
 }
 
@@ -90,6 +140,15 @@ export async function POST(req: Request) {
       searchEnabled?: boolean;
     } = await req.json();
 
+    const requestContext = {
+      model,
+      reasoningLevel,
+      searchEnabled,
+      messageCount: Array.isArray(messages) ? messages.length : 0,
+    };
+
+    console.log(`🚀 Starting chat request`, requestContext);
+
     // Get model configuration
     const modelConfig = getModelById(model);
 
@@ -106,7 +165,53 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get dynamic model mapping
+    // Check if this is an image generation model
+    const isImageGenerationModel = modelConfig.capabilities.includes("image-generation");
+    const lastMessage = messages[messages.length - 1];
+
+    if (isImageGenerationModel && lastMessage?.role === "user" && lastMessage.content) {
+      try {
+        const imageBase64 = await handleImageGeneration(lastMessage.content, modelConfig);
+
+        // Return the generated image as a file part in the AI SDK format
+        return new Response(
+          JSON.stringify({
+            role: "assistant",
+            content: "I've generated an image based on your request.",
+            parts: [
+              {
+                type: "text",
+                text: "I've generated an image based on your request.",
+              },
+              {
+                type: "file",
+                mimeType: "image/png",
+                data: imageBase64,
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        const serverError = error instanceof Error ? error : new Error(String(error));
+        logServerError(serverError, "Image Generation Error", requestContext);
+        return new Response(
+          JSON.stringify({
+            error: "Image generation failed",
+            details: serverError.message,
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    // Get dynamic model mapping for regular chat
     const modelMapping = getModelMapping(modelConfig);
 
     if (!modelMapping.supported) {
@@ -124,27 +229,6 @@ export async function POST(req: Request) {
 
     // Prepare system message based on capabilities
     let systemMessage = "";
-
-    // Check if provider supports reasoning effort at API level
-    const supportsReasoningEffortAPI =
-      modelConfig.provider === "OpenAI" && modelConfig.capabilities.includes("reasoning");
-
-    if (
-      modelConfig.capabilities.includes("reasoning") &&
-      reasoningLevel &&
-      !supportsReasoningEffortAPI
-    ) {
-      // Use system message approach for providers without native reasoning effort API
-      systemMessage += `You are an AI assistant with ${reasoningLevel} level reasoning capabilities. `;
-      if (reasoningLevel === "high") {
-        systemMessage +=
-          "Take time to think through problems step by step and show your reasoning process. ";
-      } else if (reasoningLevel === "medium") {
-        systemMessage += "Provide thoughtful analysis with clear reasoning. ";
-      } else if (reasoningLevel === "low") {
-        systemMessage += "Provide quick but accurate responses. ";
-      }
-    }
 
     if (modelConfig.capabilities.includes("search") && searchEnabled) {
       systemMessage += "You have access to web search capabilities when needed. ";
@@ -168,38 +252,154 @@ export async function POST(req: Request) {
         ]
       : messages;
 
-    // Prepare streamText parameters
-    const baseParams = {
-      model: modelMapping.provider!(modelMapping.model!),
+    // Conditionally create model instance with search grounding for Google models
+    const modelInstance =
+      modelConfig.provider === "Google" &&
+      modelConfig.capabilities.includes("search") &&
+      searchEnabled
+        ? google(modelMapping.model!, { useSearchGrounding: true })
+        : modelMapping.provider!(modelMapping.model!);
+
+    // Add provider-specific options based on model configuration
+    const providerOptions: Record<string, Record<string, JSONValue>> = {};
+
+    if (
+      reasoningLevel &&
+      modelConfig.reasoningLevels &&
+      modelConfig.reasoningLevels.includes(reasoningLevel)
+    ) {
+      switch (modelConfig.provider) {
+        case "Google": {
+          const thinkingBudgetMap: Record<ReasoningLevel, number> = {
+            low: 1024,
+            medium: 4096,
+            high: 8192,
+          };
+          providerOptions.google = {
+            thinkingConfig: {
+              thinkingBudget: thinkingBudgetMap[reasoningLevel],
+            },
+          };
+          break;
+        }
+        case "OpenAI":
+          providerOptions.openai = { reasoningEffort: reasoningLevel };
+          break;
+        case "xAI":
+          providerOptions.xai = { reasoningEffort: reasoningLevel };
+          break;
+        // Add other providers here as they support reasoning parameters
+      }
+    }
+
+    const result = streamText({
+      model: modelInstance,
       messages: finalMessages,
-    };
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+      // Enhanced error handling with logging
+      onError: ({ error }) => {
+        const serverError = error instanceof Error ? error : new Error(String(error));
+        logServerError(serverError, "streamText Error", {
+          ...requestContext,
+          filteredMessagesCount: finalMessages.length,
+          lastMessageRole: finalMessages[finalMessages.length - 1]?.role,
+          lastMessageLength: finalMessages[finalMessages.length - 1]?.content?.length,
+        });
+      },
+      // Log successful finish
+      onFinish: ({ text, usage, finishReason }) => {
+        console.log(`✅ Stream completed successfully`, {
+          model,
+          textLength: text?.length || 0,
+          usage,
+          finishReason,
+          timestamp: new Date().toISOString(),
+        });
 
-    // Add reasoning effort for supported providers (OpenAI)
-    const streamParams =
-      supportsReasoningEffortAPI && reasoningLevel
-        ? { ...baseParams, reasoningEffort: reasoningLevel }
-        : baseParams;
+        // Log potential issues
+        if (finishReason === "length") {
+          console.warn(`⚠️ Response truncated due to length limit`, {
+            model,
+            textLength: text?.length,
+            usage,
+          });
+        }
+      },
+    });
 
-    const result = streamText(streamParams);
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        const serverError = error instanceof Error ? error : new Error(String(error));
+        logServerError(serverError, "Data Stream Response Error", requestContext);
 
-    return result.toDataStreamResponse();
+        // Return user-friendly error messages with error name
+        const prefix = serverError.name !== "Error" ? `[${serverError.name}] ` : "";
+        let message = "An error occurred. Please try again.";
+
+        if (serverError.name === "AI_APICallError") {
+          message = "Unable to connect to AI service. Please try again.";
+        } else if (serverError.name === "AI_RetryError") {
+          message = "Service temporarily unavailable. Please try again in a moment.";
+        } else if (
+          serverError.message.includes("rate limit") ||
+          serverError.message.includes("429")
+        ) {
+          message = "Too many requests. Please wait a moment before trying again.";
+        } else if (
+          serverError.message.includes("401") ||
+          serverError.message.includes("unauthorized")
+        ) {
+          message = "Authentication error. Please try again.";
+        }
+
+        return `${prefix}${message}`;
+      },
+    });
   } catch (error) {
-    console.error("Chat API error:", error);
+    const serverError = error instanceof Error ? error : new Error("Unknown server error");
 
-    // Return more detailed error information in development
-    if (process.env.NODE_ENV === "development") {
+    logServerError(serverError, "Top-level API Error", {
+      headers: Object.fromEntries(req.headers.entries()),
+      url: req.url,
+    });
+
+    // Return appropriate error response
+    if (serverError.message.includes("JSON")) {
       return new Response(
         JSON.stringify({
-          error: "Chat API Error",
-          details: error instanceof Error ? error.message : "Unknown error",
+          error: "Invalid request format. Please try again.",
+          code: "INVALID_JSON",
         }),
         {
-          status: 500,
+          status: 400,
           headers: { "Content-Type": "application/json" },
         }
       );
     }
 
-    return new Response("Internal Server Error", { status: 500 });
+    if (serverError.message.includes("401") || serverError.message.includes("unauthorized")) {
+      return new Response(
+        JSON.stringify({
+          error: "Authentication error. Please refresh and try again.",
+          code: "AUTH_ERROR",
+        }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Generic server error
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error. Please try again later.",
+        code: "INTERNAL_ERROR",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }

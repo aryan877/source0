@@ -3,9 +3,11 @@
 import { type ReasoningLevel } from "@/config/models";
 import { useChatScroll } from "@/hooks";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
+import { uploadFiles, type UploadResult } from "@/utils/supabase/storage";
 import { useChat } from "@ai-sdk/react";
-import { ArrowDownIcon, PaperAirplaneIcon, PlusIcon } from "@heroicons/react/24/outline";
-import { Button, Textarea } from "@heroui/react";
+import { ArrowDownIcon, PaperAirplaneIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { Button, Progress, Textarea } from "@heroui/react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileAttachment } from "./file-attachment";
@@ -17,12 +19,33 @@ interface ChatWindowProps {
   chatId: string;
 }
 
+interface AttachedFileWithUrl {
+  file: File;
+  uploadResult?: UploadResult;
+  uploading?: boolean;
+  error?: string;
+}
+
+const logError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
+  const isDevelopment = process.env.NODE_ENV === "development";
+  console.error(`🚨 [Chat Error - ${context}]`, {
+    error: {
+      message: error.message,
+      name: error.name,
+      stack: isDevelopment ? error.stack : undefined,
+    },
+    ...data,
+  });
+};
+
 const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const { selectedModel } = useModelSelectorStore();
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel>("medium");
   const [searchEnabled, setSearchEnabled] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFileWithUrl[]>([]);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uiError, setUiError] = useState<string | null>(null);
   const router = useRouter();
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +57,81 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       model: selectedModel,
       reasoningLevel,
       searchEnabled,
+    },
+    // Enhanced error handling with comprehensive logging
+    onError: (error) => {
+      logError(error, "useChat Hook Error", {
+        chatId,
+        selectedModel,
+        reasoningLevel,
+        searchEnabled,
+        messageCount: messages.length,
+        status,
+        input: input?.substring(0, 100), // Log first 100 chars of input for debugging
+        attachedFilesCount: attachedFiles.length,
+      });
+    },
+    // Log successful responses for debugging
+    onResponse: (response) => {
+      if (process.env.NODE_ENV === "development") {
+        console.log(`📡 Chat API Response - Status: ${response.status}`, {
+          chatId,
+          selectedModel,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: response.url,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Log non-ok responses as potential issues
+      if (!response.ok) {
+        logError(
+          new Error(`HTTP ${response.status}: ${response.statusText}`),
+          "API Response Error",
+          {
+            chatId,
+            selectedModel,
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url,
+          }
+        );
+      }
+    },
+    // Log when streaming finishes
+    onFinish: (message, { usage, finishReason }) => {
+      if (process.env.NODE_ENV === "development") {
+        console.log("✅ Chat stream finished", {
+          chatId,
+          selectedModel,
+          messageId: message.id,
+          messageLength: message.content?.length,
+          usage,
+          finishReason,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Log potential issues with finish reasons
+      if (finishReason === "error") {
+        logError(new Error("Stream finished with error reason"), "Stream Finish Error", {
+          chatId,
+          selectedModel,
+          messageId: message.id,
+          finishReason,
+          usage,
+        });
+      }
+
+      if (finishReason === "length") {
+        console.warn("⚠️ Stream finished due to length limit", {
+          chatId,
+          selectedModel,
+          messageId: message.id,
+          messageLength: message.content?.length,
+          usage,
+        });
+      }
     },
   });
 
@@ -66,7 +164,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
             });
           }
         } catch (error) {
-          console.error("Failed to parse pending message:", error);
+          logError(
+            error instanceof Error ? error : new Error("Unknown error parsing pending message"),
+            "Pending Message Parse Error",
+            {
+              chatId,
+              pendingMessageData: pendingMessageData?.substring(0, 200), // Log first 200 chars
+            }
+          );
           sessionStorage.removeItem(pendingMessageKey);
         }
       }
@@ -110,68 +215,188 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   // Stable callback functions
   const handleRetryMessage = useCallback(() => {
-    reload();
-  }, [reload]);
+    try {
+      if (uiError) setUiError(null);
+      reload();
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error("Unknown retry error");
+      logError(err, "Message Retry Error", { chatId, selectedModel });
+      setUiError(`Failed to retry message: ${err.message}`);
+    }
+  }, [reload, chatId, selectedModel, uiError]);
 
   const handleForkChat = useCallback((messageId: string) => {
     console.log("Fork chat from message:", messageId);
   }, []);
 
-  const handleFileAttach = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setAttachedFiles((prev) => [...prev, ...files]);
-    event.target.value = "";
-  }, []);
+  // Upload files to Supabase storage
+  const uploadFilesToStorage = useCallback(
+    async (files: File[]) => {
+      setUiError(null);
+      setUploadProgress(0);
+
+      try {
+        const { successful, failed } = await uploadFiles(files, `chat-${chatId}`);
+
+        if (failed.length > 0) {
+          const failedFileNames = failed.map((f) => f.file.name).join(", ");
+          const errorMessage = `Failed to upload: ${failedFileNames}. ${failed[0]?.error ?? ""}`;
+          setUiError(errorMessage);
+
+          failed.forEach((failure) => {
+            logError(new Error(`File upload failed: ${failure.error}`), "File Upload Error", {
+              chatId,
+              fileName: failure.file.name,
+              uploadError: failure.error,
+            });
+          });
+        }
+
+        setUploadProgress(100);
+
+        return { successful, failed };
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error("Unknown upload error");
+        logError(err, "File Upload System Error", {
+          chatId,
+          fileCount: files.length,
+          fileNames: files.map((f) => f.name),
+        });
+        setUiError(`An unexpected error occurred during upload: ${err.message}`);
+        return { successful: [], failed: files.map((file) => ({ file, error: "Upload failed" })) };
+      }
+    },
+    [chatId]
+  );
+
+  const handleFileAttach = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+
+      if (files.length === 0) return;
+
+      // Add files to state immediately with uploading status
+      const newAttachedFiles: AttachedFileWithUrl[] = files.map((file) => ({
+        file,
+        uploading: true,
+      }));
+
+      setAttachedFiles((prev) => [...prev, ...newAttachedFiles]);
+      event.target.value = "";
+
+      // Upload files to Supabase
+      const { successful, failed } = await uploadFilesToStorage(files);
+
+      // Update state with upload results
+      setAttachedFiles((prev) => {
+        const updated = [...prev];
+        let successIndex = 0;
+        let failedIndex = 0;
+
+        // Find the files we just added and update them
+        for (let i = updated.length - files.length; i < updated.length; i++) {
+          const currentFile = updated[i];
+          if (currentFile && currentFile.uploading) {
+            if (successIndex < successful.length) {
+              updated[i] = {
+                file: currentFile.file,
+                uploadResult: successful[successIndex],
+                uploading: false,
+              };
+              successIndex++;
+            } else if (failedIndex < failed.length) {
+              const failedResult = failed[failedIndex];
+              updated[i] = {
+                file: currentFile.file,
+                error: failedResult ? failedResult.error : "Upload failed",
+                uploading: false,
+              };
+              failedIndex++;
+            }
+          }
+        }
+
+        return updated;
+      });
+    },
+    [uploadFilesToStorage]
+  );
 
   const handleRemoveFile = useCallback((index: number) => {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleFormSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
+      setUiError(null);
 
       if (!input.trim() && attachedFiles.length === 0) return;
 
-      // If we're on the main chat and this is the first message, navigate to a specific chat
-      if (chatId === "main" && messages.length === 0) {
-        const newChatId = generateChatId();
-
-        // Store the message data in sessionStorage before redirecting
-        const messageData = {
-          input: input.trim(),
-          attachedFiles: attachedFiles.map((file) => ({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          })),
-          model: selectedModel,
-          reasoningLevel,
-          searchEnabled,
-        };
-
-        sessionStorage.setItem(`pending-message-${newChatId}`, JSON.stringify(messageData));
-        router.push(`/chat/${newChatId}`);
+      // Check if any files are still uploading
+      const stillUploading = attachedFiles.some((file) => file.uploading);
+      if (stillUploading) {
+        setUiError("Please wait for files to finish uploading.");
         return;
       }
 
-      const fileList =
-        attachedFiles.length > 0
-          ? ({
-              length: attachedFiles.length,
-              item: (index: number) => attachedFiles[index] || null,
-              [Symbol.iterator]: () => attachedFiles[Symbol.iterator](),
-            } as FileList)
-          : undefined;
+      // Check if any files failed to upload
+      const failedFiles = attachedFiles.filter((file) => file.error);
+      if (failedFiles.length > 0) {
+        setUiError("Some files failed to upload. Please remove them or try again.");
+        return;
+      }
 
-      handleSubmit(e, {
-        experimental_attachments: fileList,
-      });
+      try {
+        // If we're on the main chat and this is the first message, navigate to a specific chat
+        if (chatId === "main" && messages.length === 0) {
+          const newChatId = generateChatId();
 
-      setAttachedFiles([]);
+          // Store the message data in sessionStorage before redirecting
+          const messageData = {
+            input: input.trim(),
+            attachedFiles: attachedFiles.map((fileWithUrl) => ({
+              name: fileWithUrl.file.name,
+              size: fileWithUrl.file.size,
+              type: fileWithUrl.file.type,
+              url: fileWithUrl.uploadResult?.url,
+              path: fileWithUrl.uploadResult?.path,
+            })),
+            model: selectedModel,
+            reasoningLevel,
+            searchEnabled,
+          };
 
-      // Auto-scroll on form submit - this will trigger via messagesEndRef hook
-      // when messages.length changes, providing better UX
+          sessionStorage.setItem(`pending-message-${newChatId}`, JSON.stringify(messageData));
+          router.push(`/chat/${newChatId}`);
+          return;
+        }
+
+        // Create attachments array from uploaded files
+        const attachments = attachedFiles
+          .filter((fileWithUrl) => fileWithUrl.uploadResult)
+          .map((fileWithUrl) => ({
+            name: fileWithUrl.file.name,
+            contentType: fileWithUrl.file.type,
+            url: fileWithUrl.uploadResult!.url,
+          }));
+
+        const messageOptions =
+          attachments.length > 0 ? { experimental_attachments: attachments } : {};
+
+        handleSubmit(e, messageOptions);
+        setAttachedFiles([]);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error("Unknown form submit error");
+        logError(err, "Form Submit Error", {
+          chatId,
+          selectedModel,
+          inputLength: input.length,
+          attachedFilesCount: attachedFiles.length,
+          hasAttachments: attachedFiles.length > 0,
+        });
+        setUiError(`Failed to send message: ${err.message}`);
+      }
     },
     [
       attachedFiles,
@@ -227,13 +452,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     <div className="flex h-full flex-col">
       {/* Messages */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-4">
           {messages.map((message) => (
             <div key={message.id} className="w-full max-w-full">
               <MessageBubble
                 message={message}
                 onRetry={handleRetryMessage}
                 onFork={handleForkChat}
+                isLoading={isLoading}
               />
             </div>
           ))}
@@ -245,11 +471,75 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
                 <div className="flex max-w-[75%] flex-col items-start gap-2">
                   <div className="rounded-xl bg-content2 px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <div className="h-1 w-1 animate-pulse rounded-full bg-current opacity-60" />
-                      <div className="h-1 w-1 animate-pulse rounded-full bg-current opacity-60 delay-100" />
-                      <div className="h-1 w-1 animate-pulse rounded-full bg-current opacity-60 delay-200" />
+                      {[0, 1, 2].map((index) => (
+                        <motion.div
+                          key={index}
+                          className="h-1 w-1 rounded-full bg-current"
+                          animate={{
+                            opacity: [0.3, 1, 0.3],
+                            scale: [1, 1.2, 1],
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            delay: index * 0.2,
+                            ease: "easeInOut",
+                          }}
+                        />
+                      ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Display */}
+          {(error || uiError) && (
+            <div className="w-full max-w-full">
+              <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <div className="h-2 w-2 flex-shrink-0 rounded-full bg-danger" />
+                      <p className="text-sm font-medium text-danger">
+                        {error ? "Connection Error" : "Notice"}
+                      </p>
+                    </div>
+
+                    {error && (
+                      <p className="mb-2 text-xs leading-relaxed text-danger/80">{error.message}</p>
+                    )}
+                    {uiError && (
+                      <p className="mb-2 text-xs leading-relaxed text-danger/80">{uiError}</p>
+                    )}
+
+                    {error && (
+                      <Button
+                        size="sm"
+                        color="danger"
+                        variant="flat"
+                        onPress={handleRetryMessage}
+                        className="h-7 px-3 text-xs"
+                      >
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+
+                  {uiError && !error && (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="light"
+                      color="danger"
+                      onPress={() => setUiError(null)}
+                      aria-label="Dismiss error"
+                      className="h-6 w-6 min-w-0 flex-shrink-0"
+                    >
+                      <XMarkIcon className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -260,36 +550,38 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="mx-4 rounded-lg border border-danger bg-danger/10 p-3 text-danger">
-          <p className="text-xs">Error: {error.message}</p>
-          <Button size="sm" color="danger" variant="flat" onPress={() => reload()} className="mt-2">
-            Retry
-          </Button>
+      {/* Upload Progress */}
+      {uploadProgress > 0 && uploadProgress < 100 && (
+        <div className="px-4 py-2">
+          <Progress value={uploadProgress} className="mx-auto max-w-3xl" />
         </div>
       )}
 
       {/* File Attachments */}
       {attachedFiles.length > 0 && (
         <div className="border-t border-divider px-4 py-3">
-          <FileAttachment files={attachedFiles} onRemove={handleRemoveFile} />
+          <div className="mx-auto max-w-3xl">
+            <FileAttachment files={attachedFiles.map((f) => f.file)} onRemove={handleRemoveFile} />
+          </div>
         </div>
       )}
 
       {/* Input Area */}
-      <div className="px-4 pb-0 pt-4" suppressHydrationWarning>
+      <div className="px-4 pb-4 pt-4" suppressHydrationWarning>
         <div className="relative mx-auto max-w-3xl">
           {/* Scroll to Bottom Button */}
           {scrollToBottomButton}
 
           {/* Form */}
           <form onSubmit={handleFormSubmit}>
-            <div className="relative w-full rounded-t-2xl border border-b-0 border-default-200 bg-content2 p-3">
+            <div className="relative w-full rounded-2xl border border-default-200 bg-content2 p-3">
               {/* Textarea */}
               <Textarea
                 value={input}
-                onValueChange={setInput}
+                onValueChange={(value) => {
+                  setInput(value);
+                  if (uiError) setUiError(null);
+                }}
                 placeholder="Type your message here..."
                 variant="flat"
                 minRows={1}
@@ -306,7 +598,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
               {/* Controls Row */}
               <div className="flex items-center justify-between gap-2 pt-2">
                 {/* Left side - Model Controls (includes attachment) */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <ModelSelector />
                   <ModelControls
                     selectedModel={selectedModel}
@@ -343,17 +635,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           </form>
         </div>
       </div>
-
-      {/* Floating New Chat Button (Mobile) */}
-      <Button
-        className="fixed bottom-6 right-6 z-50 lg:hidden"
-        isIconOnly
-        color="primary"
-        size="lg"
-        radius="full"
-      >
-        <PlusIcon className="h-7 w-7" />
-      </Button>
     </div>
   );
 });

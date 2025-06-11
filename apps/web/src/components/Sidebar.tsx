@@ -43,6 +43,8 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  isMobileOpen: boolean;
+  onMobileToggle: (open: boolean) => void;
 }
 
 const mockChats: Chat[] = [
@@ -71,6 +73,8 @@ export const Sidebar = ({
   onSelectChat,
   onNewChat,
   onOpenSettings,
+  isMobileOpen,
+  onMobileToggle,
 }: SidebarProps) => {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -123,19 +127,50 @@ export const Sidebar = ({
     signOut();
   };
 
+  const handleToggleSidebar = () => {
+    // On mobile, use the mobile toggle, on desktop use collapse
+    if (window.innerWidth < 1024) {
+      onMobileToggle(!isMobileOpen);
+    } else {
+      setIsCollapsed(!isCollapsed);
+    }
+  };
+
   return (
     <>
       {/* Mobile Overlay */}
-      {isCollapsed && (
+      {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setIsCollapsed(false)}
+          onClick={() => onMobileToggle(false)}
         />
+      )}
+
+      {/* Mobile Menu Button - Only visible on mobile when sidebar is closed */}
+      {!isMobileOpen && (
+        <Button
+          variant="flat"
+          size="sm"
+          isIconOnly
+          onPress={() => onMobileToggle(true)}
+          className="fixed left-4 top-4 z-30 h-10 w-10 lg:hidden"
+          aria-label="Open menu"
+        >
+          <Bars3Icon className="h-5 w-5" />
+        </Button>
       )}
 
       {/* Sidebar */}
       <div
-        className={`flex h-full flex-col border-r border-divider bg-content1 transition-all duration-300 ease-in-out ${isCollapsed ? "w-16" : "w-72"} lg:relative lg:translate-x-0 ${isCollapsed ? "fixed z-50 lg:relative" : "fixed z-50 lg:relative"} `}
+        className={`flex h-full flex-col border-r border-divider bg-content1 transition-all duration-300 ease-in-out ${
+          // Desktop behavior
+          isCollapsed ? "w-16" : "w-72"
+        } ${
+          // Mobile behavior
+          isMobileOpen
+            ? "fixed left-0 top-0 z-50 w-72 lg:relative lg:translate-x-0"
+            : "fixed -left-72 top-0 z-50 w-72 lg:relative lg:left-0 lg:translate-x-0"
+        }`}
       >
         {/* Header */}
         <div className="border-b border-divider p-3">
@@ -145,10 +180,15 @@ export const Sidebar = ({
               variant="light"
               size="sm"
               isIconOnly
-              onPress={() => setIsCollapsed(!isCollapsed)}
+              onPress={handleToggleSidebar}
               className="h-8 w-8"
             >
-              {isCollapsed ? <Bars3Icon className="h-4 w-4" /> : <XMarkIcon className="h-4 w-4" />}
+              {(isCollapsed && window.innerWidth >= 1024) ||
+              (!isMobileOpen && window.innerWidth < 1024) ? (
+                <Bars3Icon className="h-4 w-4" />
+              ) : (
+                <XMarkIcon className="h-4 w-4" />
+              )}
             </Button>
           </div>
 
