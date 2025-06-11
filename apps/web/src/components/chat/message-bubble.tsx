@@ -14,6 +14,7 @@ import { Avatar, Button, Tooltip } from "@heroui/react";
 import type { UIMessage } from "ai";
 import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
+import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { ExpandableSection } from "./expandable-section";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
@@ -30,6 +31,11 @@ const MessageBubble = memo(
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const isUser = message.role === "user";
+
+    const { isReasoningStreaming } = useReasoningSpinner({
+      message,
+      isLoading,
+    });
 
     // Stable callbacks with proper dependencies
     const handleCopy = useCallback(async () => {
@@ -205,6 +211,7 @@ const MessageBubble = memo(
                 title="Reasoning"
                 icon={<CpuChipIcon className="h-4 w-4" />}
                 defaultExpanded={false}
+                isLoading={isReasoningStreaming}
               >
                 <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/70">
                   {part.reasoning}
@@ -267,7 +274,7 @@ const MessageBubble = memo(
             return null;
         }
       });
-    }, [message.parts]);
+    }, [message.parts, isReasoningStreaming]);
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReasoningLevel } from "@/config/models";
-import { useChatScroll } from "@/hooks";
+import { useChatScroll } from "@/hooks/use-chat-scroll";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { uploadFiles, type UploadResult } from "@/utils/supabase/storage";
 import { useChat } from "@ai-sdk/react";
@@ -10,8 +10,8 @@ import { Button, Progress, Textarea } from "@heroui/react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageBubble } from "..";
 import { FileAttachment } from "./file-attachment";
-import MessageBubble from "./message-bubble";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
 

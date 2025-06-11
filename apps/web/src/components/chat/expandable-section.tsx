@@ -9,10 +9,25 @@ interface ExpandableSectionProps {
   children: React.ReactNode;
   defaultExpanded?: boolean;
   variant?: "reasoning" | "tool" | "source" | "default";
+  isLoading?: boolean;
 }
 
+const LoadingSpinner = memo(() => (
+  <div className="flex items-center justify-center">
+    <div className="h-3 w-3 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground/60"></div>
+  </div>
+));
+
+LoadingSpinner.displayName = "LoadingSpinner";
+
 const ExpandableSection = memo(
-  ({ title, icon, children, defaultExpanded = false }: ExpandableSectionProps) => {
+  ({
+    title,
+    icon,
+    children,
+    defaultExpanded = false,
+    isLoading = false,
+  }: ExpandableSectionProps) => {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
     const handleToggle = useCallback(() => {
@@ -28,6 +43,13 @@ const ExpandableSection = memo(
           <div className="flex h-4 w-4 items-center justify-center text-foreground/60">{icon}</div>
 
           <span className="flex-1 text-sm text-foreground/70">{title}</span>
+
+          {/* Loading spinner - only show when isLoading is true */}
+          {isLoading && (
+            <div className="mr-2">
+              <LoadingSpinner />
+            </div>
+          )}
 
           <div
             className={`flex h-4 w-4 items-center justify-center text-foreground/40 transition-transform duration-200 ${
