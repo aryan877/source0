@@ -27,7 +27,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const { messages, input, setInput, handleSubmit, status, stop, reload, error } = useChat({
+  const { messages, input, setInput, handleSubmit, status, stop, reload, error, append } = useChat({
     api: "/api/chat",
     id: chatId,
     body: {
@@ -40,6 +40,38 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const isLoading = status === "submitted" || status === "streaming";
 
   const messagesEndRef = useChatScroll(messages.length);
+
+  // Check for pending message on component mount (for redirected chats)
+  useEffect(() => {
+    if (chatId !== "main") {
+      const pendingMessageKey = `pending-message-${chatId}`;
+      const pendingMessageData = sessionStorage.getItem(pendingMessageKey);
+
+      if (pendingMessageData) {
+        try {
+          const messageData = JSON.parse(pendingMessageData);
+
+          // Set the model settings
+          setReasoningLevel(messageData.reasoningLevel);
+          setSearchEnabled(messageData.searchEnabled);
+
+          // Clear the pending message from storage
+          sessionStorage.removeItem(pendingMessageKey);
+
+          // Send the message directly using append
+          if (messageData.input) {
+            append({
+              role: "user",
+              content: messageData.input,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to parse pending message:", error);
+          sessionStorage.removeItem(pendingMessageKey);
+        }
+      }
+    }
+  }, [chatId, append]);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -104,6 +136,21 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       // If we're on the main chat and this is the first message, navigate to a specific chat
       if (chatId === "main" && messages.length === 0) {
         const newChatId = generateChatId();
+
+        // Store the message data in sessionStorage before redirecting
+        const messageData = {
+          input: input.trim(),
+          attachedFiles: attachedFiles.map((file) => ({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          })),
+          model: selectedModel,
+          reasoningLevel,
+          searchEnabled,
+        };
+
+        sessionStorage.setItem(`pending-message-${newChatId}`, JSON.stringify(messageData));
         router.push(`/chat/${newChatId}`);
         return;
       }
@@ -126,7 +173,18 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       // Auto-scroll on form submit - this will trigger via messagesEndRef hook
       // when messages.length changes, providing better UX
     },
-    [attachedFiles, handleSubmit, input, chatId, messages.length, generateChatId, router]
+    [
+      attachedFiles,
+      handleSubmit,
+      input,
+      chatId,
+      messages.length,
+      generateChatId,
+      router,
+      selectedModel,
+      reasoningLevel,
+      searchEnabled,
+    ]
   );
 
   const handleKeyDown = useCallback(
