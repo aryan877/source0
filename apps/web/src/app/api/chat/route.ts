@@ -278,6 +278,7 @@ export async function POST(req: Request) {
           providerOptions.google = {
             thinkingConfig: {
               thinkingBudget: thinkingBudgetMap[reasoningLevel],
+              includeThoughts: true,
             },
           };
           break;
