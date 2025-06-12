@@ -39,7 +39,7 @@ const MessageContent = memo(({ content }: MessageContentProps) => {
         if (!className?.startsWith("language-")) {
           return (
             <code
-              className="rounded bg-default-100 px-1.5 py-0.5 font-mono text-sm text-default-800 dark:bg-default-200 dark:text-default-800"
+              className="rounded bg-default-100 px-1.5 py-0.5 font-mono text-sm dark:bg-default-200"
               {...props}
             >
               {children}
@@ -57,7 +57,7 @@ const MessageContent = memo(({ content }: MessageContentProps) => {
   );
 
   return (
-    <div className="prose prose-base prose-slate max-w-none dark:prose-invert">
+    <div className="prose prose-base max-w-none dark:prose-invert">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
         rehypePlugins={[rehypeRaw, rehypeKatex, rehypeSanitize]}

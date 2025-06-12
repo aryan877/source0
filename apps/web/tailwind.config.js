@@ -33,6 +33,352 @@ export default {
           950: "oklch(0.47 0.157 37.304)",
         },
       },
+      typography: (theme) => ({
+        DEFAULT: {
+          css: {
+            // Override all text colors to use foreground
+            color: theme("colors.foreground"),
+            '[class~="lead"]': {
+              color: theme("colors.foreground"),
+            },
+            a: {
+              color: theme("colors.primary.DEFAULT"),
+              "&:hover": {
+                color: theme("colors.primary.600"),
+              },
+            },
+            strong: {
+              color: theme("colors.foreground"),
+            },
+            "ol > li::before": {
+              color: theme("colors.foreground"),
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.foreground"),
+            },
+            blockquote: {
+              color: theme("colors.foreground"),
+              borderLeftColor: theme("colors.divider"),
+            },
+            h1: {
+              color: theme("colors.foreground"),
+            },
+            h2: {
+              color: theme("colors.foreground"),
+            },
+            h3: {
+              color: theme("colors.foreground"),
+            },
+            h4: {
+              color: theme("colors.foreground"),
+            },
+            h5: {
+              color: theme("colors.foreground"),
+            },
+            h6: {
+              color: theme("colors.foreground"),
+            },
+            "figure figcaption": {
+              color: theme("colors.foreground"),
+            },
+            code: {
+              color: theme("colors.foreground"),
+            },
+            "a code": {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            pre: {
+              color: theme("colors.foreground"),
+              backgroundColor: theme("colors.content1"),
+            },
+            "pre code": {
+              color: theme("colors.foreground"),
+            },
+            thead: {
+              color: theme("colors.foreground"),
+              borderBottomColor: theme("colors.divider"),
+            },
+            "tbody tr": {
+              borderBottomColor: theme("colors.divider"),
+            },
+            "tbody td": {
+              color: theme("colors.foreground"),
+            },
+            p: {
+              color: theme("colors.foreground"),
+            },
+            li: {
+              color: theme("colors.foreground"),
+            },
+            em: {
+              color: theme("colors.foreground"),
+            },
+            hr: {
+              borderColor: theme("colors.divider"),
+            },
+          },
+        },
+        sm: {
+          css: {
+            color: theme("colors.foreground"),
+            '[class~="lead"]': {
+              color: theme("colors.foreground"),
+            },
+            a: {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            strong: {
+              color: theme("colors.foreground"),
+            },
+            "ol > li::before": {
+              color: theme("colors.foreground"),
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.foreground"),
+            },
+            blockquote: {
+              color: theme("colors.foreground"),
+            },
+            h1: {
+              color: theme("colors.foreground"),
+            },
+            h2: {
+              color: theme("colors.foreground"),
+            },
+            h3: {
+              color: theme("colors.foreground"),
+            },
+            h4: {
+              color: theme("colors.foreground"),
+            },
+            "figure figcaption": {
+              color: theme("colors.foreground"),
+            },
+            code: {
+              color: theme("colors.foreground"),
+            },
+            "a code": {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            pre: {
+              color: theme("colors.foreground"),
+            },
+            "pre code": {
+              color: theme("colors.foreground"),
+            },
+            thead: {
+              color: theme("colors.foreground"),
+            },
+            "tbody td": {
+              color: theme("colors.foreground"),
+            },
+            p: {
+              color: theme("colors.foreground"),
+            },
+            li: {
+              color: theme("colors.foreground"),
+            },
+            em: {
+              color: theme("colors.foreground"),
+            },
+          },
+        },
+        lg: {
+          css: {
+            color: theme("colors.foreground"),
+            '[class~="lead"]': {
+              color: theme("colors.foreground"),
+            },
+            a: {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            strong: {
+              color: theme("colors.foreground"),
+            },
+            "ol > li::before": {
+              color: theme("colors.foreground"),
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.foreground"),
+            },
+            blockquote: {
+              color: theme("colors.foreground"),
+            },
+            h1: {
+              color: theme("colors.foreground"),
+            },
+            h2: {
+              color: theme("colors.foreground"),
+            },
+            h3: {
+              color: theme("colors.foreground"),
+            },
+            h4: {
+              color: theme("colors.foreground"),
+            },
+            "figure figcaption": {
+              color: theme("colors.foreground"),
+            },
+            code: {
+              color: theme("colors.foreground"),
+            },
+            "a code": {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            pre: {
+              color: theme("colors.foreground"),
+            },
+            "pre code": {
+              color: theme("colors.foreground"),
+            },
+            thead: {
+              color: theme("colors.foreground"),
+            },
+            "tbody td": {
+              color: theme("colors.foreground"),
+            },
+            p: {
+              color: theme("colors.foreground"),
+            },
+            li: {
+              color: theme("colors.foreground"),
+            },
+            em: {
+              color: theme("colors.foreground"),
+            },
+          },
+        },
+        xl: {
+          css: {
+            color: theme("colors.foreground"),
+            '[class~="lead"]': {
+              color: theme("colors.foreground"),
+            },
+            a: {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            strong: {
+              color: theme("colors.foreground"),
+            },
+            "ol > li::before": {
+              color: theme("colors.foreground"),
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.foreground"),
+            },
+            blockquote: {
+              color: theme("colors.foreground"),
+            },
+            h1: {
+              color: theme("colors.foreground"),
+            },
+            h2: {
+              color: theme("colors.foreground"),
+            },
+            h3: {
+              color: theme("colors.foreground"),
+            },
+            h4: {
+              color: theme("colors.foreground"),
+            },
+            "figure figcaption": {
+              color: theme("colors.foreground"),
+            },
+            code: {
+              color: theme("colors.foreground"),
+            },
+            "a code": {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            pre: {
+              color: theme("colors.foreground"),
+            },
+            "pre code": {
+              color: theme("colors.foreground"),
+            },
+            thead: {
+              color: theme("colors.foreground"),
+            },
+            "tbody td": {
+              color: theme("colors.foreground"),
+            },
+            p: {
+              color: theme("colors.foreground"),
+            },
+            li: {
+              color: theme("colors.foreground"),
+            },
+            em: {
+              color: theme("colors.foreground"),
+            },
+          },
+        },
+        "2xl": {
+          css: {
+            color: theme("colors.foreground"),
+            '[class~="lead"]': {
+              color: theme("colors.foreground"),
+            },
+            a: {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            strong: {
+              color: theme("colors.foreground"),
+            },
+            "ol > li::before": {
+              color: theme("colors.foreground"),
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.foreground"),
+            },
+            blockquote: {
+              color: theme("colors.foreground"),
+            },
+            h1: {
+              color: theme("colors.foreground"),
+            },
+            h2: {
+              color: theme("colors.foreground"),
+            },
+            h3: {
+              color: theme("colors.foreground"),
+            },
+            h4: {
+              color: theme("colors.foreground"),
+            },
+            "figure figcaption": {
+              color: theme("colors.foreground"),
+            },
+            code: {
+              color: theme("colors.foreground"),
+            },
+            "a code": {
+              color: theme("colors.primary.DEFAULT"),
+            },
+            pre: {
+              color: theme("colors.foreground"),
+            },
+            "pre code": {
+              color: theme("colors.foreground"),
+            },
+            thead: {
+              color: theme("colors.foreground"),
+            },
+            "tbody td": {
+              color: theme("colors.foreground"),
+            },
+            p: {
+              color: theme("colors.foreground"),
+            },
+            li: {
+              color: theme("colors.foreground"),
+            },
+            em: {
+              color: theme("colors.foreground"),
+            },
+          },
+        },
+      }),
       animation: {
         "fade-in": "fadeIn 0.3s ease-out",
         "slide-up": "slideUp 0.3s ease-out",

@@ -23,6 +23,7 @@ import {
   CpuChipIcon,
   DocumentIcon,
   EyeIcon,
+  InformationCircleIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
   PhotoIcon,
@@ -47,6 +48,7 @@ import {
 } from "@heroui/react";
 import { Pin, PinOff } from "lucide-react";
 import React, { useCallback, useEffect, useMemo } from "react";
+import { ProviderIcon } from "./provider-section";
 
 interface ModelSelectorProps {
   value?: string;
@@ -66,25 +68,26 @@ const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability
 CapabilityIcon.displayName = "CapabilityIcon";
 
 const ModelAvatar = React.memo(({ model }: { model: ModelConfig }) => {
-  const providerColors = {
-    Google: "success",
-    OpenAI: "primary",
-    Anthropic: "secondary",
-    Meta: "warning",
-    DeepSeek: "danger",
-    xAI: "default",
-    Qwen: "success",
-  } as const;
-
   return (
-    <Avatar
-      size="sm"
-      icon={
-        model.isFree ? <BoltIcon className="h-4 w-4" /> : <LockClosedIcon className="h-4 w-4" />
-      }
-      color={model.isFree ? providerColors[model.provider] : "default"}
-      className="flex-shrink-0"
-    />
+    <div className="relative flex-shrink-0">
+      <Avatar
+        size="sm"
+        icon={<ProviderIcon provider={model.provider} />}
+        className="flex-shrink-0"
+      />
+      {/* Free/Pro indicator in bottom right corner */}
+      <div className="absolute -bottom-1 -right-1">
+        {model.isFree ? (
+          <div className="rounded-full bg-green-500 p-0.5">
+            <BoltIcon className="h-2.5 w-2.5 text-white" />
+          </div>
+        ) : (
+          <div className="rounded-full bg-orange-500 p-0.5">
+            <LockClosedIcon className="h-2.5 w-2.5 text-white" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 });
 ModelAvatar.displayName = "ModelAvatar";
@@ -415,8 +418,10 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
   );
 
   const renderModelItem = (model: ModelConfig, isFavorite: boolean, showPinOnHover = false) => (
-    <div className="group relative flex w-full items-center gap-3">
-      <ModelAvatar model={model} />
+    <div className="group relative flex w-full items-start gap-3">
+      <div className="relative flex-shrink-0">
+        <ModelAvatar model={model} />
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -430,58 +435,63 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
 
         <div className="flex flex-wrap items-center gap-1 text-xs text-default-500">
           <span className="truncate">{model.provider}</span>
-          {model.capabilities.length > 0 && (
+          {model.description && (
             <>
               <span className="hidden sm:inline">•</span>
-              <div className="flex flex-wrap items-center gap-1">
-                {model.capabilities.map((capability) => (
-                  <Tooltip
-                    key={capability}
-                    content={CAPABILITY_LABELS[capability]}
-                    placement="top"
-                    delay={500}
-                    closeDelay={100}
-                    showArrow
-                    size="sm"
-                  >
-                    <div>
-                      <CapabilityIcon capability={capability} />
-                    </div>
-                  </Tooltip>
-                ))}
-              </div>
+              <Tooltip
+                content={model.description}
+                placement="top"
+                delay={300}
+                closeDelay={100}
+                showArrow
+                size="sm"
+                classNames={{
+                  content: "max-w-xs text-xs p-2",
+                }}
+              >
+                <InformationCircleIcon className="h-3 w-3 text-default-400 hover:text-default-600" />
+              </Tooltip>
             </>
           )}
         </div>
 
-        <p className="line-clamp-2 break-words text-xs text-default-400">{model.description}</p>
-      </div>
-
-      <div className="flex flex-shrink-0 items-center gap-2">
-        {!model.isFree && (
-          <Chip variant="flat" size="sm" className="text-xs">
-            Pro
-          </Chip>
+        {/* Capability icons in a separate row below */}
+        {model.capabilities.length > 0 && (
+          <div className="mt-1 flex items-center gap-1.5">
+            {model.capabilities.map((capability) => (
+              <Tooltip
+                key={capability}
+                content={CAPABILITY_LABELS[capability]}
+                placement="top"
+                delay={500}
+                closeDelay={100}
+                showArrow
+                size="sm"
+              >
+                <div>
+                  <CapabilityIcon capability={capability} />
+                </div>
+              </Tooltip>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Pin button for expanded view - positioned at top corner */}
+      {/* Pin button as elegant overlay on absolute top-right corner */}
       {showPinOnHover && (
-        <div className="absolute -right-1 -top-1 z-10">
-          <Button
-            isIconOnly
-            size="sm"
-            variant="flat"
-            className="h-6 w-6 min-w-6 border border-divider/60 bg-background/95 opacity-0 shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:border-primary/40 group-hover:opacity-100"
-            onPress={() => handleToggleFavorite(model.id)}
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-            aria-label={isFavorite ? "Unpin from favorites" : "Pin to favorites"}
-          >
-            <PinIcon isPinned={isFavorite} />
-          </Button>
-        </div>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="flat"
+          className="absolute -right-1 -top-1 h-6 w-6 min-w-6 border border-divider/60 bg-background/95 opacity-0 shadow-sm backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:border-primary/60 hover:bg-primary/10 group-hover:opacity-100"
+          onPress={() => handleToggleFavorite(model.id)}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          aria-label={isFavorite ? "Unpin from favorites" : "Pin to favorites"}
+        >
+          <PinIcon isPinned={isFavorite} />
+        </Button>
       )}
     </div>
   );

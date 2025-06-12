@@ -71,7 +71,7 @@ const ExpandableSection = memo(
           <div className="overflow-hidden">
             <div className="px-3 pb-3 pt-1">
               <div className="rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
-                <div className="leading-relaxed text-foreground/70 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
+                <div className="leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
                   {children}
                 </div>
               </div>

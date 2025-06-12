@@ -223,7 +223,8 @@ export async function POST(req: Request) {
     let systemMessage = "";
 
     if (modelConfig.capabilities.includes("search") && searchEnabled) {
-      systemMessage += "You have access to web search capabilities when needed. ";
+      systemMessage +=
+        "You have access to web search capabilities. Use search to find current, accurate information when needed. Always cite your sources when using search results. ";
     }
 
     if (modelConfig.capabilities.includes("image")) {
@@ -244,13 +245,35 @@ export async function POST(req: Request) {
         ]
       : messages;
 
-    // Conditionally create model instance with search grounding for Google models
-    const modelInstance =
+    // Create model instance with search grounding for Google models
+    let modelInstance;
+    if (
       modelConfig.provider === "Google" &&
       modelConfig.capabilities.includes("search") &&
       searchEnabled
-        ? google(modelMapping.model!, { useSearchGrounding: true })
-        : modelMapping.provider!(modelMapping.model!);
+    ) {
+      // For Gemini 1.5 models, use search grounding
+      if (modelConfig.apiModelName?.includes("1.5")) {
+        const searchGroundingConfig: any = {
+          useSearchGrounding: true,
+          dynamicRetrievalConfig: {
+            mode: "MODE_DYNAMIC",
+            dynamicThreshold: 0.3, // Lower threshold means more likely to use search
+          },
+        };
+
+        modelInstance = google(modelMapping.model!, searchGroundingConfig);
+        console.log(`🔍 Search grounding enabled for ${modelConfig.name} with dynamic retrieval`);
+      } else {
+        // For Gemini 2.0+ models, search is handled as a tool
+        modelInstance = google(modelMapping.model!);
+        console.log(
+          `🔍 Search tool available for ${modelConfig.name} (Gemini 2.0+ uses search as tool)`
+        );
+      }
+    } else {
+      modelInstance = modelMapping.provider!(modelMapping.model!);
+    }
 
     // Add provider-specific options based on model configuration
     const providerOptions: Record<string, Record<string, JSONValue>> = {};
@@ -322,6 +345,7 @@ export async function POST(req: Request) {
 
     return result.toDataStreamResponse({
       sendReasoning: true,
+      sendSources: true, // Enable sending sources in the response
       getErrorMessage: (error) => {
         const serverError = error instanceof Error ? error : new Error(String(error));
         logServerError(serverError, "Data Stream Response Error", requestContext);

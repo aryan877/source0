@@ -143,9 +143,7 @@ const MessageBubble = memo(
                       Tool Call
                     </h4>
                     <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                      <code className="font-mono text-sm font-medium text-foreground/80">
-                        {toolName}
-                      </code>
+                      <code className="font-mono text-sm font-medium">{toolName}</code>
                     </div>
                   </div>
 
@@ -156,7 +154,7 @@ const MessageBubble = memo(
                         Arguments
                       </h4>
                       <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground/80">
+                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                           {JSON.stringify(toolInvocation.args, null, 2)}
                         </pre>
                       </div>
@@ -170,7 +168,7 @@ const MessageBubble = memo(
                         Result
                       </h4>
                       <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground/80">
+                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                           {typeof toolInvocation.result === "string"
                             ? toolInvocation.result
                             : JSON.stringify(toolInvocation.result, null, 2)}
@@ -247,9 +245,7 @@ const MessageBubble = memo(
                         Title
                       </h4>
                       <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <div className="text-sm font-medium text-foreground/80">
-                          {part.source.title}
-                        </div>
+                        <div className="text-sm font-medium">{part.source.title}</div>
                       </div>
                     </div>
                   )}
