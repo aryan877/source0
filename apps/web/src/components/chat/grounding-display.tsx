@@ -20,9 +20,34 @@ const GroundingDisplay = memo(({ grounding }: GroundingDisplayProps) => {
       .filter(Boolean) as GroundingChunk[];
   };
 
+  // Extract unique domains from all sources
+  const getUniqueDomains = () => {
+    const domains = new Set<string>();
+
+    if (grounding.groundingSupports) {
+      grounding.groundingSupports.forEach((support) => {
+        const sources = getSourcesForSegment(support.groundingChunkIndices);
+        sources.forEach((source) => {
+          if (source.web?.title) {
+            domains.add(source.web.title);
+          }
+        });
+      });
+    }
+
+    return Array.from(domains);
+  };
+
+  const uniqueDomains = getUniqueDomains();
+  const maxDomainsToShow = 3;
+  const domainText =
+    uniqueDomains.length > 0
+      ? `(${uniqueDomains.slice(0, maxDomainsToShow).join(", ")}${uniqueDomains.length > maxDomainsToShow ? "..." : ""})`
+      : "";
+
   return (
     <ExpandableSection
-      title="Sources"
+      title={`Sources ${domainText}`}
       icon={<MagnifyingGlassIcon className="h-4 w-4" />}
       variant="source"
       defaultExpanded={false}
