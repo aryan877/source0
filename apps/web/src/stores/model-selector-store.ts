@@ -16,7 +16,6 @@ interface ModelSelectorState {
   // Filter State
   selectedCapabilities: ModelCapability[];
   selectedProvider: ModelConfig["provider"] | null;
-  showFreeOnly: boolean;
 
   // Favorites State
   favorites: string[];
@@ -34,7 +33,6 @@ interface ModelSelectorState {
   setSearchQuery: (query: string) => void;
   setSelectedCapabilities: (capabilities: ModelCapability[]) => void;
   setSelectedProvider: (provider: ModelConfig["provider"] | null) => void;
-  setShowFreeOnly: (showFreeOnly: boolean) => void;
   setFavorites: (favorites: string[]) => void;
   toggleFavorite: (modelId: string) => void;
   setSelectedModel: (modelId: string) => void;
@@ -53,7 +51,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       searchQuery: "",
       selectedCapabilities: [],
       selectedProvider: null,
-      showFreeOnly: false,
       favorites: [],
       selectedModel: DEFAULT_MODEL,
       hasHydrated: false,
@@ -68,7 +65,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
             searchQuery: "",
             selectedCapabilities: [],
             selectedProvider: null,
-            showFreeOnly: false,
           });
         }
       },
@@ -85,8 +81,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       setSelectedCapabilities: (selectedCapabilities) => set({ selectedCapabilities }),
 
       setSelectedProvider: (selectedProvider) => set({ selectedProvider }),
-
-      setShowFreeOnly: (showFreeOnly) => set({ showFreeOnly }),
 
       setFavorites: (favorites) => set({ favorites }),
 
@@ -107,7 +101,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           searchQuery: "",
           selectedCapabilities: [],
           selectedProvider: null,
-          showFreeOnly: false,
         });
       },
 
@@ -117,7 +110,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           searchQuery: "",
           selectedCapabilities: [],
           selectedProvider: null,
-          showFreeOnly: false,
         });
       },
 
@@ -128,7 +120,6 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           searchQuery: "",
           selectedCapabilities: [],
           selectedProvider: null,
-          showFreeOnly: false,
         });
       },
     }),

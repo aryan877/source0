@@ -30,7 +30,6 @@ export interface ModelConfig {
   apiModelName?: string;
   capabilities: ModelCapability[];
   reasoningLevels?: ReasoningLevel[];
-  isFree: boolean;
   isOpenSource: boolean;
   maxTokens?: number;
   supportsStreaming: boolean;
@@ -53,7 +52,6 @@ const createModel = (
   provider,
   apiModelName,
   capabilities: [],
-  isFree: provider === "Google" || provider === "Meta" || provider === "Qwen",
   isOpenSource: provider === "Meta" || provider === "Qwen",
   maxTokens: 8192,
   supportsStreaming: true,
@@ -105,7 +103,6 @@ export const MODELS: ModelConfig[] = [
     {
       capabilities: ["image", "pdf", "search", "reasoning"],
       reasoningLevels: ["low", "medium", "high"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -113,7 +110,6 @@ export const MODELS: ModelConfig[] = [
   // GPT Models
   createModel("gpt-4o", "GPT-4o", "Advanced multimodal model with reasoning", "OpenAI", "gpt-4o", {
     capabilities: ["image"],
-    isFree: false,
     maxTokens: 4096,
     category: "flagship",
   }),
@@ -125,14 +121,12 @@ export const MODELS: ModelConfig[] = [
     "gpt-4o-mini",
     {
       capabilities: ["image"],
-      isFree: false,
       maxTokens: 4096,
     }
   ),
   createModel("o3-mini", "o3-mini", "Compact reasoning model", "OpenAI", "o3-mini", {
     capabilities: ["reasoning"],
     reasoningLevels: ["low", "medium", "high"],
-    isFree: false,
     maxTokens: 4096,
     supportsFunctions: false,
     category: "reasoning",
@@ -146,7 +140,6 @@ export const MODELS: ModelConfig[] = [
     {
       capabilities: ["reasoning", "image"],
       reasoningLevels: ["low", "medium", "high"],
-      isFree: false,
       maxTokens: 4096,
       supportsFunctions: false,
       category: "reasoning",
@@ -160,7 +153,6 @@ export const MODELS: ModelConfig[] = [
     "gpt-4.5",
     {
       capabilities: ["image"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -174,7 +166,6 @@ export const MODELS: ModelConfig[] = [
     "gpt-4.1",
     {
       capabilities: ["image"],
-      isFree: false,
       maxTokens: 32768,
       category: "flagship",
     }
@@ -187,7 +178,6 @@ export const MODELS: ModelConfig[] = [
     "gpt-4.1-mini",
     {
       capabilities: ["image"],
-      isFree: false,
       maxTokens: 32768,
     }
   ),
@@ -199,7 +189,6 @@ export const MODELS: ModelConfig[] = [
     "gpt-4.1-nano",
     {
       capabilities: ["image"],
-      isFree: false,
       maxTokens: 32768,
     }
   ),
@@ -213,7 +202,6 @@ export const MODELS: ModelConfig[] = [
     "gpt-image-1",
     {
       capabilities: ["image-generation"],
-      isFree: false,
       maxTokens: 4096,
       supportsStreaming: false,
       supportsFunctions: false,
@@ -230,7 +218,6 @@ export const MODELS: ModelConfig[] = [
     "claude-3-5-sonnet-20241022",
     {
       capabilities: ["image", "pdf"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -242,7 +229,6 @@ export const MODELS: ModelConfig[] = [
     "claude-3-7-sonnet-20250219",
     {
       capabilities: ["image", "pdf"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -255,7 +241,6 @@ export const MODELS: ModelConfig[] = [
     {
       capabilities: ["image", "pdf", "reasoning"],
       reasoningLevels: ["low", "medium", "high"],
-      isFree: false,
       category: "reasoning",
     }
   ),
@@ -267,7 +252,6 @@ export const MODELS: ModelConfig[] = [
     "claude-sonnet-4-20250514",
     {
       capabilities: ["image", "pdf"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -280,7 +264,6 @@ export const MODELS: ModelConfig[] = [
     {
       capabilities: ["image", "pdf", "reasoning"],
       reasoningLevels: ["low", "medium", "high"],
-      isFree: false,
       category: "reasoning",
     }
   ),
@@ -292,7 +275,6 @@ export const MODELS: ModelConfig[] = [
     "claude-opus-4-20250514",
     {
       capabilities: ["image", "pdf", "reasoning"],
-      isFree: false,
       category: "flagship",
     }
   ),
@@ -335,7 +317,7 @@ export const MODELS: ModelConfig[] = [
     "Advanced language model",
     "DeepSeek",
     "deepseek-ai/DeepSeek-V3-Base",
-    { isFree: false, isOpenSource: false }
+    { isOpenSource: false }
   ),
   createModel(
     "deepseek-v3-chat",
@@ -343,7 +325,7 @@ export const MODELS: ModelConfig[] = [
     "Conversational AI model",
     "DeepSeek",
     "deepseek-ai/DeepSeek-V3",
-    { isFree: false, isOpenSource: false }
+    { isOpenSource: false }
   ),
   createModel(
     "deepseek-r1-preview",
@@ -351,7 +333,7 @@ export const MODELS: ModelConfig[] = [
     "Advanced language model",
     "DeepSeek",
     "deepseek-reasoner",
-    { isFree: false, isOpenSource: false }
+    { isOpenSource: false }
   ),
   createModel(
     "deepseek-r1-zero",
@@ -359,20 +341,18 @@ export const MODELS: ModelConfig[] = [
     "Specialized language model",
     "DeepSeek",
     "deepseek-r1-zero",
-    { isFree: false, isOpenSource: false }
+    { isOpenSource: false }
   ),
 
   // xAI Models
   createModel("grok-3", "Grok 3", "Advanced reasoning model", "xAI", "grok-3", {
     capabilities: ["reasoning"],
-    isFree: false,
     isOpenSource: false,
     category: "reasoning",
   }),
   createModel("grok-3-mini", "Grok 3 Mini", "Efficient reasoning model", "xAI", "grok-3-mini", {
     capabilities: ["reasoning"],
     reasoningLevels: ["low", "high"],
-    isFree: false,
     isOpenSource: false,
     maxTokens: 4096,
     category: "reasoning",
@@ -413,7 +393,6 @@ export const getModelsByCategory = (category: ModelConfig["category"]) =>
   MODELS.filter((m) => m.category === category);
 
 // Computed properties
-export const FREE_MODELS = MODELS.filter((m) => m.isFree).map((m) => m.id);
 export const REASONING_MODELS = MODELS.filter((m) => m.capabilities.includes("reasoning")).map(
   (m) => m.id
 );
@@ -431,7 +410,6 @@ export const DEFAULT_FAVORITES = ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-
 // Dynamic model groupings
 export const MODEL_GROUPS = {
   Recommended: ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-4-maverick"],
-  "Free Models": FREE_MODELS,
   Reasoning: REASONING_MODELS,
   "Vision & Multimodal": VISION_MODELS,
   "Image Generation": IMAGE_GEN_MODELS,

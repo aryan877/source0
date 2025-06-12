@@ -10,7 +10,6 @@ import {
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import {
   filterModelsByCapabilities,
-  filterModelsByFree,
   filterModelsByProvider,
   getAvailableCapabilities,
   getAvailableProviders,
@@ -18,13 +17,11 @@ import {
 import {
   AdjustmentsHorizontalIcon,
   ArrowLeftIcon,
-  BoltIcon,
   ChevronDownIcon,
   CpuChipIcon,
   DocumentIcon,
   EyeIcon,
   InformationCircleIcon,
-  LockClosedIcon,
   MagnifyingGlassIcon,
   PhotoIcon,
   StarIcon,
@@ -34,7 +31,6 @@ import {
   Button,
   Checkbox,
   CheckboxGroup,
-  Chip,
   Dropdown,
   DropdownItem,
   DropdownMenu,
@@ -43,7 +39,6 @@ import {
   Input,
   Select,
   SelectItem,
-  Switch,
   Tooltip,
 } from "@heroui/react";
 import { Pin, PinOff } from "lucide-react";
@@ -75,18 +70,6 @@ const ModelAvatar = React.memo(({ model }: { model: ModelConfig }) => {
         icon={<ProviderIcon provider={model.provider} />}
         className="flex-shrink-0"
       />
-      {/* Free/Pro indicator in bottom right corner */}
-      <div className="absolute -bottom-1 -right-1">
-        {model.isFree ? (
-          <div className="rounded-full bg-green-500 p-0.5">
-            <BoltIcon className="h-2.5 w-2.5 text-white" />
-          </div>
-        ) : (
-          <div className="rounded-full bg-orange-500 p-0.5">
-            <LockClosedIcon className="h-2.5 w-2.5 text-white" />
-          </div>
-        )}
-      </div>
     </div>
   );
 });
@@ -103,22 +86,18 @@ const CompactFilters = ({
   onCapabilitiesChange,
   selectedProvider,
   onProviderChange,
-  showFreeOnly,
-  onFreeOnlyChange,
   onClearFilters,
 }: {
   selectedCapabilities: ModelCapability[];
   onCapabilitiesChange: (capabilities: ModelCapability[]) => void;
   selectedProvider: ModelConfig["provider"] | null;
   onProviderChange: (provider: ModelConfig["provider"] | null) => void;
-  showFreeOnly: boolean;
-  onFreeOnlyChange: (value: boolean) => void;
   onClearFilters: () => void;
 }) => {
   const availableCapabilities = useMemo(() => getAvailableCapabilities(MODELS), []);
   const availableProviders = useMemo(() => getAvailableProviders(MODELS), []);
 
-  const hasActiveFilters = selectedCapabilities.length > 0 || selectedProvider || showFreeOnly;
+  const hasActiveFilters = selectedCapabilities.length > 0 || selectedProvider;
 
   return (
     <Dropdown
@@ -138,8 +117,7 @@ const CompactFilters = ({
           disableRipple
         >
           Filters{" "}
-          {hasActiveFilters &&
-            `(${selectedCapabilities.length + (selectedProvider ? 1 : 0) + (showFreeOnly ? 1 : 0)})`}
+          {hasActiveFilters && `(${selectedCapabilities.length + (selectedProvider ? 1 : 0)})`}
         </Button>
       </DropdownTrigger>
 
@@ -248,18 +226,6 @@ const CompactFilters = ({
             </div>
           </DropdownItem>
 
-          <DropdownItem
-            key="free-only-filter"
-            textValue="Free Only"
-            closeOnSelect={false}
-            classNames={{ base: "cursor-default p-2 data-[hover=true]:bg-transparent" }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">Free models only</span>
-              <Switch size="sm" isSelected={showFreeOnly} onValueChange={onFreeOnlyChange} />
-            </div>
-          </DropdownItem>
-
           {hasActiveFilters ? (
             <DropdownItem
               key="clear-all"
@@ -302,7 +268,6 @@ function useModelFiltering(
   searchQuery: string,
   selectedCapabilities: ModelCapability[],
   selectedProvider: ModelConfig["provider"] | null,
-  showFreeOnly: boolean,
   favorites: string[]
 ) {
   return useMemo(() => {
@@ -324,10 +289,6 @@ function useModelFiltering(
       models = filterModelsByProvider(models, selectedProvider);
     }
 
-    if (showFreeOnly) {
-      models = filterModelsByFree(models, true);
-    }
-
     return models.sort((a, b) => {
       const aIsFav = favorites.includes(a.id);
       const bIsFav = favorites.includes(b.id);
@@ -336,7 +297,7 @@ function useModelFiltering(
       if (!aIsFav && bIsFav) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [searchQuery, selectedCapabilities, selectedProvider, showFreeOnly, favorites]);
+  }, [searchQuery, selectedCapabilities, selectedProvider, favorites]);
 }
 
 export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
@@ -346,7 +307,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     searchQuery,
     selectedCapabilities,
     selectedProvider,
-    showFreeOnly,
     favorites,
     selectedModel: storeSelectedModel,
     hasHydrated,
@@ -355,7 +315,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     setSearchQuery,
     setSelectedCapabilities,
     setSelectedProvider,
-    setShowFreeOnly,
     toggleFavorite,
     setSelectedModel,
     setHasHydrated,
@@ -378,7 +337,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     searchQuery,
     selectedCapabilities,
     selectedProvider,
-    showFreeOnly,
     favorites
   );
 
@@ -426,11 +384,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-semibold">{model.name}</span>
-          {model.isFree && (
-            <Chip color="success" variant="flat" size="sm" className="text-xs">
-              Free
-            </Chip>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1 text-xs text-default-500">
@@ -572,8 +525,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
                     onCapabilitiesChange={setSelectedCapabilities}
                     selectedProvider={selectedProvider}
                     onProviderChange={setSelectedProvider}
-                    showFreeOnly={showFreeOnly}
-                    onFreeOnlyChange={setShowFreeOnly}
                     onClearFilters={clearFilters}
                   />
                 </div>
