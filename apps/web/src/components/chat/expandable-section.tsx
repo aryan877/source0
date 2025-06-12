@@ -10,6 +10,7 @@ interface ExpandableSectionProps {
   defaultExpanded?: boolean;
   variant?: "reasoning" | "tool" | "source" | "default";
   isLoading?: boolean;
+  noBg?: boolean;
 }
 
 const LoadingSpinner = memo(() => (
@@ -27,6 +28,7 @@ const ExpandableSection = memo(
     children,
     defaultExpanded = false,
     isLoading = false,
+    noBg = false,
   }: ExpandableSectionProps) => {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
@@ -70,11 +72,17 @@ const ExpandableSection = memo(
         >
           <div className="overflow-hidden">
             <div className="px-3 pb-3 pt-1">
-              <div className="rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
+              {noBg ? (
                 <div className="leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
                   {children}
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
+                  <div className="leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
+                    {children}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

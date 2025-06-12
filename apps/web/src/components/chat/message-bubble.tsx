@@ -1,12 +1,12 @@
 "use client";
 
+import { type GroundingMetadata } from "@/types/google-metadata";
 import {
   ArrowPathIcon,
   CheckIcon,
   ClipboardDocumentIcon,
   CodeBracketIcon,
   CpuChipIcon,
-  LinkIcon,
   UserIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
@@ -16,6 +16,7 @@ import Image from "next/image";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { ExpandableSection } from "./expandable-section";
+import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 
@@ -215,51 +216,51 @@ const MessageBubble = memo(
               </ExpandableSection>
             );
 
-          case "source": {
-            // Handle source parts with expandable section
-            const domain = new URL(part.source.url).hostname;
-            return (
-              <ExpandableSection
-                key={index}
-                title={part.source.title || domain}
-                icon={<LinkIcon className="h-4 w-4" />}
-                variant="source"
-              >
-                <div className="space-y-4">
-                  <div>
-                    <a
-                      href={part.source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-                    >
-                      <LinkIcon className="h-4 w-4" />
-                      <span className="break-all">{part.source.url}</span>
-                    </a>
-                  </div>
+          // case "source": {
+          //   // Handle source parts with expandable section
+          //   const domain = new URL(part.source.url).hostname;
+          //   return (
+          //     <ExpandableSection
+          //       key={index}
+          //       title={part.source.title || domain}
+          //       icon={<LinkIcon className="h-4 w-4" />}
+          //       variant="source"
+          //     >
+          //       <div className="space-y-4">
+          //         <div>
+          //           <a
+          //             href={part.source.url}
+          //             target="_blank"
+          //             rel="noopener noreferrer"
+          //             className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+          //           >
+          //             <LinkIcon className="h-4 w-4" />
+          //             <span className="break-all">{part.source.url}</span>
+          //           </a>
+          //         </div>
 
-                  {part.source.title && (
-                    <div>
-                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-                        Title
-                      </h4>
-                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <div className="text-sm font-medium">{part.source.title}</div>
-                      </div>
-                    </div>
-                  )}
+          //         {part.source.title && (
+          //           <div>
+          //             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
+          //               <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
+          //               Title
+          //             </h4>
+          //             <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
+          //               <div className="text-sm font-medium">{part.source.title}</div>
+          //             </div>
+          //           </div>
+          //         )}
 
-                  <div className="flex items-center gap-2 border-t border-divider/20 pt-2">
-                    <span className="text-xs font-medium text-foreground/60">Source:</span>
-                    <span className="rounded bg-content2/50 px-2 py-1 font-mono text-xs text-foreground/70">
-                      {domain}
-                    </span>
-                  </div>
-                </div>
-              </ExpandableSection>
-            );
-          }
+          //         <div className="flex items-center gap-2 border-t border-divider/20 pt-2">
+          //           <span className="text-xs font-medium text-foreground/60">Source:</span>
+          //           <span className="rounded bg-content2/50 px-2 py-1 font-mono text-xs text-foreground/70">
+          //             {domain}
+          //           </span>
+          //         </div>
+          //       </div>
+          //     </ExpandableSection>
+          //   );
+          // }
 
           case "step-start":
             return null;
@@ -269,6 +270,39 @@ const MessageBubble = memo(
         }
       });
     }, [message.parts, isReasoningStreaming]);
+
+    const renderGroundingMetadata = useMemo(() => {
+      if (!message.annotations?.length) return null;
+
+      let grounding: GroundingMetadata | null = null;
+      try {
+        const groundingAnnotation = message.annotations.find((annotation) => {
+          if (typeof annotation !== "object" || annotation === null || Array.isArray(annotation)) {
+            return false;
+          }
+          const potentialAnnotation = annotation as Record<string, unknown>;
+          return potentialAnnotation.type === "grounding" && "data" in potentialAnnotation;
+        });
+
+        if (groundingAnnotation) {
+          grounding = (groundingAnnotation as unknown as { data: GroundingMetadata }).data;
+        }
+      } catch {
+        return null;
+      }
+
+      // Only render if we have actual grounding data with content
+      if (
+        !grounding ||
+        (!grounding.webSearchQueries?.length &&
+          !grounding.groundingChunks?.length &&
+          !grounding.groundingSupports?.length)
+      ) {
+        return null;
+      }
+
+      return <GroundingDisplay grounding={grounding} />;
+    }, [message.annotations]);
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
@@ -354,6 +388,7 @@ const MessageBubble = memo(
         >
           <div className={`${isUser ? "rounded-2xl bg-content2 px-5 py-4" : "w-full px-1"}`}>
             {renderMessageParts}
+            {!isUser && renderGroundingMetadata}
           </div>
 
           {/* Action buttons positioned below the message content */}

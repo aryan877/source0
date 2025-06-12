@@ -4,11 +4,14 @@ import {
   type ModelConfig,
   type ReasoningLevel,
 } from "@/config/models";
+import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
+
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
 import {
+  createDataStreamResponse,
   experimental_generateImage as generateImage,
   streamText,
   type JSONValue,
@@ -174,6 +177,7 @@ const createModelInstance = (
 
   // Google with search grounding
   if (config.provider === "Google" && config.capabilities.includes("search") && searchEnabled) {
+    console.log("🔍 Creating Google model with search grounding enabled", { model, searchEnabled });
     return provider(model, {
       useSearchGrounding: true,
       dynamicRetrievalConfig: { mode: "MODE_DYNAMIC" as const, dynamicThreshold: 0.3 },
@@ -182,6 +186,55 @@ const createModelInstance = (
 
   // All other models use standard provider call
   return provider(model);
+};
+
+const logGoogleMetadata = (
+  providerMetadata: ProviderMetadata | undefined,
+  model: string
+): GoogleProviderMetadata["groundingMetadata"] | null => {
+  const grounding = providerMetadata?.google?.groundingMetadata;
+
+  if (grounding) {
+    console.log("🔍 Grounding metadata:", {
+      model,
+      queries: grounding.webSearchQueries?.length ?? 0,
+      chunks: grounding.groundingChunks?.length ?? 0,
+      supports: grounding.groundingSupports?.length ?? 0,
+    });
+
+    // Log search queries concisely
+    if (grounding.webSearchQueries?.length) {
+      console.log("🔍 Search queries:", grounding.webSearchQueries);
+    }
+
+    // Log source domains only (not full URLs)
+    if (grounding.groundingChunks?.length) {
+      const sources = grounding.groundingChunks
+        .map((chunk) => chunk.web?.title || "Unknown")
+        .filter((title, index, arr) => arr.indexOf(title) === index);
+      console.log("🔍 Sources:", sources.join(", "));
+    }
+
+    // Log grounding coverage summary
+    if (grounding.groundingSupports?.length) {
+      const totalTextLength = grounding.groundingSupports.reduce(
+        (sum, support) => sum + (support.segment?.text?.length || 0),
+        0
+      );
+      console.log("🔍 Grounding coverage:", {
+        segments: grounding.groundingSupports.length,
+        avgConfidence: (
+          grounding.groundingSupports
+            .flatMap((s) => s.confidenceScores || [])
+            .reduce((sum, score) => sum + score, 0) /
+          grounding.groundingSupports.flatMap((s) => s.confidenceScores || []).length
+        ).toFixed(2),
+        totalChars: totalTextLength,
+      });
+    }
+  }
+
+  return grounding;
 };
 
 export async function POST(req: Request): Promise<Response> {
@@ -252,28 +305,63 @@ export async function POST(req: Request): Promise<Response> {
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);
     const providerOptions = buildProviderOptions(modelConfig, reasoningLevel);
 
-    const result = streamText({
-      model: modelInstance,
-      messages: finalMessages,
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-      onError: ({ error }) =>
-        logError(error instanceof Error ? error : new Error(String(error)), "Stream Error", {
-          model,
-        }),
-      onFinish: ({ text, finishReason, reasoning }) => {
-        console.log(`✅ Stream completed`, {
-          model,
-          textLength: text?.length || 0,
-          finishReason,
-          hasReasoning: !!reasoning,
+    // Use createDataStreamResponse to properly stream data and annotations
+    return createDataStreamResponse({
+      execute: (dataStream) => {
+        const result = streamText({
+          model: modelInstance,
+          messages: finalMessages,
+          ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+          onError: ({ error }) =>
+            logError(error instanceof Error ? error : new Error(String(error)), "Stream Error", {
+              model,
+            }),
+          onFinish: ({ text, finishReason, reasoning, providerMetadata }) => {
+            console.log(`✅ Stream completed`, {
+              model,
+              textLength: text?.length || 0,
+              finishReason,
+              hasReasoning: !!reasoning,
+              hasProviderMetadata: !!providerMetadata,
+            });
+
+            // Send grounding metadata annotation only on finish
+            if (providerMetadata?.google?.groundingMetadata) {
+              const groundingMetadata = logGoogleMetadata(providerMetadata, model);
+              if (groundingMetadata) {
+                console.log("🔍 Sending final grounding annotation to client", {
+                  type: "grounding",
+                  hasWebSearchQueries: !!groundingMetadata.webSearchQueries?.length,
+                  hasGroundingChunks: !!groundingMetadata.groundingChunks?.length,
+                  hasGroundingSupports: !!groundingMetadata.groundingSupports?.length,
+                });
+
+                try {
+                  dataStream.writeMessageAnnotation({
+                    type: "grounding",
+                    data: groundingMetadata as JSONValue,
+                  });
+                  console.log("✅ Final grounding annotation sent successfully");
+                } catch (error) {
+                  console.error("❌ Failed to send final grounding annotation:", error);
+                }
+              }
+            }
+
+            // Log full provider metadata for debugging
+            if (process.env.NODE_ENV === "development" && providerMetadata) {
+              console.log("🔍 Full providerMetadata:", JSON.stringify(providerMetadata, null, 2));
+            }
+          },
+        });
+
+        // Merge the streamText result into the data stream with automatic options
+        result.mergeIntoDataStream(dataStream, {
+          sendReasoning: modelConfig.capabilities.includes("reasoning"),
+          sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
         });
       },
-    });
-
-    return result.toDataStreamResponse({
-      sendReasoning: true,
-      sendSources: true,
-      getErrorMessage: (error: unknown) => {
+      onError: (error: unknown) => {
         const err = error instanceof Error ? error : new Error(String(error));
         logError(err, "Response Error", { model });
 
