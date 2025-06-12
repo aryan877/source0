@@ -569,14 +569,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       )}
 
       {/* Input Area */}
-      <div className="px-4 pb-4 pt-4" suppressHydrationWarning>
+      <div className="px-4" suppressHydrationWarning>
         <div className="relative mx-auto max-w-3xl">
           {/* Scroll to Bottom Button */}
           {scrollToBottomButton}
 
           {/* Form */}
           <form onSubmit={handleFormSubmit}>
-            <div className="relative w-full rounded-2xl border border-default-200 bg-content2 p-3">
+            <div className="relative w-full rounded-t-2xl border-l border-r border-t border-default-200 bg-content2 p-4">
               {/* Textarea */}
               <Textarea
                 value={input}
