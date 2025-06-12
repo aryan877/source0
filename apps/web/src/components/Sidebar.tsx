@@ -180,7 +180,7 @@ export const Sidebar = ({
         {/* Header */}
         <div className="border-b border-divider p-3">
           <div className="mb-3 flex items-center justify-between">
-            {!isCollapsed && <h2 className="text-lg font-bold text-foreground">DefinitelyNotT3</h2>}
+            {!isCollapsed && <h2 className="text-lg font-bold text-foreground">AlmostT3</h2>}
             <Button variant="light" size="sm" isIconOnly onPress={handleToggle} className="h-8 w-8">
               {(isCollapsed && windowObj && windowObj.innerWidth >= 1024) ||
               (!isMobileOpen && windowObj && windowObj.innerWidth < 1024) ? (
