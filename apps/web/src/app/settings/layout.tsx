@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Settings - DefinitelyNotT3",
+  title: "Settings - AlmostT3",
   description: "Application settings and preferences",
 };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Chat - DefinitelyNotT3",
+  title: "Chat - AlmostT3",
   description: "AI chat conversation",
 };
 
