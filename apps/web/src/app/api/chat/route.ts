@@ -289,7 +289,7 @@ export async function POST(req: Request): Promise<Response> {
       modelConfig.capabilities.includes("image") &&
         "You can analyze and understand images provided by users.",
       modelConfig.capabilities.includes("pdf") && "You can read and analyze PDF documents.",
-      "When sharing code, use proper markdown code blocks with language specification.",
+      "When providing code snippets, always enclose them in markdown code blocks and specify the programming language. For example, ` ```python ... ``` `. If the user requests a niche or fictional language (like 'bhailang'), use that exact name as the language specifier. This is critical for the UI to display the language name correctly.",
     ];
 
     const finalMessages: Message[] = [
