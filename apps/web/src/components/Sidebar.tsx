@@ -4,7 +4,6 @@ import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowRightOnRectangleIcon,
-  Bars3Icon,
   ChatBubbleLeftRightIcon,
   CodeBracketIcon,
   Cog6ToothIcon,
@@ -44,10 +43,8 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
-  isMobileOpen: boolean;
-  onMobileToggle: (open: boolean) => void;
-  isCollapsed: boolean;
-  onToggle: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const mockChats: Chat[] = [
@@ -76,16 +73,14 @@ export const Sidebar = ({
   onSelectChat,
   onNewChat,
   onOpenSettings,
-  isMobileOpen,
-  onMobileToggle,
-  isCollapsed,
-  onToggle,
+  isOpen,
+  onClose,
 }: SidebarProps) => {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { user, signOut } = useAuth();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const windowObj = useWindow();
 
   // Prevent hydration mismatch by only rendering theme switcher after mount
@@ -128,106 +123,50 @@ export const Sidebar = ({
   const currentTheme = resolvedTheme || theme;
 
   const handleSignOut = () => {
-    onClose();
+    onModalClose();
     signOut();
-  };
-
-  const handleToggle = () => {
-    if (!windowObj) return;
-    if (windowObj.innerWidth < 1024) {
-      onMobileToggle(true);
-    } else {
-      onToggle();
-    }
   };
 
   return (
     <>
       {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => onMobileToggle(false)}
-        />
-      )}
-
-      {/* Mobile Menu Button - Only visible on mobile when sidebar is closed */}
-      {!isMobileOpen && (
-        <Button
-          variant="flat"
-          size="sm"
-          isIconOnly
-          onPress={() => onMobileToggle(true)}
-          className="fixed left-4 top-4 z-30 h-10 w-10 lg:hidden"
-          aria-label="Open menu"
-        >
-          <Bars3Icon className="h-5 w-5" />
-        </Button>
+      {isOpen && windowObj && windowObj.innerWidth < 1024 && (
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />
       )}
 
       {/* Sidebar */}
       <div
-        className={`flex h-full flex-col border-r border-divider bg-content1 transition-all duration-300 ease-in-out ${
-          // Desktop behavior
-          isCollapsed ? "w-16" : "w-72"
-        } ${
-          // Mobile behavior
-          isMobileOpen
-            ? "fixed left-0 top-0 z-50 w-72 lg:relative lg:translate-x-0"
-            : "fixed -left-72 top-0 z-50 w-72 lg:relative lg:left-0 lg:translate-x-0"
+        className={`fixed left-0 top-0 z-50 flex h-full w-72 flex-col border-r border-divider bg-content1 transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Header */}
         <div className="border-b border-divider p-3">
-          <div className="mb-3 flex items-center justify-between">
-            {!isCollapsed && <h2 className="text-lg font-bold text-foreground">AlmostT3</h2>}
-            <Button variant="light" size="sm" isIconOnly onPress={handleToggle} className="h-8 w-8">
-              {(isCollapsed && windowObj && windowObj.innerWidth >= 1024) ||
-              (!isMobileOpen && windowObj && windowObj.innerWidth < 1024) ? (
-                <Bars3Icon className="h-4 w-4" />
-              ) : (
-                <XMarkIcon className="h-4 w-4" />
-              )}
-            </Button>
+          <div className="mb-3 flex h-10 items-center">
+            <h2 className="ml-14 text-lg font-bold text-foreground">AlmostT3</h2>
           </div>
 
-          {!isCollapsed && (
-            <Button
-              onPress={handleNewChat}
-              color="primary"
-              size="sm"
-              className="h-8 w-full"
-              startContent={<PlusIcon className="h-4 w-4" />}
-            >
-              New Chat
-            </Button>
-          )}
-
-          {isCollapsed && (
-            <Button
-              onPress={handleNewChat}
-              color="primary"
-              size="sm"
-              isIconOnly
-              className="h-8 w-full"
-            >
-              <PlusIcon className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            onPress={handleNewChat}
+            color="primary"
+            size="sm"
+            className="h-8 w-full"
+            startContent={<PlusIcon className="h-4 w-4" />}
+          >
+            New Chat
+          </Button>
         </div>
 
         {/* Search */}
-        {!isCollapsed && (
-          <div className="border-b border-divider p-3">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search your threads..."
-                className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
+        <div className="border-b border-divider p-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search your threads..."
+              className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
           </div>
-        )}
+        </div>
 
         {/* Chat List */}
         <ScrollShadow className="flex-1 p-2">
@@ -235,79 +174,67 @@ export const Sidebar = ({
             {chats.map((chat) => (
               <div
                 key={chat.id}
-                className={`group relative cursor-pointer rounded-lg transition-all duration-200 ${
+                className={`group relative cursor-pointer rounded-lg p-3 transition-all duration-200 ${
                   selectedChatId === chat.id
                     ? "border border-primary/20 bg-primary/10"
                     : "hover:bg-content2"
-                } ${isCollapsed ? "p-2" : "p-3"} `}
+                }`}
                 onClick={() => onSelectChat(chat.id)}
               >
-                {isCollapsed ? (
-                  // Collapsed view - only icon
-                  <div className="flex items-center justify-center">
-                    <div className="rounded-md bg-content2 p-1.5">
-                      <ChatBubbleLeftRightIcon className="h-4 w-4 text-default-600" />
-                    </div>
-                  </div>
-                ) : (
-                  // Full view
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center gap-2">
-                        <div className="rounded-md bg-content2 p-1">
-                          <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
-                        </div>
-                        <h3 className="truncate text-sm font-medium text-foreground">
-                          {chat.title}
-                        </h3>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <div className="rounded-md bg-content2 p-1">
+                        <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
                       </div>
-                      <p className="mb-1 truncate text-xs leading-relaxed text-default-500">
-                        {chat.lastMessage}
-                      </p>
-                      <p className="text-xs text-default-400">{chat.timestamp}</p>
+                      <h3 className="truncate text-sm font-medium text-foreground">{chat.title}</h3>
                     </div>
-
-                    <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                      <Dropdown>
-                        <DropdownTrigger>
-                          <Button
-                            variant="light"
-                            size="sm"
-                            isIconOnly
-                            className="min-w-unit-6 h-6 w-6"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <EllipsisHorizontalIcon className="h-3 w-3" />
-                          </Button>
-                        </DropdownTrigger>
-                        <DropdownMenu
-                          onAction={(key) => {
-                            if (key === "fork") {
-                              handleForkChat(chat.id);
-                            } else if (key === "delete") {
-                              handleDeleteChat(chat.id);
-                            }
-                          }}
-                        >
-                          <DropdownItem
-                            key="fork"
-                            startContent={<CodeBracketIcon className="h-4 w-4" />}
-                          >
-                            Fork Chat
-                          </DropdownItem>
-                          <DropdownItem
-                            key="delete"
-                            className="text-danger"
-                            color="danger"
-                            startContent={<XMarkIcon className="h-4 w-4" />}
-                          >
-                            Delete
-                          </DropdownItem>
-                        </DropdownMenu>
-                      </Dropdown>
-                    </div>
+                    <p className="mb-1 truncate text-xs leading-relaxed text-default-500">
+                      {chat.lastMessage}
+                    </p>
+                    <p className="text-xs text-default-400">{chat.timestamp}</p>
                   </div>
-                )}
+
+                  <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button
+                          variant="light"
+                          size="sm"
+                          isIconOnly
+                          className="min-w-unit-6 h-6 w-6"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <EllipsisHorizontalIcon className="h-3 w-3" />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu
+                        onAction={(key) => {
+                          if (key === "fork") {
+                            handleForkChat(chat.id);
+                          } else if (key === "delete") {
+                            handleDeleteChat(chat.id);
+                          }
+                        }}
+                      >
+                        <DropdownItem
+                          key="fork"
+                          startContent={<CodeBracketIcon className="h-4 w-4" />}
+                        >
+                          Fork Chat
+                        </DropdownItem>
+                        <DropdownItem
+                          key="delete"
+                          className="text-danger"
+                          color="danger"
+                          startContent={<XMarkIcon className="h-4 w-4" />}
+                        >
+                          Delete
+                        </DropdownItem>
+                      </DropdownMenu>
+                    </Dropdown>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -318,146 +245,91 @@ export const Sidebar = ({
           {/* User Info & Logout */}
           {user && (
             <div className="space-y-1">
-              {isCollapsed ? (
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Button variant="light" size="sm" isIconOnly className="h-8 w-full">
-                      <UserIcon className="h-4 w-4" />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu>
-                    <DropdownItem key="user" isReadOnly>
-                      <div className="text-xs">
-                        <p className="font-medium">{user.user_metadata?.full_name || "User"}</p>
-                        <p className="text-default-500">{user.email}</p>
-                      </div>
-                    </DropdownItem>
-                    <DropdownItem
-                      key="logout"
-                      color="danger"
-                      startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
-                      onPress={onOpen}
-                    >
-                      Sign Out
-                    </DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
-              ) : (
-                <>
-                  {/* User Info */}
-                  <div className="rounded-lg bg-content2 p-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
-                        <UserIcon className="h-3 w-3 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-foreground">
-                          {user.user_metadata?.full_name || "User"}
-                        </p>
-                        <p className="truncate text-xs text-default-500">{user.email}</p>
-                      </div>
+              <>
+                {/* User Info */}
+                <div className="rounded-lg bg-content2 p-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
+                      <UserIcon className="h-3 w-3 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-foreground">
+                        {user.user_metadata?.full_name || "User"}
+                      </p>
+                      <p className="truncate text-xs text-default-500">{user.email}</p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Logout Button */}
-                  <Button
-                    variant="light"
-                    size="sm"
-                    className="h-8 w-full justify-start gap-2 text-danger"
-                    onPress={onOpen}
-                    startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
-                  >
-                    <span className="text-sm font-medium">Sign Out</span>
-                  </Button>
-                </>
-              )}
+                {/* Logout Button */}
+                <Button
+                  variant="light"
+                  size="sm"
+                  className="h-8 w-full justify-start gap-2 text-danger"
+                  onPress={onModalOpen}
+                  startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
+                >
+                  <span className="text-sm font-medium">Sign Out</span>
+                </Button>
+              </>
             </div>
           )}
 
           {/* Theme Switcher */}
           <div className="flex items-center justify-between">
             {mounted ? (
-              isCollapsed ? (
-                <Button
-                  variant="light"
-                  size="sm"
-                  isIconOnly
-                  onPress={toggleTheme}
-                  className="h-8 w-full"
-                  aria-label={`Switch to ${currentTheme === "light" ? "dark" : "light"} theme`}
-                >
-                  {currentTheme === "light" ? (
+              <Button
+                variant="light"
+                size="sm"
+                className="h-8 w-full justify-start gap-2"
+                onPress={toggleTheme}
+                startContent={
+                  currentTheme === "light" ? (
                     <MoonIcon className="h-4 w-4" />
                   ) : (
                     <SunIcon className="h-4 w-4" />
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  variant="light"
-                  size="sm"
-                  className="h-8 w-full justify-start gap-2"
-                  onPress={toggleTheme}
-                  startContent={
-                    currentTheme === "light" ? (
-                      <MoonIcon className="h-4 w-4" />
-                    ) : (
-                      <SunIcon className="h-4 w-4" />
-                    )
-                  }
-                >
-                  <span className="text-sm font-medium">
-                    {currentTheme === "light" ? "Dark Mode" : "Light Mode"}
-                  </span>
-                </Button>
-              )
+                  )
+                }
+              >
+                <span className="text-sm font-medium">
+                  {currentTheme === "light" ? "Dark Mode" : "Light Mode"}
+                </span>
+              </Button>
             ) : (
               // Render placeholder while mounting to prevent layout shift
               <Button
                 variant="light"
                 size="sm"
-                className={`h-8 w-full ${isCollapsed ? "" : "justify-start gap-2"}`}
+                className="h-8 w-full justify-start gap-2"
                 isDisabled
               >
-                {!isCollapsed && <span className="text-sm font-medium">Theme</span>}
+                <span className="text-sm font-medium">Theme</span>
               </Button>
             )}
           </div>
 
           {/* Settings Button */}
-          {isCollapsed ? (
-            <Button
-              variant="light"
-              size="sm"
-              isIconOnly
-              onPress={onOpenSettings}
-              className="h-8 w-full"
-            >
-              <Cog6ToothIcon className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              variant="light"
-              size="sm"
-              className="h-8 w-full justify-start gap-2"
-              onPress={onOpenSettings}
-              startContent={<Cog6ToothIcon className="h-4 w-4" />}
-            >
-              <span className="text-sm font-medium">Settings</span>
-            </Button>
-          )}
+          <Button
+            variant="light"
+            size="sm"
+            className="h-8 w-full justify-start gap-2"
+            onPress={onOpenSettings}
+            startContent={<Cog6ToothIcon className="h-4 w-4" />}
+          >
+            <span className="text-sm font-medium">Settings</span>
+          </Button>
         </div>
       </div>
 
       {/* Sign Out Confirmation Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="sm">
+      <Modal isOpen={isModalOpen} onClose={onModalClose} size="sm">
         <ModalContent>
           <ModalHeader>Sign Out</ModalHeader>
           <ModalBody>
             <p className="text-default-600">Are you sure you want to sign out?</p>
           </ModalBody>
           <ModalFooter>
-            <Button variant="light" onPress={onClose}>
+            <Button variant="light" onPress={onModalClose}>
               Cancel
             </Button>
             <Button color="danger" onPress={handleSignOut}>

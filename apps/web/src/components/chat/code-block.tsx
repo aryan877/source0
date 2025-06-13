@@ -2,9 +2,10 @@
 
 import { ArrowsRightLeftIcon, CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import { Button, Tooltip } from "@heroui/react";
-import { memo, useCallback, useMemo, useState } from "react";
-import ShikiHighlighter from "react-shiki";
-import "react-shiki/css";
+import parse from "html-react-parser";
+import { useTheme } from "next-themes";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { codeToHtml } from "shiki";
 
 interface CodeBlockProps {
   children: string;
@@ -15,10 +16,37 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const [copied, setCopied] = useState(false);
   const [isWrapped, setIsWrapped] = useState(false);
   const [error, setError] = useState(false);
+  const [highlightedCode, setHighlightedCode] = useState("");
+  const { resolvedTheme } = useTheme();
 
   const language = useMemo(() => {
     return className?.replace("language-", "") || "text";
   }, [className]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setError(false);
+    const highlight = async () => {
+      try {
+        const html = await codeToHtml(children, {
+          lang: language,
+          theme: resolvedTheme === "dark" ? "github-dark" : "github-light",
+        });
+        if (isMounted) {
+          setHighlightedCode(html);
+        }
+      } catch (err) {
+        console.error("Failed to highlight code:", err);
+        if (isMounted) {
+          setError(true);
+        }
+      }
+    };
+    highlight();
+    return () => {
+      isMounted = false;
+    };
+  }, [children, language, resolvedTheme]);
 
   const shouldShowLineNumbers = useMemo(() => {
     return children.split("\n").length > 1;
@@ -89,24 +117,6 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     [isWrapped, handleWrapToggle, copied, handleCopy]
   );
 
-  const highlighter = useMemo(() => {
-    try {
-      return (
-        <ShikiHighlighter
-          language={language}
-          theme="github-dark"
-          addDefaultStyles={false}
-          className="[&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0"
-        >
-          {children}
-        </ShikiHighlighter>
-      );
-    } catch {
-      setError(true);
-      return null;
-    }
-  }, [language, children]);
-
   if (error) {
     return (
       <div className="not-prose my-3 rounded-md border border-divider bg-content1">
@@ -149,9 +159,9 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
                 isWrapped
                   ? "[&>pre]:whitespace-pre-wrap [&>pre]:break-all"
                   : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
-              }`}
+              } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
             >
-              {highlighter}
+              {highlightedCode ? parse(highlightedCode) : <pre>{children}</pre>}
             </div>
           </div>
         </div>

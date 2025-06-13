@@ -1,6 +1,8 @@
 "use client";
 
 import { useWindow } from "@/hooks/use-window";
+import { Bars3Icon } from "@heroicons/react/24/outline";
+import { Button } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./sidebar";
@@ -11,16 +13,16 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const [selectedChatId, setSelectedChatId] = useState<string>("main");
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const windowObj = useWindow();
 
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
-    // Close mobile sidebar when selecting a chat
-    setIsMobileSidebarOpen(false);
+    if (windowObj && windowObj.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
 
     if (chatId === "main") {
       router.push("/");
@@ -30,38 +32,25 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   const handleNewChat = () => {
-    // Close mobile sidebar when creating new chat
-    setIsMobileSidebarOpen(false);
+    if (windowObj && windowObj.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
     router.push("/");
   };
 
   const handleOpenSettings = () => {
-    // Close mobile sidebar when opening settings
-    setIsMobileSidebarOpen(false);
+    if (windowObj && windowObj.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
     router.push("/settings");
   };
 
-  // Close mobile sidebar on route change
   useEffect(() => {
-    setIsMobileSidebarOpen(false);
-  }, [pathname]);
-
-  // Close mobile sidebar on window resize to desktop
-  useEffect(() => {
-    const handleResize = () => {
-      if (!windowObj) return;
-      if (windowObj.innerWidth >= 1024) {
-        setIsMobileSidebarOpen(false);
-      }
-    };
-
-    if (windowObj) {
-      windowObj.addEventListener("resize", handleResize);
-      return () => windowObj.removeEventListener("resize", handleResize);
+    if (windowObj && windowObj.innerWidth < 1024) {
+      setIsSidebarOpen(false);
     }
-  }, [windowObj]);
+  }, [pathname, windowObj]);
 
-  // Determine current chat ID based on pathname
   const currentChatId = (() => {
     if (pathname === "/") {
       return "main";
@@ -73,17 +62,31 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
+      <Button
+        variant="flat"
+        size="sm"
+        isIconOnly
+        onPress={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="fixed left-4 top-4 z-[60] h-10 w-10"
+        aria-label="Toggle menu"
+      >
+        <Bars3Icon className="h-5 w-5" />
+      </Button>
       <Sidebar
         selectedChatId={currentChatId}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
-        isMobileOpen={isMobileSidebarOpen}
-        onMobileToggle={setIsMobileSidebarOpen}
-        isCollapsed={isCollapsed}
-        onToggle={() => setIsCollapsed(!isCollapsed)}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      <main
+        className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-in-out ${
+          isSidebarOpen ? "lg:ml-72" : "lg:ml-0"
+        }`}
+      >
+        {children}
+      </main>
     </div>
   );
 }
