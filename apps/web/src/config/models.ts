@@ -346,9 +346,9 @@ export const MODELS: ModelConfig[] = [
 
   // xAI Models
   createModel("grok-3", "Grok 3", "Advanced reasoning model", "xAI", "grok-3", {
-    capabilities: ["reasoning"],
+    capabilities: [],
     isOpenSource: false,
-    category: "reasoning",
+    category: "flagship",
   }),
   createModel("grok-3-mini", "Grok 3 Mini", "Efficient reasoning model", "xAI", "grok-3-mini", {
     capabilities: ["reasoning"],
