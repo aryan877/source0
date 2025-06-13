@@ -2,10 +2,10 @@
 
 import { ArrowsRightLeftIcon, CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import { Button, Tooltip } from "@heroui/react";
-import parse from "html-react-parser";
+import { transformerNotationDiff, transformerNotationHighlight } from "@shikijs/transformers";
 import { useTheme } from "next-themes";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { codeToHtml } from "shiki";
+import { memo, useCallback, useMemo, useState } from "react";
+import ShikiHighlighter from "react-shiki";
 
 interface CodeBlockProps {
   children: string;
@@ -15,72 +15,29 @@ interface CodeBlockProps {
 const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const [copied, setCopied] = useState(false);
   const [isWrapped, setIsWrapped] = useState(false);
-  const [error, setError] = useState(false);
-  const [highlightedCode, setHighlightedCode] = useState("");
   const { resolvedTheme } = useTheme();
 
   const language = useMemo(() => {
     return className?.replace("language-", "") || "text";
   }, [className]);
 
-  useEffect(() => {
-    let isMounted = true;
-    setError(false);
-    const highlight = async () => {
-      try {
-        const html = await codeToHtml(children, {
-          lang: language,
-          theme: resolvedTheme === "dark" ? "github-dark" : "github-light",
-        });
-        if (isMounted) {
-          setHighlightedCode(html);
-        }
-      } catch (err) {
-        console.error("Failed to highlight code:", err);
-        if (isMounted) {
-          setError(true);
-        }
-      }
-    };
-    highlight();
-    return () => {
-      isMounted = false;
-    };
-  }, [children, language, resolvedTheme]);
-
-  const shouldShowLineNumbers = useMemo(() => {
-    return children.split("\n").length > 1;
+  const code = useMemo(() => {
+    return children.trim();
   }, [children]);
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(children);
+      await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy:", error);
     }
-  }, [children]);
+  }, [code]);
 
   const handleWrapToggle = useCallback(() => {
     setIsWrapped((prev) => !prev);
   }, []);
-
-  const lineNumbers = useMemo(() => {
-    if (!shouldShowLineNumbers) return null;
-
-    const lines = children.split("\n");
-    const totalLines = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
-
-    return Array.from({ length: totalLines }, (_, index) => (
-      <div
-        key={index}
-        className="flex h-6 items-center justify-end px-2 font-mono text-sm leading-6 text-default-500"
-      >
-        {index + 1}
-      </div>
-    ));
-  }, [children, shouldShowLineNumbers]);
 
   const headerControls = useMemo(
     () => (
@@ -117,27 +74,8 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     [isWrapped, handleWrapToggle, copied, handleCopy]
   );
 
-  if (error) {
-    return (
-      <div className="not-prose my-3 rounded-md border border-divider bg-content1">
-        <div className="flex items-center justify-between border-b border-divider px-3 py-2">
-          <span className="font-mono text-xs text-default-600">{language} (unsupported)</span>
-          {headerControls}
-        </div>
-        <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"} px-3`}>
-          <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
-            {shouldShowLineNumbers && (
-              <div className="flex min-w-[2.5rem] flex-col border-r border-divider bg-default-50 py-3">
-                {lineNumbers}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <pre className="py-3 pl-3 font-mono text-sm leading-6">{children}</pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (!code) {
+    return null;
   }
 
   return (
@@ -148,20 +86,23 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
       </div>
       <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"} px-3`}>
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
-          {shouldShowLineNumbers && (
-            <div className="flex min-w-[2.5rem] flex-col border-r border-divider bg-default-50 py-3">
-              {lineNumbers}
-            </div>
-          )}
           <div className="min-w-0 flex-1">
             <div
               className={`py-3 pl-3 font-mono text-sm leading-6 ${
                 isWrapped
                   ? "[&>pre]:whitespace-pre-wrap [&>pre]:break-all"
                   : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
-              } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
+              } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent`}
             >
-              {highlightedCode ? parse(highlightedCode) : <pre>{children}</pre>}
+              <ShikiHighlighter
+                theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
+                language={language}
+                delay={100}
+                addDefaultStyles={false}
+                transformers={[transformerNotationDiff(), transformerNotationHighlight()]}
+              >
+                {code}
+              </ShikiHighlighter>
             </div>
           </div>
         </div>

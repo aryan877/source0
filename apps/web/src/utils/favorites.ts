@@ -20,9 +20,9 @@ export const filterModelsByProvider = (
   return models.filter((model) => model.provider === provider);
 };
 
-// Filter models by free status
+// Filter models by open source status
 export const filterModelsByFree = (models: ModelConfig[], freeOnly: boolean): ModelConfig[] => {
-  return freeOnly ? models.filter((model) => model.isFree) : models;
+  return freeOnly ? models.filter((model) => model.isOpenSource) : models;
 };
 
 // Get available capabilities from a list of models
