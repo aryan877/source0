@@ -39,6 +39,15 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     setIsWrapped((prev) => !prev);
   }, []);
 
+  const lineCount = useMemo(() => {
+    const lines = code.split("\n");
+    return lines.length;
+  }, [code]);
+
+  const lineNumbers = useMemo(() => {
+    return Array.from({ length: lineCount }, (_, i) => i + 1);
+  }, [lineCount]);
+
   const headerControls = useMemo(
     () => (
       <div className="flex items-center gap-1">
@@ -84,12 +93,22 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
         <span className="font-mono text-xs text-default-600">{language}</span>
         {headerControls}
       </div>
-      <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"} px-3`}>
+      <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"}`}>
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
+          {/* Line Numbers Column */}
+          <div className="flex min-w-[3rem] select-none flex-col rounded-bl-md border-r border-divider bg-default-50 px-3 py-3">
+            {lineNumbers.map((lineNum) => (
+              <div
+                key={lineNum}
+                className="flex h-6 items-center justify-end font-mono text-xs leading-6 text-default-400"
+              >
+                {lineNum}
+              </div>
+            ))}
+          </div>
+          {/* Code Column */}
           <div className="min-w-0 flex-1">
-            <div
-              className={`py-3 pl-3 font-mono text-sm leading-6 [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent`}
-            >
+            <div className="px-3 py-3 font-mono text-sm leading-6 [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent">
               <ShikiHighlighter
                 theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
                 language={language}
