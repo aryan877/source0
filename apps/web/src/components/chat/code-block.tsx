@@ -88,18 +88,18 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
           <div className="min-w-0 flex-1">
             <div
-              className={`py-3 pl-3 font-mono text-sm leading-6 ${
-                isWrapped
-                  ? "[&>pre]:whitespace-pre-wrap [&>pre]:break-all"
-                  : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
-              } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent`}
+              className={`py-3 pl-3 font-mono text-sm leading-6 [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent`}
             >
               <ShikiHighlighter
                 theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
                 language={language}
                 delay={100}
-                addDefaultStyles={false}
                 transformers={[transformerNotationDiff(), transformerNotationHighlight()]}
+                className={`${
+                  isWrapped
+                    ? "[&>pre]:overflow-hidden [&>pre]:whitespace-pre-wrap [&>pre]:break-words"
+                    : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
+                } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
               >
                 {code}
               </ShikiHighlighter>
