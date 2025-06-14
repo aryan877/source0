@@ -3,5 +3,5 @@
 import { ChatWindow } from "@/components";
 
 export default function HomePage() {
-  return <ChatWindow chatId="main" />;
+  return <ChatWindow chatId="new" />;
 }

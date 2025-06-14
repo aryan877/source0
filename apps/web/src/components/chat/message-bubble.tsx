@@ -11,8 +11,7 @@ import {
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
-import type { UIMessage } from "ai";
-import Image from "next/image";
+import type { JSONValue, Message } from "ai";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { ExpandableSection } from "./expandable-section";
@@ -20,8 +19,43 @@ import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 
+// Type definitions for custom data structures to avoid 'any'
+interface CustomFileUIPart {
+  type: "file";
+  url: string;
+  mimeType: string;
+  filename?: string;
+  path?: string;
+}
+
+interface ModelMetadata {
+  modelUsed?: string;
+  modelProvider?: string;
+}
+
+interface ModelMetadataAnnotation {
+  type: "model_metadata";
+  data: ModelMetadata;
+}
+
+// A simplified type guard that checks for the properties we need on a JSONValue object
+function isModelMetadataAnnotation(
+  obj: JSONValue
+): obj is { type: "model_metadata"; data: { modelUsed?: string; modelProvider?: string } } {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    !Array.isArray(obj) &&
+    "type" in obj &&
+    obj.type === "model_metadata" &&
+    "data" in obj &&
+    typeof obj.data === "object" &&
+    obj.data !== null
+  );
+}
+
 interface MessageBubbleProps {
-  message: UIMessage;
+  message: Message;
   onRetry: (messageId: string) => void;
   onFork: (messageId: string) => void;
   isLoading?: boolean;
@@ -59,6 +93,23 @@ const MessageBubble = memo(
       onFork(message.id);
     }, [onFork, message.id]);
 
+    const modelMetadata = useMemo(() => {
+      if (isUser) return null;
+
+      const annotation = message.annotations?.find(isModelMetadataAnnotation);
+
+      const data = annotation?.data;
+
+      if (!data?.modelUsed) {
+        return null;
+      }
+
+      return {
+        modelUsed: data.modelUsed,
+        modelProvider: data.modelProvider,
+      };
+    }, [message.annotations, isUser]);
+
     // Render message parts using the AI SDK's built-in parts system
     const renderMessageParts = useMemo(() => {
       // Always use parts - no fallback needed for modern implementation
@@ -75,54 +126,21 @@ const MessageBubble = memo(
               </div>
             );
 
-          case "file":
-            // Handle file parts (including images) with secure URLs
-            // For base64 data, use it directly; for URLs, try to generate fresh signed URLs
-            if (part.data) {
-              // File has base64 data - use it directly
-              if (part.mimeType.startsWith("image/")) {
-                return (
-                  <div
-                    key={index}
-                    className="mb-4 max-w-md overflow-hidden rounded-xl border border-divider shadow-lg transition-transform hover:scale-105"
-                  >
-                    <Image
-                      src={`data:${part.mimeType};base64,${part.data}`}
-                      alt="Attached image"
-                      width={500}
-                      height={350}
-                      className="h-auto w-full rounded-xl object-cover"
-                      unoptimized
-                    />
-                  </div>
-                );
-              } else {
-                return (
-                  <div
-                    key={index}
-                    className="mb-4 flex items-center gap-4 rounded-xl border border-divider bg-gradient-to-r from-content1 to-content1/80 p-4 shadow-sm transition-all hover:scale-105 hover:shadow-md"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-content2 text-xl shadow-sm">
-                      📎
-                    </div>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate font-medium text-foreground">File attachment</span>
-                      <span className="text-sm text-default-500">{part.mimeType}</span>
-                    </div>
-                  </div>
-                );
-              }
-            } else {
-              // File might be a URL reference - use SecureFileDisplay for potential signed URL generation
-              return (
-                <SecureFileDisplay
-                  key={index}
-                  fallbackUrl={`data:${part.mimeType};base64,${part.data || ""}`}
-                  mimeType={part.mimeType}
-                  isImage={part.mimeType.startsWith("image/")}
-                />
-              );
-            }
+          case "file": {
+            // The AI SDK's `FileUIPart` is for base64 data. Our app uses a custom
+            // structure with a URL. We cast to `unknown` first, then to our custom
+            // type to inform TypeScript that this is an intentional conversion.
+            const filePart = part as unknown as CustomFileUIPart;
+            return (
+              <SecureFileDisplay
+                key={index}
+                url={filePart.url}
+                mimeType={filePart.mimeType}
+                fileName={filePart.filename}
+                isImage={filePart.mimeType?.startsWith("image/")}
+              />
+            );
+          }
 
           case "tool-invocation": {
             // Handle tool invocations with expandable section
@@ -391,8 +409,24 @@ const MessageBubble = memo(
             {!isUser && renderGroundingMetadata}
           </div>
 
-          {/* Action buttons positioned below the message content */}
-          {actionButtons && <div className={`${isUser ? "mr-2" : "ml-2"}`}>{actionButtons}</div>}
+          {/* Action buttons and model info, only for assistant messages */}
+          {!isUser && (
+            <div className="flex w-full items-center justify-between pl-1 pr-2">
+              <div className="flex items-center gap-2">
+                {actionButtons}
+                {!isLoading && modelMetadata && showActions && (
+                  <Tooltip
+                    content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
+                    placement="top"
+                  >
+                    <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
+                      <span>{modelMetadata.modelUsed}</span>
+                    </div>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -1,9 +1,13 @@
+export { ChatInput } from "./chat-input";
 export { default as ChatWindow } from "./chat-window";
+export { ErrorDisplay } from "./error-display";
 export { ExpandableSection } from "./expandable-section";
 export { FileAttachment } from "./file-attachment";
 export { GroundingDisplay } from "./grounding-display";
 export { default as MessageBubble } from "./message-bubble";
 export { MessageContent } from "./message-content";
+export { MessagesList } from "./messages-list";
 export { ModelControls } from "./model-controls";
 export { ModelSelector } from "./model-selector";
+export { ScrollToBottomButton } from "./scroll-to-bottom-button";
 export { SecureFileDisplay } from "./secure-file-display";

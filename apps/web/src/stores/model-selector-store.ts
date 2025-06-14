@@ -20,8 +20,8 @@ interface ModelSelectorState {
   // Favorites State
   favorites: string[];
 
-  // Selected Model State
-  selectedModel: string;
+  // Selected Model State (per chat)
+  selectedModels: Record<string, string>;
 
   // Hydration State
   hasHydrated: boolean;
@@ -35,7 +35,9 @@ interface ModelSelectorState {
   setSelectedProvider: (provider: ModelConfig["provider"] | null) => void;
   setFavorites: (favorites: string[]) => void;
   toggleFavorite: (modelId: string) => void;
-  setSelectedModel: (modelId: string) => void;
+  setSelectedModel: (chatId: string, modelId: string) => void;
+  getSelectedModel: (chatId: string) => string;
+  transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
   closeAndReset: () => void;
@@ -52,7 +54,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedCapabilities: [],
       selectedProvider: null,
       favorites: [],
-      selectedModel: DEFAULT_MODEL,
+      selectedModels: {},
       hasHydrated: false,
 
       // Actions
@@ -92,7 +94,33 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         set({ favorites: newFavorites });
       },
 
-      setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+      setSelectedModel: (chatId, modelId) => {
+        const { selectedModels } = get();
+        set({
+          selectedModels: {
+            ...selectedModels,
+            [chatId]: modelId,
+          },
+        });
+      },
+
+      getSelectedModel: (chatId) => {
+        const { selectedModels } = get();
+        return selectedModels[chatId] || DEFAULT_MODEL;
+      },
+
+      transferModelSelection: (fromChatId, toChatId) => {
+        const { selectedModels } = get();
+        const modelToTransfer = selectedModels[fromChatId];
+        if (modelToTransfer) {
+          set({
+            selectedModels: {
+              ...selectedModels,
+              [toChatId]: modelToTransfer,
+            },
+          });
+        }
+      },
 
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
 
@@ -127,16 +155,16 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       name: "model-selector-storage",
       partialize: (state) => ({
         favorites: state.favorites,
-        selectedModel: state.selectedModel,
-      }), // Persist both favorites and selected model
+        selectedModels: state.selectedModels,
+      }), // Persist both favorites and selected models per chat
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
         if (state && state.favorites.length === 0) {
           state.favorites = [...DEFAULT_FAVORITES];
         }
-        // Initialize with default model if none exists
-        if (state && !state.selectedModel) {
-          state.selectedModel = DEFAULT_MODEL;
+        // Initialize selectedModels if it doesn't exist
+        if (state && !state.selectedModels) {
+          state.selectedModels = {};
         }
         // Mark as hydrated after rehydration
         if (state) {

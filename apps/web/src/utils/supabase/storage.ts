@@ -56,29 +56,48 @@ export async function uploadFile(
     // Organize files by user ID for security: folder/userId/filename
     const filePath = `${folder}/${user.id}/${fileName}`;
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return { error: "File size must be less than 10MB" };
+    // Validate file size (max 50MB, aligned with backend)
+    if (file.size > 50 * 1024 * 1024) {
+      return { error: "File size must be less than 50MB" };
     }
 
-    // Validate file type
+    // Validate file type (aligned with backend)
     const allowedTypes = [
+      // Images
       "image/jpeg",
       "image/jpg",
       "image/png",
       "image/webp",
       "image/gif",
+      "image/svg+xml",
+      // Videos
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      // Audio
+      "audio/mpeg",
+      "audio/wav",
+      "audio/mp4",
+      "audio/webm",
+      // Documents
       "text/plain",
       "text/markdown",
+      "text/csv",
+      "text/html",
       "application/pdf",
       "application/json",
-      "text/csv",
+      "application/xml",
+      // Office Documents
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ];
 
     if (!allowedTypes.includes(file.type)) {
       return {
         error: "File type not supported",
-        details: "Supported types: images, text files, PDF, JSON, CSV",
+        details:
+          "For a full list of supported types, please check the application's configuration.",
       };
     }
 
@@ -95,26 +114,13 @@ export async function uploadFile(
       return { error: "Failed to upload file", details: error.message };
     }
 
-    // For private buckets, we need to create signed URLs for access
-    const signedUrl = await createSignedUrl(data.path, 3600); // 1 hour expiry
-
-    if (!signedUrl) {
-      console.warn("Failed to create signed URL, falling back to public URL");
-      const { data: publicUrlData } = supabase.storage
-        .from(CHAT_ATTACHMENTS_BUCKET)
-        .getPublicUrl(data.path);
-
-      return {
-        url: publicUrlData.publicUrl,
-        path: data.path,
-        name: file.name,
-        size: file.size,
-        contentType: file.type,
-      };
-    }
+    // Since the bucket is public, we can get the public URL directly
+    const { data: publicUrlData } = supabase.storage
+      .from(CHAT_ATTACHMENTS_BUCKET)
+      .getPublicUrl(data.path);
 
     return {
-      url: signedUrl,
+      url: publicUrlData.publicUrl,
       path: data.path,
       name: file.name,
       size: file.size,
@@ -130,33 +136,43 @@ export async function uploadFile(
 }
 
 /**
- * Upload multiple files to Supabase storage
+ * Upload multiple files to Supabase storage with progress tracking
  */
 export async function uploadFiles(
   files: File[],
-  folder: string = "uploads"
+  folder: string = "uploads",
+  onProgress?: (progress: number) => void
 ): Promise<{ successful: UploadResult[]; failed: UploadError[] }> {
-  const results = await Promise.allSettled(files.map((file) => uploadFile(file, folder)));
-
   const successful: UploadResult[] = [];
   const failed: UploadError[] = [];
 
-  results.forEach((result, index) => {
-    const file = files[index]!;
-    if (result.status === "fulfilled") {
-      if ("url" in result.value) {
-        successful.push(result.value);
+  // Upload files sequentially to provide accurate progress
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+
+    // Update progress before starting each upload
+    const progressPercent = Math.round((i / files.length) * 100);
+    onProgress?.(progressPercent);
+
+    try {
+      const result = await uploadFile(file, folder);
+
+      if ("url" in result) {
+        successful.push(result);
       } else {
-        failed.push({ file, ...result.value });
+        failed.push({ file, ...result });
       }
-    } else {
+    } catch (error) {
       failed.push({
         file,
         error: "Upload failed",
-        details: result.reason?.message || "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
-  });
+  }
+
+  // Set progress to 100% when complete
+  onProgress?.(100);
 
   return { successful, failed };
 }
@@ -228,92 +244,30 @@ export async function createSignedUrl(
 }
 
 /**
- * Check if storage bucket exists and create if needed
+ * Check if storage bucket exists.
+ * The bucket is created via migrations (see supabase/migrations).
  */
-export async function initializeStorage(): Promise<boolean> {
+export async function checkStorageBucket(): Promise<boolean> {
   try {
-    // Check if bucket exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-
     if (listError) {
-      console.error("Error listing buckets:", listError);
+      console.error("Could not list storage buckets:", listError);
       return false;
     }
 
     const bucketExists = buckets.some((bucket) => bucket.name === CHAT_ATTACHMENTS_BUCKET);
-
     if (!bucketExists) {
-      // Create bucket as private for security
-      const { error: createError } = await supabase.storage.createBucket(CHAT_ATTACHMENTS_BUCKET, {
-        public: false, // Changed to private for better security
-        allowedMimeTypes: [
-          "image/jpeg",
-          "image/jpg",
-          "image/png",
-          "image/webp",
-          "image/gif",
-          "text/plain",
-          "text/markdown",
-          "application/pdf",
-          "application/json",
-          "text/csv",
-        ],
-        fileSizeLimit: 10 * 1024 * 1024, // 10MB
-      });
-
-      if (createError) {
-        console.error("Error creating bucket:", createError);
-        return false;
-      }
-
-      console.log(`✅ Created storage bucket: ${CHAT_ATTACHMENTS_BUCKET}`);
+      console.warn(`
+        ⚠️ Storage bucket "${CHAT_ATTACHMENTS_BUCKET}" not found.
+        Please ensure your Supabase migrations have been run.
+        You can run them with the Supabase CLI: \`supabase db reset\` (for local dev) or apply migrations in your Supabase dashboard.
+      `);
+      return false;
     }
 
     return true;
   } catch (error) {
-    console.error("Storage initialization error:", error);
-    return false;
-  }
-}
-
-/**
- * Setup RLS policies for the storage bucket
- * This should be run once during setup or migration
- */
-export async function setupStoragePolicies(): Promise<boolean> {
-  try {
-    // Note: These policies need to be created via SQL in your Supabase dashboard
-    // or through a migration. This function serves as documentation.
-
-    console.log(`
-📋 Required RLS Policies for ${CHAT_ATTACHMENTS_BUCKET} bucket:
-
-1. Allow authenticated users to upload files:
-CREATE POLICY "Allow authenticated uploads" ON storage.objects
-FOR INSERT TO authenticated
-WITH CHECK (bucket_id = '${CHAT_ATTACHMENTS_BUCKET}');
-
-2. Allow users to view their own files:
-CREATE POLICY "Allow users to view own files" ON storage.objects
-FOR SELECT TO authenticated
-USING (auth.uid()::text = (storage.foldername(name))[1]);
-
-3. Allow users to delete their own files:
-CREATE POLICY "Allow users to delete own files" ON storage.objects
-FOR DELETE TO authenticated
-USING (auth.uid()::text = (storage.foldername(name))[1]);
-
-4. Allow users to update their own files:
-CREATE POLICY "Allow users to update own files" ON storage.objects
-FOR UPDATE TO authenticated
-USING (auth.uid()::text = (storage.foldername(name))[1]);
-
-Please run these SQL commands in your Supabase SQL editor or create a migration.
-    `);
-
-    return true;
-  } catch (error) {
-    console.error("Setup storage policies error:", error);
+    console.error("Error checking storage bucket:", error);
     return false;
   }
 }

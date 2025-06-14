@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import type { Message } from "ai";
 import { useRef } from "react";
 
 /**
@@ -7,7 +7,7 @@ import { useRef } from "react";
  * which is crucial for performance during rapid streaming updates.
  * It only scans new parts of the message that have arrived since the last render.
  */
-function useMemoizedParts(message: UIMessage) {
+function useMemoizedParts(message: Message) {
   const cache = useRef({
     messageId: "",
     hasReasoning: false,
@@ -51,7 +51,7 @@ function useMemoizedParts(message: UIMessage) {
 }
 
 interface UseReasoningSpinnerOptions {
-  message: UIMessage;
+  message: Message;
   isLoading: boolean;
 }
 

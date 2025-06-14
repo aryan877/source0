@@ -4,7 +4,7 @@ import { useWindow } from "@/hooks/use-window";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { Button } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./sidebar";
 
 interface AppShellProps {
@@ -12,30 +12,21 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const [selectedChatId, setSelectedChatId] = useState<string>("main");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const windowObj = useWindow();
 
   const handleSelectChat = (chatId: string) => {
-    setSelectedChatId(chatId);
     if (windowObj && windowObj.innerWidth < 1024) {
       setIsSidebarOpen(false);
     }
 
-    if (chatId === "main") {
-      router.push("/");
+    if (chatId === "new") {
+      router.push("/chat");
     } else {
       router.push(`/chat/${chatId}`);
     }
-  };
-
-  const handleNewChat = () => {
-    if (windowObj && windowObj.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
-    router.push("/");
   };
 
   const handleOpenSettings = () => {
@@ -51,14 +42,13 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [pathname, windowObj]);
 
-  const currentChatId = (() => {
-    if (pathname === "/") {
-      return "main";
-    } else if (pathname.startsWith("/chat/")) {
-      return pathname.split("/")[2] || "main";
+  const currentChatId = useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments[0] === "chat") {
+      return segments[1] || "new";
     }
-    return selectedChatId;
-  })();
+    return "new";
+  }, [pathname]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -75,7 +65,6 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar
         selectedChatId={currentChatId}
         onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}

@@ -6,6 +6,7 @@ import { transformerNotationDiff, transformerNotationHighlight } from "@shikijs/
 import { useTheme } from "next-themes";
 import { memo, useCallback, useMemo, useState } from "react";
 import ShikiHighlighter from "react-shiki";
+import { bundledLanguages } from "shiki";
 
 interface CodeBlockProps {
   children: string;
@@ -24,6 +25,13 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const code = useMemo(() => {
     return children.trim();
   }, [children]);
+
+  // Check if the language is supported by checking against the bundled languages.
+  const isLanguageSupported = useMemo(() => {
+    // The 'any' cast is a temporary workaround for a potential type mismatch
+    // in older shiki versions but ensures broad compatibility.
+    return (Object.keys(bundledLanguages) as any[]).includes(language);
+  }, [language]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -83,6 +91,24 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     [isWrapped, handleWrapToggle, copied, handleCopy]
   );
 
+  // Fallback component for plain text rendering
+  const FallbackCodeBlock = useMemo(
+    () => (
+      <div className="px-3 py-3 font-mono text-sm leading-6">
+        <pre
+          className={`m-0 bg-transparent p-0 text-foreground ${
+            isWrapped
+              ? "overflow-hidden whitespace-pre-wrap break-words"
+              : "overflow-x-auto whitespace-pre"
+          }`}
+        >
+          {code}
+        </pre>
+      </div>
+    ),
+    [code, isWrapped]
+  );
+
   if (!code) {
     return null;
   }
@@ -90,7 +116,10 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   return (
     <div className="not-prose my-3 rounded-md border border-divider bg-content1">
       <div className="flex items-center justify-between border-b border-divider px-3 py-2">
-        <span className="font-mono text-xs text-default-600">{language}</span>
+        <span className="font-mono text-xs text-default-600">
+          {language}
+          {!isLanguageSupported && " (no highlighting)"}
+        </span>
         {headerControls}
       </div>
       <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"}`}>
@@ -108,21 +137,25 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
           </div>
           {/* Code Column */}
           <div className="min-w-0 flex-1">
-            <div className="px-3 py-3 font-mono text-sm leading-6 [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent">
-              <ShikiHighlighter
-                theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
-                language={language}
-                delay={100}
-                transformers={[transformerNotationDiff(), transformerNotationHighlight()]}
-                className={`${
-                  isWrapped
-                    ? "[&>pre]:overflow-hidden [&>pre]:whitespace-pre-wrap [&>pre]:break-words"
-                    : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
-                } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
-              >
-                {code}
-              </ShikiHighlighter>
-            </div>
+            {isLanguageSupported ? (
+              <div className="px-3 py-3 font-mono text-sm leading-6 [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0 [&_.shiki>pre]:!bg-transparent [&_.shiki]:!bg-transparent">
+                <ShikiHighlighter
+                  theme={resolvedTheme === "dark" ? "github-dark" : "github-light"}
+                  language={language}
+                  delay={100}
+                  transformers={[transformerNotationDiff(), transformerNotationHighlight()]}
+                  className={`${
+                    isWrapped
+                      ? "[&>pre]:overflow-hidden [&>pre]:whitespace-pre-wrap [&>pre]:break-words"
+                      : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
+                  } [&>pre]:!m-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
+                >
+                  {code}
+                </ShikiHighlighter>
+              </div>
+            ) : (
+              FallbackCodeBlock
+            )}
           </div>
         </div>
       </div>

@@ -48,6 +48,7 @@ import { ProviderIcon } from "./provider-section";
 interface ModelSelectorProps {
   value?: string;
   onValueChange?: (value: string) => void;
+  chatId: string;
 }
 
 const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability }) => {
@@ -300,7 +301,7 @@ function useModelFiltering(
   }, [searchQuery, selectedCapabilities, selectedProvider, favorites]);
 }
 
-export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
+export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorProps) => {
   const {
     isOpen,
     viewMode,
@@ -308,7 +309,6 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     selectedCapabilities,
     selectedProvider,
     favorites,
-    selectedModel: storeSelectedModel,
     hasHydrated,
     setIsOpen,
     setViewMode,
@@ -317,6 +317,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
     setSelectedProvider,
     toggleFavorite,
     setSelectedModel,
+    getSelectedModel,
     setHasHydrated,
     clearFilters,
     resetState,
@@ -330,7 +331,7 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
   }, [hasHydrated, setHasHydrated]);
 
   // Use store value if no external value provided
-  const currentSelectedModel = value ?? storeSelectedModel;
+  const currentSelectedModel = value ?? getSelectedModel(chatId);
   const selectedModel = getModelById(currentSelectedModel);
 
   const filteredModels = useModelFiltering(
@@ -361,11 +362,11 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
 
   const handleModelSelect = useCallback(
     (modelId: string) => {
-      setSelectedModel(modelId);
+      setSelectedModel(chatId, modelId);
       onValueChange?.(modelId);
       setIsOpen(false);
     },
-    [onValueChange, setSelectedModel, setIsOpen]
+    [chatId, onValueChange, setSelectedModel, setIsOpen]
   );
 
   const handleOpenChange = useCallback(

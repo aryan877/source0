@@ -28,7 +28,7 @@
 -- Description: Stores conversation sessions, which act as containers for messages.
 -- Supports conversation branching and public sharing.
 --
-CREATE TABLE chat_sessions (
+CREATE TABLE IF NOT EXISTS chat_sessions (
     -- Primary Key
     id                      uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
     
@@ -42,7 +42,7 @@ CREATE TABLE chat_sessions (
     
     -- Session Branching Support
     branched_from_session_id uuid           REFERENCES chat_sessions(id) ON DELETE SET NULL,
-    branched_from_message_id uuid           REFERENCES chat_messages(id) ON DELETE SET NULL,
+    branched_from_message_id uuid,          -- FK constraint added below
     
     -- Public Sharing
     is_public               boolean         DEFAULT false,
@@ -61,7 +61,7 @@ CREATE TABLE chat_sessions (
 -- Description: Stores individual messages within a chat session. Follows a flexible
 -- content structure and tracks the AI model used for each assistant message.
 --
-CREATE TABLE chat_messages (
+CREATE TABLE IF NOT EXISTS chat_messages (
     -- Primary Key
     id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
     
@@ -91,29 +91,16 @@ CREATE TABLE chat_messages (
 );
 
 --
--- Table: chat_attachments
--- Description: Manages file attachments associated with chat messages, integrating
--- with Supabase Storage.
+-- Manually add the foreign key constraint to break the circular dependency
 --
-CREATE TABLE chat_attachments (
-    -- Primary Key
-    id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Associations
-    message_id          uuid            NOT NULL 
-                                       REFERENCES chat_messages(id) ON DELETE CASCADE,
-    user_id             uuid            NOT NULL 
-                                       REFERENCES auth.users(id) ON DELETE CASCADE,
-    
-    -- File Information
-    file_name           text            NOT NULL,
-    file_path           text            NOT NULL,  -- Supabase Storage path
-    file_size           bigint,
-    mime_type           text,
-    
-    -- Timestamp
-    created_at          timestamptz     DEFAULT now()
-);
+ALTER TABLE chat_sessions
+DROP CONSTRAINT IF EXISTS fk_branched_from_message;
+
+ALTER TABLE chat_sessions
+ADD CONSTRAINT fk_branched_from_message
+FOREIGN KEY (branched_from_message_id)
+REFERENCES chat_messages(id)
+ON DELETE SET NULL;
 
 --
 -- Table: chat_stream_ids
@@ -121,7 +108,7 @@ CREATE TABLE chat_attachments (
 -- a mapping between chat sessions and stream identifiers. The stream state itself
 -- is managed externally (e.g., in Redis).
 --
-CREATE TABLE chat_stream_ids (
+CREATE TABLE IF NOT EXISTS chat_stream_ids (
     -- Primary Key
     id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
     
@@ -153,70 +140,60 @@ CREATE TABLE chat_stream_ids (
 -- ================================================================================
 
 -- Indexes for `chat_sessions`
-CREATE INDEX idx_chat_sessions_user_id 
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id 
     ON chat_sessions(user_id);
 
-CREATE INDEX idx_chat_sessions_public_recent 
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_public_recent 
     ON chat_sessions(is_public, created_at DESC) 
     WHERE is_public = true;
 
-CREATE INDEX idx_chat_sessions_share_slug 
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_share_slug 
     ON chat_sessions(share_slug) 
     WHERE share_slug IS NOT NULL;
 
 -- Indexes for session branching
-CREATE INDEX idx_chat_sessions_branched_from 
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_branched_from 
     ON chat_sessions(branched_from_session_id) 
     WHERE branched_from_session_id IS NOT NULL;
 
-CREATE INDEX idx_chat_sessions_branch_source 
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_branch_source 
     ON chat_sessions(branched_from_message_id) 
     WHERE branched_from_message_id IS NOT NULL;
 
 -- Indexes for `chat_messages`
-CREATE INDEX idx_chat_messages_session_timeline 
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_timeline 
     ON chat_messages(session_id, created_at);
 
 -- Indexes for model tracking
-CREATE INDEX idx_chat_messages_model_provider 
+CREATE INDEX IF NOT EXISTS idx_chat_messages_model_provider 
     ON chat_messages(model_provider) 
     WHERE model_provider IS NOT NULL;
 
-CREATE INDEX idx_chat_messages_model_used 
+CREATE INDEX IF NOT EXISTS idx_chat_messages_model_used 
     ON chat_messages(model_used) 
     WHERE model_used IS NOT NULL;
 
 -- JSONB indexes for message content and model configuration
-CREATE INDEX idx_chat_messages_parts_gin 
+CREATE INDEX IF NOT EXISTS idx_chat_messages_parts_gin 
     ON chat_messages USING gin(parts);
 
-CREATE INDEX idx_chat_messages_model_config_gin 
+CREATE INDEX IF NOT EXISTS idx_chat_messages_model_config_gin 
     ON chat_messages USING gin(model_config);
 
--- Indexes for `chat_attachments`
-CREATE INDEX idx_chat_attachments_message 
-    ON chat_attachments(message_id);
-
-CREATE INDEX idx_chat_attachments_user_recent 
-    ON chat_attachments(user_id, created_at DESC);
-
 -- Indexes for `chat_stream_ids`
-CREATE INDEX idx_chat_stream_ids_chat 
+CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_chat 
     ON chat_stream_ids(chat_id);
 
-CREATE INDEX idx_chat_stream_ids_status 
+CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_status 
     ON chat_stream_ids(status, last_activity_at);
 
-CREATE INDEX idx_chat_stream_ids_active_streams 
+CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_active_streams 
     ON chat_stream_ids(status, started_at) 
     WHERE status = 'active';
 
 -- ================================================================================
 -- Supabase Storage Configuration
 -- ================================================================================
-
--- Enable RLS on the storage schema
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Create the bucket for chat attachments
 INSERT INTO storage.buckets (
@@ -228,11 +205,11 @@ INSERT INTO storage.buckets (
 ) VALUES (
     'chat-attachments',
     'chat-attachments',
-    false,
+    true, -- Files are public by default
     52428800, -- 50MB limit
     ARRAY[
-        -- Images
-        'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+        -- Images (AI model supported formats only)
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         -- Videos
         'video/mp4', 'video/webm', 'video/quicktime',
         -- Audio
@@ -240,12 +217,15 @@ INSERT INTO storage.buckets (
         -- Documents
         'text/plain', 'text/markdown', 'text/csv', 'text/html',
         'application/pdf', 'application/json', 'application/xml',
+        -- SQL Files
+        'application/sql', 'text/sql', 'application/x-sql',
         -- Office Documents
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     ]
 ) ON CONFLICT (id) DO UPDATE SET
+    public = EXCLUDED.public,
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
@@ -254,47 +234,22 @@ INSERT INTO storage.buckets (
 -- ================================================================================
 
 -- Policy: Allow authenticated users to upload files to the chat bucket.
+DROP POLICY IF EXISTS "authenticated_users_can_upload" ON storage.objects;
 CREATE POLICY "authenticated_users_can_upload" 
     ON storage.objects FOR INSERT 
     TO authenticated
     WITH CHECK (bucket_id = 'chat-attachments');
 
--- Policy: Control file access for authenticated users.
--- Allows access to own files or files in public/owned chats.
-CREATE POLICY "authenticated_file_access" 
+-- Policy: Allow public read access for all files in the bucket.
+-- With a public bucket, files are accessible via their URL, but this policy
+-- allows using the API to list and download files as well.
+DROP POLICY IF EXISTS "public_read_access" ON storage.objects;
+CREATE POLICY "public_read_access" 
     ON storage.objects FOR SELECT 
-    TO authenticated
-    USING (
-        bucket_id = 'chat-attachments' AND (
-            -- Own files
-            (storage.foldername(name))[2] = auth.uid()::text OR
-            -- Files in accessible chats
-            (
-                name LIKE 'chat-%' AND
-                EXISTS (
-                    SELECT 1 FROM chat_sessions cs
-                    WHERE cs.id::text = REPLACE((storage.foldername(name))[1], 'chat-', '')
-                    AND (cs.user_id = auth.uid() OR cs.is_public = true)
-                )
-            )
-        )
-    );
-
--- Policy: Allow anonymous users to access files in public chats.
-CREATE POLICY "public_chat_file_access" 
-    ON storage.objects FOR SELECT 
-    TO anon
-    USING (
-        bucket_id = 'chat-attachments' AND 
-        name LIKE 'chat-%' AND
-        EXISTS (
-            SELECT 1 FROM chat_sessions cs
-            WHERE cs.id::text = REPLACE((storage.foldername(name))[1], 'chat-', '') 
-            AND cs.is_public = true
-        )
-    );
+    USING (bucket_id = 'chat-attachments');
 
 -- Policy: Allow users to update their own files.
+DROP POLICY IF EXISTS "users_can_update_own_files" ON storage.objects;
 CREATE POLICY "users_can_update_own_files" 
     ON storage.objects FOR UPDATE 
     TO authenticated
@@ -304,6 +259,7 @@ CREATE POLICY "users_can_update_own_files"
     );
 
 -- Policy: Allow users to delete their own files.
+DROP POLICY IF EXISTS "users_can_delete_own_files" ON storage.objects;
 CREATE POLICY "users_can_delete_own_files" 
     ON storage.objects FOR DELETE 
     TO authenticated
@@ -311,23 +267,28 @@ CREATE POLICY "users_can_delete_own_files"
         bucket_id = 'chat-attachments' AND 
         (storage.foldername(name))[2] = auth.uid()::text
     );
+    
+-- Drop legacy policies that are no longer needed
+DROP POLICY IF EXISTS "authenticated_file_access" ON storage.objects;
+DROP POLICY IF EXISTS "public_chat_file_access" ON storage.objects;
 
 -- Enable RLS on all chat-related tables
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_stream_ids ENABLE ROW LEVEL SECURITY;
 
 --
 -- RLS Policies for `chat_sessions`
 --
 -- Policy: Authenticated users can access their own sessions and any public sessions.
+DROP POLICY IF EXISTS "authenticated_session_access" ON chat_sessions;
 CREATE POLICY "authenticated_session_access" 
     ON chat_sessions FOR ALL 
     TO authenticated
     USING (auth.uid() = user_id OR is_public = true);
 
 -- Policy: Anonymous users can only view public sessions.
+DROP POLICY IF EXISTS "anonymous_public_session_view" ON chat_sessions;
 CREATE POLICY "anonymous_public_session_view" 
     ON chat_sessions FOR SELECT 
     TO anon
@@ -337,6 +298,7 @@ CREATE POLICY "anonymous_public_session_view"
 -- RLS Policies for `chat_messages`
 --
 -- Policy: Authenticated users can access messages in sessions they have access to.
+DROP POLICY IF EXISTS "authenticated_message_access" ON chat_messages;
 CREATE POLICY "authenticated_message_access" 
     ON chat_messages FOR ALL 
     TO authenticated
@@ -350,6 +312,7 @@ CREATE POLICY "authenticated_message_access"
     );
 
 -- Policy: Anonymous users can view messages in public sessions.
+DROP POLICY IF EXISTS "anonymous_public_message_view" ON chat_messages;
 CREATE POLICY "anonymous_public_message_view" 
     ON chat_messages FOR SELECT 
     TO anon
@@ -362,26 +325,10 @@ CREATE POLICY "anonymous_public_message_view"
     );
 
 --
--- RLS Policies for `chat_attachments`
---
--- Policy: Authenticated users can access attachments in sessions they have access to.
-CREATE POLICY "authenticated_attachment_access" 
-    ON chat_attachments FOR ALL 
-    TO authenticated
-    USING (
-        auth.uid() = user_id OR 
-        EXISTS (
-            SELECT 1 FROM chat_messages cm 
-            JOIN chat_sessions cs ON cm.session_id = cs.id
-            WHERE cm.id = message_id 
-            AND (cs.user_id = auth.uid() OR cs.is_public = true)
-        )
-    );
-
---
 -- RLS Policies for `chat_stream_ids`
 --
 -- Policy: Stream information is only accessible to the session owner.
+DROP POLICY IF EXISTS "owner_stream_access" ON chat_stream_ids;
 CREATE POLICY "owner_stream_access" 
     ON chat_stream_ids FOR ALL 
     TO authenticated
@@ -413,6 +360,7 @@ END;
 $$;
 
 -- Apply trigger to `chat_sessions` to track updates.
+DROP TRIGGER IF EXISTS trigger_update_chat_sessions_updated_at ON chat_sessions;
 CREATE TRIGGER trigger_update_chat_sessions_updated_at
     BEFORE UPDATE ON chat_sessions
     FOR EACH ROW 
@@ -439,15 +387,23 @@ DECLARE
     v_branch_message_role text;
     v_branch_message_time timestamptz;
 BEGIN
+    -- Security check: Ensure the caller is the owner of the original session.
+    SELECT user_id INTO v_user_id
+    FROM chat_sessions
+    WHERE id = p_original_session_id;
+
+    IF v_user_id IS NULL OR v_user_id != auth.uid() THEN
+        RAISE EXCEPTION 'Permission denied. You must be the owner of the session to branch it.';
+    END IF;
+
     -- Verify the branch message is from an assistant.
-    SELECT role, created_at, user_id INTO v_branch_message_role, v_branch_message_time, v_user_id
-    FROM chat_messages cm
-    JOIN chat_sessions cs ON cm.session_id = cs.id
-    WHERE cm.id = p_branch_from_message_id 
-    AND cs.id = p_original_session_id;
+    SELECT role, created_at INTO v_branch_message_role, v_branch_message_time
+    FROM chat_messages
+    WHERE id = p_branch_from_message_id 
+    AND session_id = p_original_session_id;
     
     IF v_branch_message_role IS NULL THEN
-        RAISE EXCEPTION 'Message not found or not accessible';
+        RAISE EXCEPTION 'Message not found or does not belong to the specified session.';
     END IF;
     
     IF v_branch_message_role != 'assistant' THEN
@@ -525,6 +481,7 @@ DECLARE
     v_session_id uuid;
     v_message_time timestamptz;
     v_user_id uuid;
+    v_session_owner_id uuid;
 BEGIN
     -- Get session and timestamp of the message being regenerated.
     SELECT session_id, created_at, user_id 
@@ -534,6 +491,15 @@ BEGIN
     
     IF v_session_id IS NULL THEN
         RAISE EXCEPTION 'Message not found';
+    END IF;
+
+    -- Security Check: Ensure the user owns the session.
+    SELECT user_id INTO v_session_owner_id
+    FROM chat_sessions
+    WHERE id = v_session_id;
+
+    IF v_session_owner_id IS NULL OR v_session_owner_id != auth.uid() THEN
+        RAISE EXCEPTION 'Permission denied. You must be the owner of the session to regenerate messages.';
     END IF;
     
     -- Delete all messages after this one in the same session.
@@ -785,24 +751,24 @@ $$;
 -- ================================================================================
 
 --
--- Basic Chat Operations
+-- Usage Examples
 --
 
 -- Create a new chat session:
-INSERT INTO chat_sessions (user_id, title, system_prompt)
-VALUES (auth.uid(), 'My First Chat', 'You are a helpful assistant.');
+-- INSERT INTO chat_sessions (user_id, title, system_prompt)
+-- VALUES (auth.uid(), 'My First Chat', 'You are a helpful assistant.');
 
 -- Add messages to a session:
-INSERT INTO chat_messages (session_id, user_id, role, parts)
-VALUES 
-('your-session-id', auth.uid(), 'user', '[{"type": "text", "text": "Hello!"}]'),
-('your-session-id', auth.uid(), 'assistant', '[{"type": "text", "text": "Hi there!"}]');
+-- INSERT INTO chat_messages (session_id, user_id, role, parts)
+-- VALUES 
+-- ('your-session-id', auth.uid(), 'user', '[{"type": "text", "text": "Hello!"}]'),
+-- ('your-session-id', auth.uid(), 'assistant', '[{"type": "text", "text": "Hi there!"}]');
 
 -- Retrieve all messages in a session:
-SELECT id, role, parts, model_used, created_at
-FROM chat_messages
-WHERE session_id = 'your-session-id'
-ORDER BY created_at;
+-- SELECT id, role, parts, model_used, created_at
+-- FROM chat_messages
+-- WHERE session_id = 'your-session-id'
+-- ORDER BY created_at;
 
 
 --
@@ -810,12 +776,12 @@ ORDER BY created_at;
 --
 
 -- Regenerate an AI response by replacing its content and clearing subsequent messages:
-SELECT regenerate_message_and_clear_after(
-    'message-id-to-regenerate',
-    '[{"type": "text", "text": "This is the new, regenerated response."}]'::jsonb,
-    'gpt-4o',
-    'openai'
-);
+-- SELECT regenerate_message_and_clear_after(
+--     'message-id-to-regenerate',
+--     '[{"type": "text", "text": "This is the new, regenerated response."}]'::jsonb,
+--     'gpt-4o',
+--     'openai'
+-- );
 
 
 --
@@ -823,17 +789,17 @@ SELECT regenerate_message_and_clear_after(
 --
 
 -- Create a new conversation branch from an AI message:
-SELECT branch_chat_session(
-    'original-session-id', 
-    'ai-message-id-to-branch-from', 
-    'A New Direction'
-);
+-- SELECT branch_chat_session(
+--     'original-session-id', 
+--     'ai-message-id-to-branch-from', 
+--     'A New Direction'
+-- );
 
 -- Find all branches created from a specific session:
-SELECT * FROM get_session_branches('your-session-id');
+-- SELECT * FROM get_session_branches('your-session-id');
 
 -- Trace the ancestry of a branched session:
-SELECT * FROM get_branch_ancestry('your-branched-session-id');
+-- SELECT * FROM get_branch_ancestry('your-branched-session-id');
 
 
 -- ================================================================================

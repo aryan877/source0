@@ -5,15 +5,19 @@ import {
   type ReasoningLevel,
 } from "@/config/models";
 import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
-
+import { addMessage, createChatSession, getMessages, type MessagePart } from "@/utils/supabase/db";
+import { createClient } from "@/utils/supabase/server";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
 import {
   createDataStreamResponse,
+  DataStreamWriter,
   experimental_generateImage as generateImage,
   streamText,
+  type Attachment,
+  type CoreMessage,
   type JSONValue,
   type LanguageModel,
   type Message,
@@ -22,7 +26,23 @@ import {
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
-// Type definitions
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+interface ChatRequest {
+  messages: Message[];
+  model?: string;
+  reasoningLevel?: ReasoningLevel;
+  searchEnabled?: boolean;
+  id?: string;
+}
+
+interface ClientAttachment extends Attachment {
+  path?: string;
+  size?: number;
+}
+
 interface ErrorResponse {
   error: string;
   code?: string;
@@ -37,13 +57,6 @@ interface ImageGenerationResponse {
     mimeType?: string;
     data?: string;
   }>;
-}
-
-interface ChatRequest {
-  messages: Message[];
-  model?: string;
-  reasoningLevel?: ReasoningLevel;
-  searchEnabled?: boolean;
 }
 
 interface ModelMappingResult {
@@ -65,12 +78,28 @@ interface UnsupportedModelResult {
 
 type ModelMapping = ModelMappingResult | UnsupportedModelResult;
 
-// Centralized error handling
-const createErrorResponse = (message: string, status: number = 500, code?: string): Response =>
-  new Response(JSON.stringify({ error: message, ...(code && { code }) } satisfies ErrorResponse), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+// ============================================================================
+// UTILITIES & HELPERS
+// ============================================================================
+
+const PROVIDERS = {
+  google,
+  openai,
+  anthropic,
+  xai,
+} as const;
+
+const createTimer = (label: string) => {
+  const start = Date.now();
+  return { end: () => Date.now() - start };
+};
+
+const createErrorResponse = (message: string, status: number = 500, code?: string): Response => {
+  return new Response(
+    JSON.stringify({ error: message, ...(code && { code }) } satisfies ErrorResponse),
+    { status, headers: { "Content-Type": "application/json" } }
+  );
+};
 
 const logError = (error: Error, context: string, data: Record<string, unknown> = {}): void => {
   console.error(`🚨 [${context}]`, {
@@ -79,15 +108,17 @@ const logError = (error: Error, context: string, data: Record<string, unknown> =
   });
 };
 
-// AI SDK provider instances
-const PROVIDERS = {
-  google,
-  openai,
-  anthropic,
-  xai,
-} as const;
+const handleStreamError = (error: unknown, requestId: string, model: string): string => {
+  const err = error instanceof Error ? error : new Error(String(error));
+  logError(err, "Response Error", { requestId, model });
 
-// Dynamic model mapping using centralized config
+  return `[${err.name}] ${err.message}`;
+};
+
+// ============================================================================
+// MODEL CONFIGURATION & MAPPING
+// ============================================================================
+
 const getModelMapping = (config: ModelConfig): ModelMapping => {
   const providerInfo = PROVIDER_MAPPING[config.provider];
 
@@ -113,32 +144,6 @@ const getModelMapping = (config: ModelConfig): ModelMapping => {
   };
 };
 
-// Image generation handler
-const handleImageGeneration = async (
-  prompt: string,
-  config: ModelConfig
-): Promise<ImageGenerationResponse> => {
-  if (!config.capabilities.includes("image-generation") || config.provider !== "OpenAI") {
-    throw new Error("Only OpenAI models support image generation currently");
-  }
-
-  const { image } = await generateImage({
-    model: openai.image(config.apiModelName!),
-    prompt,
-    size: "1024x1024",
-  });
-
-  return {
-    role: "assistant",
-    content: "I've generated an image based on your request.",
-    parts: [
-      { type: "text", text: "I've generated an image based on your request." },
-      { type: "file", mimeType: "image/png", data: image.base64 },
-    ],
-  };
-};
-
-// Provider-specific options builder
 const buildProviderOptions = (
   config: ModelConfig,
   reasoningLevel: ReasoningLevel
@@ -167,7 +172,6 @@ const buildProviderOptions = (
   return options;
 };
 
-// Model instance factory
 const createModelInstance = (
   config: ModelConfig,
   mapping: ModelMappingResult,
@@ -175,7 +179,6 @@ const createModelInstance = (
 ): LanguageModel => {
   const { provider, model } = mapping;
 
-  // Google with search grounding
   if (config.provider === "Google" && config.capabilities.includes("search") && searchEnabled) {
     console.log("🔍 Creating Google model with search grounding enabled", { model, searchEnabled });
     return provider(model, {
@@ -184,9 +187,184 @@ const createModelInstance = (
     });
   }
 
-  // All other models use standard provider call
   return provider(model);
 };
+
+const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string => {
+  const systemParts: (string | false)[] = [
+    "You are a helpful AI assistant. Respond naturally and clearly.",
+    config.capabilities.includes("search") &&
+      searchEnabled &&
+      "You have access to web search capabilities. Use search to find current information and cite sources.",
+    config.capabilities.includes("image") &&
+      "You can analyze and understand images provided by users.",
+    config.capabilities.includes("pdf") && "You can read and analyze PDF documents.",
+    "When providing code snippets, always enclose them in markdown code blocks and specify the programming language. For example, ` ```python ... ``` `. If the user requests a niche or fictional language (like 'bhailang'), use that exact name as the language specifier. This is critical for the UI to display the language name correctly.",
+  ];
+
+  return systemParts.filter(Boolean).join(" ");
+};
+
+// ============================================================================
+// IMAGE GENERATION HANDLER
+// ============================================================================
+
+const handleImageGeneration = async (
+  prompt: string,
+  config: ModelConfig
+): Promise<ImageGenerationResponse> => {
+  if (!config.capabilities.includes("image-generation") || config.provider !== "OpenAI") {
+    throw new Error("Only OpenAI models support image generation currently");
+  }
+
+  const timer = createTimer("Image Generation");
+
+  try {
+    const { image } = await generateImage({
+      model: openai.image(config.apiModelName!),
+      prompt,
+      size: "1024x1024",
+    });
+
+    timer.end();
+
+    return {
+      role: "assistant",
+      content: "I've generated an image based on your request.",
+      parts: [
+        { type: "text", text: "I've generated an image based on your request." },
+        { type: "file", mimeType: "image/png", data: image.base64 },
+      ],
+    };
+  } catch (error) {
+    timer.end();
+    throw error;
+  }
+};
+
+// ============================================================================
+// MESSAGE PROCESSING
+// ============================================================================
+
+const processHistoryMessages = (dbMessages: any[]): CoreMessage[] => {
+  return dbMessages
+    .map((msg): CoreMessage | null => {
+      // Simple text messages
+      if (msg.parts.length === 1 && msg.parts[0]?.type === "text") {
+        return { role: msg.role, content: msg.parts[0].text ?? "" } as CoreMessage;
+      }
+
+      // Multi-modal messages
+      const content = msg.parts
+        .map((part: any) => {
+          if (part.type === "text") {
+            return { type: "text" as const, text: part.text ?? "" };
+          }
+          if (part.type === "file" && part.file?.mimeType.startsWith("image/")) {
+            try {
+              return { type: "image" as const, image: new URL(part.file.url) };
+            } catch (e) {
+              console.error("Invalid image URL in history:", e);
+              return null;
+            }
+          }
+          return null;
+        })
+        .filter(Boolean) as ({ type: "text"; text: string } | { type: "image"; image: URL })[];
+
+      if (content.length > 0) {
+        return { role: msg.role, content } as CoreMessage;
+      }
+      return null;
+    })
+    .filter(Boolean) as CoreMessage[];
+};
+
+const processUserMessage = async (
+  lastUserMessage: Message | undefined,
+  attachments: ClientAttachment[],
+  modelConfig: ModelConfig
+): Promise<{ coreMessage: CoreMessage | undefined; dbParts: MessagePart[] }> => {
+  const dbParts: MessagePart[] = [];
+
+  if (!lastUserMessage?.role || lastUserMessage.role !== "user") {
+    return { coreMessage: undefined, dbParts };
+  }
+
+  // Add text part
+  if (typeof lastUserMessage.content === "string" && lastUserMessage.content.trim()) {
+    dbParts.push({ type: "text", text: lastUserMessage.content });
+  }
+
+  // Add file parts for database
+  attachments?.forEach((att) => {
+    dbParts.push({
+      type: "file",
+      file: {
+        name: att.name ?? "file",
+        mimeType: att.contentType ?? "application/octet-stream",
+        url: att.url ?? "",
+        path: att.path ?? "",
+        size: att.size ?? 0,
+      },
+    });
+  });
+
+  // Build core message for AI
+  const textPart =
+    typeof lastUserMessage.content === "string" && lastUserMessage.content.trim()
+      ? [{ type: "text" as const, text: lastUserMessage.content }]
+      : [];
+
+  const fileParts = await Promise.all(
+    attachments?.map(async (att: ClientAttachment) => {
+      if (!att.contentType || !att.url) return null;
+
+      try {
+        const response = await fetch(att.url);
+        if (!response.ok) return null;
+
+        const buffer = await response.arrayBuffer();
+
+        if (att.contentType.startsWith("image/")) {
+          return {
+            type: "image" as const,
+            image: Buffer.from(buffer),
+            contentType: att.contentType,
+          };
+        }
+
+        if (modelConfig.capabilities.includes("pdf") && att.contentType === "application/pdf") {
+          return {
+            type: "file" as const,
+            data: Buffer.from(buffer),
+            mimeType: att.contentType,
+          };
+        }
+
+        return null;
+      } catch (e) {
+        console.error(`Error processing attachment from ${att.url}:`, e);
+        return null;
+      }
+    }) ?? []
+  );
+
+  const newContent = [...textPart, ...fileParts.filter(Boolean)] as (
+    | { type: "text"; text: string }
+    | { type: "image"; image: Buffer; contentType?: string }
+    | { type: "file"; data: Buffer; mimeType: string }
+  )[];
+
+  const coreMessage =
+    newContent.length > 0 ? { role: "user" as const, content: newContent } : undefined;
+
+  return { coreMessage, dbParts };
+};
+
+// ============================================================================
+// METADATA PROCESSING
+// ============================================================================
 
 const logGoogleMetadata = (
   providerMetadata: ProviderMetadata | undefined,
@@ -202,12 +380,10 @@ const logGoogleMetadata = (
       supports: grounding.groundingSupports?.length ?? 0,
     });
 
-    // Log search queries concisely
     if (grounding.webSearchQueries?.length) {
       console.log("🔍 Search queries:", grounding.webSearchQueries);
     }
 
-    // Log source domains only (not full URLs)
     if (grounding.groundingChunks?.length) {
       const sources = grounding.groundingChunks
         .map((chunk) => chunk.web?.title || "Unknown")
@@ -215,20 +391,18 @@ const logGoogleMetadata = (
       console.log("🔍 Sources:", sources.join(", "));
     }
 
-    // Log grounding coverage summary
     if (grounding.groundingSupports?.length) {
       const totalTextLength = grounding.groundingSupports.reduce(
         (sum, support) => sum + (support.segment?.text?.length || 0),
         0
       );
+      const confidenceScores = grounding.groundingSupports.flatMap((s) => s.confidenceScores || []);
+      const avgConfidence =
+        confidenceScores.reduce((sum, score) => sum + score, 0) / confidenceScores.length;
+
       console.log("🔍 Grounding coverage:", {
         segments: grounding.groundingSupports.length,
-        avgConfidence: (
-          grounding.groundingSupports
-            .flatMap((s) => s.confidenceScores || [])
-            .reduce((sum, score) => sum + score, 0) /
-          grounding.groundingSupports.flatMap((s) => s.confidenceScores || []).length
-        ).toFixed(2),
+        avgConfidence: avgConfidence.toFixed(2),
         totalChars: totalTextLength,
       });
     }
@@ -237,18 +411,73 @@ const logGoogleMetadata = (
   return grounding;
 };
 
+// ============================================================================
+// MAIN API HANDLER
+// ============================================================================
+
 export async function POST(req: Request): Promise<Response> {
+  const requestTimer = createTimer("Total Request");
+  const requestId = Math.random().toString(36).substring(2, 15);
+
   try {
+    // Parse request
+    const parseTimer = createTimer("Request Parsing");
+    const body: ChatRequest = await req.json();
+    console.log("📥 Backend request body received:", JSON.stringify(body, null, 2));
+
     const {
       messages,
       model = "gemini-2.5-flash",
       reasoningLevel = "medium",
       searchEnabled = false,
-    }: ChatRequest = await req.json();
+      id: sessionId,
+    } = body;
 
-    console.log(`🚀 Starting chat request`, { model, reasoningLevel, searchEnabled });
+    const lastMessageWithAttachments = messages[messages.length - 1];
+    const attachments: ClientAttachment[] =
+      lastMessageWithAttachments?.experimental_attachments ?? [];
+    parseTimer.end();
 
+    console.log(`🚀 Starting chat request`, {
+      requestId,
+      model,
+      reasoningLevel,
+      searchEnabled,
+      sessionId,
+      attachmentsCount: attachments?.length ?? 0,
+    });
+
+    // Authentication
+    const authTimer = createTimer("Authentication");
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    authTimer.end();
+
+    if (!user) {
+      return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
+    }
+
+    // Handle session creation
+    let currentSessionId = sessionId;
+    if (!currentSessionId || currentSessionId === "new") {
+      const sessionTimer = createTimer("Session Creation");
+      const firstUserMessage = messages.find((m) => m.role === "user")?.content;
+      const title =
+        typeof firstUserMessage === "string" ? firstUserMessage.substring(0, 50) : "New Chat";
+      const newSession = await createChatSession(supabase, user.id, title);
+      currentSessionId = newSession.id;
+      sessionTimer.end();
+
+      console.log(`✨ Created new chat session`, { newSessionId: currentSessionId, title });
+    }
+
+    // Get model configuration
+    const modelTimer = createTimer("Model Configuration");
     const modelConfig = getModelById(model);
+    modelTimer.end();
+
     if (!modelConfig) {
       return createErrorResponse(`Model ${model} not found`, 400);
     }
@@ -261,13 +490,17 @@ export async function POST(req: Request): Promise<Response> {
       lastMessage.content
     ) {
       try {
+        const imageTimer = createTimer("Image Generation Flow");
         const result = await handleImageGeneration(lastMessage.content as string, modelConfig);
+        imageTimer.end();
+
         return new Response(JSON.stringify(result), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
       } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)), "Image Generation", {
+          requestId,
           model,
         });
         return createErrorResponse("Image generation failed", 500);
@@ -275,49 +508,78 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Get model mapping
+    const mappingTimer = createTimer("Model Mapping");
     const mapping = getModelMapping(modelConfig);
+    mappingTimer.end();
+
     if (!mapping.supported) {
       return createErrorResponse(mapping.message, 400);
     }
 
-    // Build system message
-    const systemParts: (string | false)[] = [
-      "You are a helpful AI assistant. Respond naturally and clearly.",
-      modelConfig.capabilities.includes("search") &&
-        searchEnabled &&
-        "You have access to web search capabilities. Use search to find current information and cite sources.",
-      modelConfig.capabilities.includes("image") &&
-        "You can analyze and understand images provided by users.",
-      modelConfig.capabilities.includes("pdf") && "You can read and analyze PDF documents.",
-      "When providing code snippets, always enclose them in markdown code blocks and specify the programming language. For example, ` ```python ... ``` `. If the user requests a niche or fictional language (like 'bhailang'), use that exact name as the language specifier. This is critical for the UI to display the language name correctly.",
-    ];
+    // Load and process chat history
+    const historyTimer = createTimer("History Loading");
+    const dbMessages = await getMessages(supabase, currentSessionId);
+    const history = processHistoryMessages(dbMessages);
+    historyTimer.end();
 
-    const finalMessages: Message[] = [
-      {
-        role: "system",
-        content: systemParts.filter(Boolean).join(" "),
-        id: `system-${Date.now()}`,
-      },
-      ...messages,
+    // Process user message
+    const { coreMessage: latestUserMessage, dbParts: userMessageParts } = await processUserMessage(
+      messages[messages.length - 1],
+      attachments,
+      modelConfig
+    );
+
+    // Save user message to database
+    if (userMessageParts.length > 0) {
+      const saveTimer = createTimer("Message Save");
+      await addMessage(supabase, {
+        session_id: currentSessionId,
+        user_id: user.id,
+        role: "user",
+        parts: userMessageParts,
+        model_used: null,
+        model_provider: null,
+        model_config: null,
+        metadata: {},
+      });
+      saveTimer.end();
+      console.log("📝 Saved user message with structured parts to DB", {
+        numParts: userMessageParts.length,
+      });
+    }
+
+    // Build final messages array
+    const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
+    const finalMessages: CoreMessage[] = [
+      { role: "system", content: systemMessage },
+      ...history,
+      ...(latestUserMessage ? [latestUserMessage] : []),
     ];
 
     // Create model instance and provider options
+    const modelSetupTimer = createTimer("Model Setup");
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);
     const providerOptions = buildProviderOptions(modelConfig, reasoningLevel);
+    modelSetupTimer.end();
 
-    // Use createDataStreamResponse to properly stream data and annotations
+    // Stream response
     return createDataStreamResponse({
-      execute: (dataStream) => {
+      execute: (dataStream: DataStreamWriter) => {
         const result = streamText({
           model: modelInstance,
           messages: finalMessages,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-          onError: ({ error }) =>
+          onError: ({ error }) => {
             logError(error instanceof Error ? error : new Error(String(error)), "Stream Error", {
+              requestId,
               model,
-            }),
-          onFinish: ({ text, finishReason, reasoning, providerMetadata }) => {
+            });
+          },
+          onFinish: async ({ text, finishReason, reasoning, providerMetadata, usage }) => {
+            const finishTimer = createTimer("Stream Finish Processing");
+
             console.log(`✅ Stream completed`, {
+              requestId,
               model,
               textLength: text?.length || 0,
               finishReason,
@@ -325,17 +587,29 @@ export async function POST(req: Request): Promise<Response> {
               hasProviderMetadata: !!providerMetadata,
             });
 
-            // Send grounding metadata annotation only on finish
-            if (providerMetadata?.google?.groundingMetadata) {
-              const groundingMetadata = logGoogleMetadata(providerMetadata, model);
-              if (groundingMetadata) {
-                console.log("🔍 Sending final grounding annotation to client", {
-                  type: "grounding",
-                  hasWebSearchQueries: !!groundingMetadata.webSearchQueries?.length,
-                  hasGroundingChunks: !!groundingMetadata.groundingChunks?.length,
-                  hasGroundingSupports: !!groundingMetadata.groundingSupports?.length,
-                });
+            // Save assistant response
+            const assistantSaveTimer = createTimer("Assistant Message Save");
+            await addMessage(supabase, {
+              session_id: currentSessionId!,
+              user_id: user.id,
+              role: "assistant",
+              parts: [{ type: "text", text }],
+              model_used: model,
+              model_provider: modelConfig.provider,
+              model_config: { reasoningLevel, searchEnabled, usage },
+              metadata: {},
+            });
+            assistantSaveTimer.end();
+            console.log("📝 Saved assistant response to DB");
 
+            // Handle grounding metadata
+            if (providerMetadata?.google?.groundingMetadata) {
+              const groundingTimer = createTimer("Grounding Processing");
+              const groundingMetadata = logGoogleMetadata(providerMetadata, model);
+              groundingTimer.end();
+
+              if (groundingMetadata) {
+                console.log("🔍 Sending final grounding annotation to client");
                 try {
                   dataStream.writeMessageAnnotation({
                     type: "grounding",
@@ -348,38 +622,32 @@ export async function POST(req: Request): Promise<Response> {
               }
             }
 
-            // Log full provider metadata for debugging
+            // Send new session ID for first message
+            if (!sessionId || sessionId === "new") {
+              dataStream.writeMessageAnnotation({
+                type: "new_session",
+                data: { sessionId: currentSessionId },
+              });
+              console.log("✨ Sent new session ID to client");
+            }
+
             if (process.env.NODE_ENV === "development" && providerMetadata) {
               console.log("🔍 Full providerMetadata:", JSON.stringify(providerMetadata, null, 2));
             }
+
+            finishTimer.end();
           },
         });
 
-        // Merge the streamText result into the data stream with automatic options
         result.mergeIntoDataStream(dataStream, {
           sendReasoning: modelConfig.capabilities.includes("reasoning"),
           sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
         });
       },
-      onError: (error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error));
-        logError(err, "Response Error", { model });
-
-        if (err.name === "AI_APICallError")
-          return "Unable to connect to AI service. Please try again.";
-        if (err.name === "AI_RetryError")
-          return "Service temporarily unavailable. Please try again in a moment.";
-        if (err.message.includes("rate limit") || err.message.includes("429")) {
-          return "Too many requests. Please wait a moment before trying again.";
-        }
-        if (err.message.includes("401") || err.message.includes("unauthorized")) {
-          return "Authentication error. Please try again.";
-        }
-
-        return "An error occurred. Please try again.";
-      },
+      onError: (error: unknown) => handleStreamError(error, requestId, model),
     });
   } catch (error) {
+    requestTimer.end();
     const err = error instanceof Error ? error : new Error(String(error));
     logError(err, "API Error", { url: req.url });
 
