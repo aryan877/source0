@@ -8,8 +8,8 @@ import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/goog
 import {
   addMessage,
   createChatSession,
-  getMessages,
   updateChatSessionTitle,
+  type DBChatMessage,
   type MessagePart,
 } from "@/utils/supabase/db";
 import { createClient } from "@/utils/supabase/server";
@@ -29,6 +29,7 @@ import {
   type LanguageModel,
   type Message,
 } from "ai";
+import { v4 as uuidv4 } from "uuid";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -53,17 +54,6 @@ interface ClientAttachment extends Attachment {
 interface ErrorResponse {
   error: string;
   code?: string;
-}
-
-interface ImageGenerationResponse {
-  role: "assistant";
-  content: string;
-  parts: Array<{
-    type: "text" | "file";
-    text?: string;
-    mimeType?: string;
-    data?: string;
-  }>;
 }
 
 interface ModelMappingResult {
@@ -206,6 +196,8 @@ const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string
     config.capabilities.includes("image") &&
       "You can analyze and understand images provided by users.",
     config.capabilities.includes("pdf") && "You can read and analyze PDF documents.",
+    config.capabilities.includes("image-generation") &&
+      "To generate an image, respond with the exact format: `[GENERATE_IMAGE: your detailed image prompt]`. Do not add any other text before or after this.",
     "When providing code snippets, always enclose them in markdown code blocks and specify the programming language. For example, ` ```python ... ``` `. If the user requests a niche or fictional language (like 'bhailang'), use that exact name as the language specifier. This is critical for the UI to display the language name correctly.",
   ];
 
@@ -213,160 +205,103 @@ const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string
 };
 
 // ============================================================================
-// IMAGE GENERATION HANDLER
-// ============================================================================
-
-const handleImageGeneration = async (
-  prompt: string,
-  config: ModelConfig
-): Promise<ImageGenerationResponse> => {
-  if (!config.capabilities.includes("image-generation") || config.provider !== "OpenAI") {
-    throw new Error("Only OpenAI models support image generation currently");
-  }
-
-  const timer = createTimer("Image Generation");
-
-  try {
-    const { image } = await generateImage({
-      model: openai.image(config.apiModelName!),
-      prompt,
-      size: "1024x1024",
-    });
-
-    timer.end();
-
-    return {
-      role: "assistant",
-      content: "I've generated an image based on your request.",
-      parts: [
-        { type: "text", text: "I've generated an image based on your request." },
-        { type: "file", mimeType: "image/png", data: image.base64 },
-      ],
-    };
-  } catch (error) {
-    timer.end();
-    throw error;
-  }
-};
-
-// ============================================================================
 // MESSAGE PROCESSING
 // ============================================================================
 
-const processHistoryMessages = (dbMessages: any[]): CoreMessage[] => {
-  return dbMessages
-    .map((msg): CoreMessage | null => {
-      // Simple text messages
-      if (msg.parts.length === 1 && msg.parts[0]?.type === "text") {
-        return { role: msg.role, content: msg.parts[0].text ?? "" } as CoreMessage;
-      }
-
-      // Multi-modal messages
-      const content = msg.parts
-        .map((part: any) => {
-          if (part.type === "text") {
-            return { type: "text" as const, text: part.text ?? "" };
-          }
-          if (part.type === "file" && part.file?.mimeType.startsWith("image/")) {
-            try {
-              return { type: "image" as const, image: new URL(part.file.url) };
-            } catch (e) {
-              console.error("Invalid image URL in history:", e);
-              return null;
-            }
-          }
-          return null;
-        })
-        .filter(Boolean) as ({ type: "text"; text: string } | { type: "image"; image: URL })[];
-
-      if (content.length > 0) {
-        return { role: msg.role, content } as CoreMessage;
-      }
-      return null;
-    })
-    .filter(Boolean) as CoreMessage[];
-};
-
-const processUserMessage = async (
-  lastUserMessage: Message | undefined,
-  attachments: ClientAttachment[],
+const processMessages = async (
+  messages: Message[],
   modelConfig: ModelConfig
-): Promise<{ coreMessage: CoreMessage | undefined; dbParts: MessagePart[] }> => {
-  const dbParts: MessagePart[] = [];
+): Promise<{
+  coreMessages: CoreMessage[];
+  userMessageToSave: (Message & { dbParts: MessagePart[] }) | null;
+}> => {
+  const coreMessages: CoreMessage[] = [];
+  const reversedMessages = [...messages].reverse();
+  const lastUserMessageIndex = reversedMessages.findIndex((m) => m.role === "user");
+  let userMessageToSave: (Message & { dbParts: MessagePart[] }) | null = null;
 
-  if (!lastUserMessage?.role || lastUserMessage.role !== "user") {
-    return { coreMessage: undefined, dbParts };
-  }
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (!message) continue;
 
-  // Add text part
-  if (typeof lastUserMessage.content === "string" && lastUserMessage.content.trim()) {
-    dbParts.push({ type: "text", text: lastUserMessage.content });
-  }
+    const isLastUserMessage =
+      message.role === "user" && i === messages.length - 1 - lastUserMessageIndex;
 
-  // Add file parts for database
-  attachments?.forEach((att) => {
-    dbParts.push({
-      type: "file",
-      file: {
-        name: att.name ?? "file",
-        mimeType: att.contentType ?? "application/octet-stream",
-        url: att.url ?? "",
-        path: att.path ?? "",
-        size: att.size ?? 0,
-      },
-    });
-  });
+    if (message.role === "user") {
+      const attachments = (message.experimental_attachments as ClientAttachment[]) ?? [];
+      const dbParts: MessagePart[] = [];
+      const coreParts: (
+        | { type: "text"; text: string }
+        | { type: "image"; image: Buffer; contentType?: string }
+        | { type: "file"; data: Buffer; mimeType: string }
+      )[] = [];
 
-  // Build core message for AI
-  const textPart =
-    typeof lastUserMessage.content === "string" && lastUserMessage.content.trim()
-      ? [{ type: "text" as const, text: lastUserMessage.content }]
-      : [];
-
-  const fileParts = await Promise.all(
-    attachments?.map(async (att: ClientAttachment) => {
-      if (!att.contentType || !att.url) return null;
-
-      try {
-        const response = await fetch(att.url);
-        if (!response.ok) return null;
-
-        const buffer = await response.arrayBuffer();
-
-        if (att.contentType.startsWith("image/")) {
-          return {
-            type: "image" as const,
-            image: Buffer.from(buffer),
-            contentType: att.contentType,
-          };
-        }
-
-        if (modelConfig.capabilities.includes("pdf") && att.contentType === "application/pdf") {
-          return {
-            type: "file" as const,
-            data: Buffer.from(buffer),
-            mimeType: att.contentType,
-          };
-        }
-
-        return null;
-      } catch (e) {
-        console.error(`Error processing attachment from ${att.url}:`, e);
-        return null;
+      // Process text part
+      const textContent = typeof message.content === "string" ? message.content.trim() : "";
+      if (textContent) {
+        dbParts.push({ type: "text", text: textContent });
+        coreParts.push({ type: "text", text: textContent });
       }
-    }) ?? []
-  );
 
-  const newContent = [...textPart, ...fileParts.filter(Boolean)] as (
-    | { type: "text"; text: string }
-    | { type: "image"; image: Buffer; contentType?: string }
-    | { type: "file"; data: Buffer; mimeType: string }
-  )[];
+      // Process attachments
+      if (attachments.length > 0) {
+        const fileProcessingPromises = attachments.map(async (att) => {
+          if (!att.contentType || !att.url) return;
+          // Add to DB parts immediately
+          dbParts.push({
+            type: "file",
+            file: {
+              name: att.name ?? "file",
+              mimeType: att.contentType ?? "application/octet-stream",
+              url: att.url ?? "",
+              path: att.path ?? "",
+              size: att.size ?? 0,
+            },
+          });
+          // Fetch and add to core parts for the model
+          try {
+            const response = await fetch(att.url);
+            if (!response.ok) return;
+            const buffer = await response.arrayBuffer();
+            if (att.contentType.startsWith("image/")) {
+              coreParts.push({
+                type: "image",
+                image: Buffer.from(buffer),
+                contentType: att.contentType,
+              });
+            } else if (
+              modelConfig.capabilities.includes("pdf") &&
+              att.contentType === "application/pdf"
+            ) {
+              coreParts.push({
+                type: "file",
+                data: Buffer.from(buffer),
+                mimeType: att.contentType,
+              });
+            }
+          } catch (e) {
+            console.error(`Error processing attachment from ${att.url}:`, e);
+          }
+        });
+        await Promise.all(fileProcessingPromises);
+      }
 
-  const coreMessage =
-    newContent.length > 0 ? { role: "user" as const, content: newContent } : undefined;
+      if (coreParts.length > 0) {
+        coreMessages.push({ role: "user", content: coreParts });
+      }
 
-  return { coreMessage, dbParts };
+      if (isLastUserMessage && dbParts.length > 0) {
+        userMessageToSave = { ...message, dbParts };
+      }
+    } else {
+      // For assistant, system, or tool messages, pass them directly
+      coreMessages.push(message as CoreMessage);
+    }
+  }
+  console.log("🔍 Core messages:", coreMessages);
+  console.log("🔍 User message to save:", userMessageToSave);
+
+  return { coreMessages, userMessageToSave };
 };
 
 // ============================================================================
@@ -471,9 +406,8 @@ export async function POST(req: Request): Promise<Response> {
       id: sessionId,
     } = body;
 
-    const lastMessageWithAttachments = messages[messages.length - 1];
-    const attachments: ClientAttachment[] =
-      lastMessageWithAttachments?.experimental_attachments ?? [];
+    const lastUserMessage = messages[messages.length - 1];
+    const attachments: ClientAttachment[] = lastUserMessage?.experimental_attachments ?? [];
     parseTimer.end();
 
     console.log(`🚀 Starting chat request`, {
@@ -520,31 +454,6 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(`Model ${model} not found`, 400);
     }
 
-    // Handle image generation
-    const lastMessage = messages[messages.length - 1];
-    if (
-      modelConfig.capabilities.includes("image-generation") &&
-      lastMessage?.role === "user" &&
-      lastMessage.content
-    ) {
-      try {
-        const imageTimer = createTimer("Image Generation Flow");
-        const result = await handleImageGeneration(lastMessage.content as string, modelConfig);
-        imageTimer.end();
-
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (error) {
-        logError(error instanceof Error ? error : new Error(String(error)), "Image Generation", {
-          requestId,
-          model,
-        });
-        return createErrorResponse("Image generation failed", 500);
-      }
-    }
-
     // Get model mapping
     const mappingTimer = createTimer("Model Mapping");
     const mapping = getModelMapping(modelConfig);
@@ -554,44 +463,45 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(mapping.message, 400);
     }
 
-    // Load and process chat history
-    const historyTimer = createTimer("History Loading");
-    const dbMessages = await getMessages(supabase, currentSessionId);
-    const history = processHistoryMessages(dbMessages);
-    historyTimer.end();
+    // Process all messages from client
+    const { coreMessages, userMessageToSave } = await processMessages(messages, modelConfig);
 
-    // Process user message
-    const { coreMessage: latestUserMessage, dbParts: userMessageParts } = await processUserMessage(
-      messages[messages.length - 1],
-      attachments,
-      modelConfig
-    );
+    let savedUserMessage: DBChatMessage | undefined;
 
     // Save user message to database
-    if (userMessageParts.length > 0) {
+    if (userMessageToSave) {
       const saveTimer = createTimer("Message Save");
-      await addMessage(supabase, {
-        session_id: currentSessionId,
-        user_id: user.id,
-        role: "user",
-        parts: userMessageParts,
-        model_used: null,
-        model_provider: null,
-        model_config: null,
-        metadata: {},
-      });
-      saveTimer.end();
-      console.log("📝 Saved user message with structured parts to DB", {
-        numParts: userMessageParts.length,
-      });
+      try {
+        console.log("📝 Attempting to save user message with ID:", userMessageToSave.id);
+        console.log("📝 Using session ID:", currentSessionId);
+
+        savedUserMessage = await addMessage(supabase, {
+          id: userMessageToSave.id,
+          session_id: currentSessionId,
+          user_id: user.id,
+          role: "user",
+          parts: userMessageToSave.dbParts,
+          model_used: null,
+          model_provider: null,
+          model_config: null,
+          metadata: {},
+        });
+        saveTimer.end();
+        console.log("📝 Saved user message with structured parts to DB", {
+          numParts: userMessageToSave.dbParts.length,
+          messageId: savedUserMessage.id,
+        });
+      } catch (error) {
+        console.error("❌ Failed to save user message:", error);
+        throw error;
+      }
     }
 
     // Build final messages array
     const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
     const finalMessages: CoreMessage[] = [
       { role: "system", content: systemMessage },
-      ...history,
-      ...(latestUserMessage ? [latestUserMessage] : []),
+      ...coreMessages,
     ];
 
     // Create model instance and provider options
@@ -603,9 +513,13 @@ export async function POST(req: Request): Promise<Response> {
     // Stream response
     return createDataStreamResponse({
       execute: (dataStream: DataStreamWriter) => {
+        // Generate assistant message ID upfront to ensure consistency
+        const assistantMessageId = uuidv4();
+
         const result = streamText({
           model: modelInstance,
           messages: finalMessages,
+          maxSteps: 5, // Allow multiple steps for tool usage
           ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
           onError: ({ error }) => {
             logError(error instanceof Error ? error : new Error(String(error)), "Stream Error", {
@@ -613,7 +527,16 @@ export async function POST(req: Request): Promise<Response> {
               model,
             });
           },
-          onFinish: async ({ text, finishReason, reasoning, providerMetadata, usage }) => {
+          onFinish: async ({
+            text,
+            finishReason,
+            reasoning,
+            providerMetadata,
+            usage,
+            toolCalls,
+            toolResults,
+            response,
+          }) => {
             const finishTimer = createTimer("Stream Finish Processing");
 
             console.log(`✅ Stream completed`, {
@@ -623,22 +546,120 @@ export async function POST(req: Request): Promise<Response> {
               finishReason,
               hasReasoning: !!reasoning,
               hasProviderMetadata: !!providerMetadata,
+              toolCallsCount: toolCalls?.length || 0,
+              toolResultsCount: toolResults?.length || 0,
             });
 
-            // Save assistant response
-            const assistantSaveTimer = createTimer("Assistant Message Save");
-            await addMessage(supabase, {
-              session_id: currentSessionId!,
-              user_id: user.id,
-              role: "assistant",
-              parts: [{ type: "text", text }],
-              model_used: model,
-              model_provider: modelConfig.provider,
-              model_config: { reasoningLevel, searchEnabled, usage },
-              metadata: {},
-            });
-            assistantSaveTimer.end();
-            console.log("📝 Saved assistant response to DB");
+            // Use the generated assistant message ID
+            const messageIdToUse = assistantMessageId;
+
+            const imageGenRegex = /\[GENERATE_IMAGE: (.*)\]/s;
+            const match = text?.match(imageGenRegex);
+
+            if (match && match[1]) {
+              const prompt = match[1].trim();
+              console.log("🎨 Image generation request detected with prompt:", prompt);
+
+              try {
+                const { image, warnings } = await generateImage({
+                  model: openai.image("dall-e-3"),
+                  prompt,
+                  size: "1024x1024",
+                  providerOptions: {
+                    openai: { quality: "standard" },
+                  },
+                });
+
+                if (warnings) {
+                  console.warn("Image generation warnings:", warnings);
+                }
+
+                const imageUrl = `data:image/png;base64,${image.base64}`;
+
+                await addMessage(supabase, {
+                  id: messageIdToUse,
+                  session_id: currentSessionId!,
+                  user_id: user.id,
+                  role: "assistant",
+                  parts: [{ type: "text", text: "" }],
+                  model_used: model,
+                  model_provider: modelConfig.provider,
+                  model_config: { reasoningLevel, searchEnabled, usage },
+                  metadata: { imageUrl, originalText: text },
+                });
+                console.log("📝 Saved image-generation assistant message to DB");
+
+                dataStream.writeMessageAnnotation({
+                  type: "image_display",
+                  data: { assistantMessageId: messageIdToUse, imageUrl },
+                });
+                console.log("🖼️ Sent image display annotation to client");
+
+                // Send the database message ID back to frontend via annotation
+                dataStream.writeMessageAnnotation({
+                  type: "message_saved",
+                  data: {
+                    databaseId: messageIdToUse,
+                    sessionId: currentSessionId,
+                  },
+                });
+                console.log("📤 Sent database message ID to frontend", { id: messageIdToUse });
+              } catch (error) {
+                console.error("❌ Image generation failed in onFinish:", error);
+                const errText = error instanceof Error ? error.message : "Image generation failed.";
+
+                await addMessage(supabase, {
+                  id: messageIdToUse,
+                  session_id: currentSessionId!,
+                  user_id: user.id,
+                  role: "assistant",
+                  parts: [
+                    {
+                      type: "text",
+                      text: `Sorry, I couldn't generate the image. ${errText}`,
+                    },
+                  ],
+                  model_used: model,
+                  model_provider: modelConfig.provider,
+                  model_config: { reasoningLevel, searchEnabled, usage },
+                  metadata: { isError: true },
+                });
+
+                dataStream.writeMessageAnnotation({
+                  type: "error",
+                  data: { message: `Image generation failed: ${errText}` },
+                });
+              }
+            } else if (text) {
+              const assistantSaveTimer = createTimer("Assistant Message Save");
+              try {
+                await addMessage(supabase, {
+                  id: messageIdToUse,
+                  session_id: currentSessionId!,
+                  user_id: user.id,
+                  role: "assistant",
+                  parts: [{ type: "text", text }],
+                  model_used: model,
+                  model_provider: modelConfig.provider,
+                  model_config: { reasoningLevel, searchEnabled, usage },
+                  metadata: {},
+                });
+                assistantSaveTimer.end();
+                console.log("📝 Saved assistant response to DB", { id: messageIdToUse });
+
+                // Send the database message ID back to frontend via annotation
+                dataStream.writeMessageAnnotation({
+                  type: "message_saved",
+                  data: {
+                    databaseId: messageIdToUse,
+                    sessionId: currentSessionId,
+                  },
+                });
+                console.log("📤 Sent database message ID to frontend", { id: messageIdToUse });
+              } catch (error) {
+                console.error("Failed to save assistant message:", error);
+              }
+            }
 
             // Generate and update title for new sessions
             if (isNewSession) {
@@ -680,7 +701,7 @@ export async function POST(req: Request): Promise<Response> {
             }
 
             // Send new session ID for first message
-            if (!sessionId || sessionId === "new") {
+            if (isNewSession) {
               dataStream.writeMessageAnnotation({
                 type: "new_session",
                 data: { sessionId: currentSessionId },

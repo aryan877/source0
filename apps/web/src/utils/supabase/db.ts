@@ -3,7 +3,7 @@ import { type Message } from "ai";
 import { type Tables } from "../../types/supabase-types";
 
 // Base types from auto-generated Supabase types
-type DBChatMessage = Tables<"chat_messages">;
+export type DBChatMessage = Tables<"chat_messages">;
 export type ChatSession = Tables<"chat_sessions">;
 
 // Specific type for the 'parts' JSONB column, for strong typing in app code
@@ -29,17 +29,18 @@ export type ChatMessage = Omit<DBChatMessage, "parts" | "role" | "created_at"> &
 };
 
 /**
- * Adds a new message to the database, including any file attachments.
+ * Adds a new message to the database.
+ * The message object must have an `id`.
  */
 export async function addMessage(
   supabase: SupabaseClient,
-  message: Omit<ChatMessage, "id" | "created_at">
-) {
-  const { data, error } = await supabase.from("chat_messages").insert(message).select().single();
+  message: Omit<ChatMessage, "created_at">
+): Promise<DBChatMessage> {
+  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
 
   if (error) {
-    console.error("Error inserting message:", error);
-    throw new Error("Failed to save message to database.");
+    console.error("Error upserting message:", error);
+    throw new Error(`Failed to upsert message: ${error.message}`);
   }
 
   return data;

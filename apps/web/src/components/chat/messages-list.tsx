@@ -63,6 +63,7 @@ interface MessagesListProps {
   isLoadingMessages: boolean;
   chatId: string;
   onForkChat: (messageId: string) => void;
+  onRetryMessage: (messageId: string) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   error?: Error;
@@ -77,6 +78,7 @@ export const MessagesList = memo(
     isLoadingMessages,
     chatId,
     onForkChat,
+    onRetryMessage,
     messagesContainerRef,
     messagesEndRef,
     error,
@@ -92,7 +94,7 @@ export const MessagesList = memo(
             <div key={message.id} className="w-full max-w-full">
               <MessageBubble
                 message={message}
-                onRetry={() => {}}
+                onRetry={onRetryMessage}
                 onFork={onForkChat}
                 isLoading={isLoading}
               />

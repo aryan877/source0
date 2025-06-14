@@ -324,8 +324,8 @@ const MessageBubble = memo(
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
-      // Don't show actions when loading/streaming or for user messages
-      if (isLoading || isUser) return null;
+      // Don't show actions when loading/streaming
+      if (isLoading) return null;
 
       return (
         <div
@@ -378,7 +378,7 @@ const MessageBubble = memo(
           </Tooltip>
         </div>
       );
-    }, [showActions, handleRetry, copied, handleCopy, handleFork, isLoading, isUser]);
+    }, [showActions, handleRetry, copied, handleCopy, handleFork, isLoading]);
 
     return (
       <div
@@ -409,24 +409,22 @@ const MessageBubble = memo(
             {!isUser && renderGroundingMetadata}
           </div>
 
-          {/* Action buttons and model info, only for assistant messages */}
-          {!isUser && (
-            <div className="flex w-full items-center justify-between pl-1 pr-2">
-              <div className="flex items-center gap-2">
-                {actionButtons}
-                {!isLoading && modelMetadata && showActions && (
-                  <Tooltip
-                    content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
-                    placement="top"
-                  >
-                    <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
-                      <span>{modelMetadata.modelUsed}</span>
-                    </div>
-                  </Tooltip>
-                )}
-              </div>
+          {/* Action buttons and model info */}
+          <div className="flex w-full items-center justify-between pl-1 pr-2">
+            <div className="flex items-center gap-2">
+              {actionButtons}
+              {!isLoading && modelMetadata && showActions && !isUser && (
+                <Tooltip
+                  content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
+                  placement="top"
+                >
+                  <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
+                    <span>{modelMetadata.modelUsed}</span>
+                  </div>
+                </Tooltip>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     );

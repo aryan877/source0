@@ -549,13 +549,6 @@ export const Sidebar = memo(
       deleteSession
     );
 
-    // Invalidate sessions when selectedChatId changes (for when new sessions are created)
-    useEffect(() => {
-      if (selectedChatId && selectedChatId !== "new") {
-        invalidateSessions();
-      }
-    }, [selectedChatId, invalidateSessions]);
-
     const handleSignOut = useCallback(() => {
       onModalClose();
       signOut();

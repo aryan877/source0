@@ -16,5 +16,10 @@
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "filter": "^0.1.1",
+    "web": "^0.0.2",
+    "zod": "^3.25.64"
   }
 }

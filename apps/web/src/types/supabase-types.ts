@@ -24,7 +24,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          id?: string
+          id: string
           metadata?: Json | null
           model_config?: Json | null
           model_provider?: string | null
@@ -186,6 +186,10 @@ export type Database = {
         Args: { p_chat_id: string; p_stream_id: string; p_stream_config?: Json }
         Returns: string
       }
+      delete_messages_after: {
+        Args: { p_message_id: string }
+        Returns: number
+      }
       generate_share_slug: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -264,16 +268,6 @@ export type Database = {
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: unknown
-      }
-      regenerate_message_and_clear_after: {
-        Args: {
-          p_message_id: string
-          p_new_parts: Json
-          p_model_used?: string
-          p_model_provider?: string
-          p_model_config?: Json
-        }
-        Returns: string
       }
       sparsevec_out: {
         Args: { "": unknown }

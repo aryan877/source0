@@ -12,7 +12,7 @@
 -- - Flexible Content: Message structure supports complex content like reasoning or sources.
 -- - File Attachments: Integrates with Supabase Storage for file handling.
 -- - Session Branching: Allows creating new conversation forks from AI responses.
--- - Message Regeneration: Supports replacing a message and clearing subsequent history.
+-- - Message Retry: Supports retrying messages by deleting subsequent history.
 -- - Public Sharing: Enables sharing sessions via unique, generated slugs.
 -- - Streaming Support: Built for real-time streaming with the Vercel AI SDK.
 -- - Security: Includes comprehensive Row-Level Security (RLS) policies.
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     
     -- Session Branching Support
     branched_from_session_id uuid           REFERENCES chat_sessions(id) ON DELETE SET NULL,
-    branched_from_message_id uuid,          -- FK constraint added below
+    branched_from_message_id text,          -- FK constraint added below
     
     -- Public Sharing
     is_public               boolean         DEFAULT false,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 --
 CREATE TABLE IF NOT EXISTS chat_messages (
     -- Primary Key
-    id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                  text            PRIMARY KEY,
     
     -- Associations
     session_id          uuid            NOT NULL 
@@ -374,7 +374,7 @@ CREATE TRIGGER trigger_update_chat_sessions_updated_at
 --
 CREATE OR REPLACE FUNCTION branch_chat_session(
     p_original_session_id uuid,
-    p_branch_from_message_id uuid,
+    p_branch_from_message_id text,
     p_new_title text DEFAULT NULL
 )
 RETURNS uuid
@@ -462,30 +462,24 @@ END;
 $$;
 
 --
--- Function: regenerate_message_and_clear_after(p_message_id, p_new_parts, ...)
--- Description: Replaces the content of a specified message and deletes all
--- subsequent messages in the same session. This is for simple "regenerate" actions.
+-- Function: delete_messages_after(p_message_id)
+-- Description: Deletes all messages after a specific message in the same session.
+-- This is useful for retry functionality where we want to retry from a specific message.
 --
-CREATE OR REPLACE FUNCTION regenerate_message_and_clear_after(
-    p_message_id uuid,
-    p_new_parts jsonb,
-    p_model_used text DEFAULT NULL,
-    p_model_provider text DEFAULT NULL,
-    p_model_config jsonb DEFAULT NULL
-)
-RETURNS uuid
+CREATE OR REPLACE FUNCTION delete_messages_after(p_message_id text)
+RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
     v_session_id uuid;
     v_message_time timestamptz;
-    v_user_id uuid;
     v_session_owner_id uuid;
+    v_deleted_count integer;
 BEGIN
-    -- Get session and timestamp of the message being regenerated.
-    SELECT session_id, created_at, user_id 
-    INTO v_session_id, v_message_time, v_user_id
+    -- Get session and timestamp of the reference message.
+    SELECT session_id, created_at 
+    INTO v_session_id, v_message_time
     FROM chat_messages 
     WHERE id = p_message_id;
     
@@ -499,25 +493,18 @@ BEGIN
     WHERE id = v_session_id;
 
     IF v_session_owner_id IS NULL OR v_session_owner_id != auth.uid() THEN
-        RAISE EXCEPTION 'Permission denied. You must be the owner of the session to regenerate messages.';
+        RAISE EXCEPTION 'Permission denied. You must be the owner of the session to delete messages.';
     END IF;
     
-    -- Delete all messages after this one in the same session.
+    -- Delete all messages after this one in the same session (but not the message itself).
     DELETE FROM chat_messages 
     WHERE session_id = v_session_id 
-    AND created_at > v_message_time;
+    AND created_at > v_message_time
+    AND id != p_message_id;
     
-    -- Update the target message with new content.
-    UPDATE chat_messages 
-    SET 
-        parts = p_new_parts,
-        model_used = p_model_used,
-        model_provider = p_model_provider,
-        model_config = p_model_config,
-        created_at = now()  -- Update timestamp to reflect regeneration
-    WHERE id = p_message_id;
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
     
-    RETURN p_message_id;
+    RETURN v_deleted_count;
 END;
 $$;
 
@@ -772,16 +759,11 @@ $$;
 
 
 --
--- Message Regeneration
+-- Message Retry
 --
 
--- Regenerate an AI response by replacing its content and clearing subsequent messages:
--- SELECT regenerate_message_and_clear_after(
---     'message-id-to-regenerate',
---     '[{"type": "text", "text": "This is the new, regenerated response."}]'::jsonb,
---     'gpt-4o',
---     'openai'
--- );
+-- Delete all messages after a specific message for retry functionality:
+-- SELECT delete_messages_after('message-id-to-retry-from');
 
 
 --
