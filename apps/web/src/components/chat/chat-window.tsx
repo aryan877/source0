@@ -20,7 +20,7 @@ interface ChatWindowProps {
 
 const logError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
   const isDevelopment = process.env.NODE_ENV === "development";
-  console.error(`🚨 [Chat Error - ${context}]`, {
+  console.error(`[Chat Error - ${context}]`, {
     error: {
       message: error.message,
       name: error.name,
@@ -36,7 +36,6 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   const router = useRouter();
   const [forceFocus, setForceFocus] = useState(false);
 
-  // React Query hooks
   const {
     messages: queryMessages,
     isLoading: isLoadingMessages,
@@ -44,21 +43,17 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   } = useChatMessages(chatId);
   const { invalidateSessions, updateSessionInCache } = useChatSessions();
 
-  // Determine messages to use
   const messagesToUse =
     chatId !== "new" && queryMessages.length > 0 ? queryMessages : initialMessages;
 
-  // Scroll management
   const { messagesContainerRef, messagesEndRef, showScrollToBottom, scrollToBottom } =
     useScrollManagement(messagesToUse.length);
 
-  // Chat handlers
   const { handleFileAttach, handleRemoveFile, handleForkChat, handleModelChange } = useChatHandlers(
     chatId,
     updateState
   );
 
-  // AI SDK Chat hook
   const { messages, input, setInput, status, stop, error, append, reload, setMessages } = useChat({
     api: "/api/chat",
     id: chatId === "new" ? undefined : chatId,
@@ -85,7 +80,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
     },
     onResponse: (response) => {
       if (process.env.NODE_ENV === "development") {
-        console.log(`📡 Chat API Response - Status: ${response.status}`, {
+        console.log(`Chat API Response - Status: ${response.status}`, {
           chatId,
           selectedModel: selectedModel,
           headers: Object.fromEntries(response.headers.entries()),
@@ -110,7 +105,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
     },
     onFinish: async (message, { usage, finishReason }) => {
       if (process.env.NODE_ENV === "development") {
-        console.log("✅ Chat stream finished", {
+        console.log("Chat stream finished", {
           chatId,
           selectedModel: selectedModel,
           messageId: message.id,
@@ -120,7 +115,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         });
       }
 
-      // Check for message saved annotation containing database ID
+      // Handle message saved annotation
       const messageSavedAnnotation = message.annotations?.find(
         (a) =>
           typeof a === "object" &&
@@ -138,16 +133,8 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
           typeof (data as { databaseId?: unknown }).databaseId === "string"
         ) {
           const databaseId = (data as { databaseId: string }).databaseId;
-          console.log(
-            "🎯 Message saved to database with ID:",
-            databaseId,
-            "Frontend ID:",
-            message.id
-          );
 
-          // Update the message ID to match the database ID
           if (message.id !== databaseId) {
-            console.log("🔄 Updating frontend message ID to match database ID");
             setMessages((currentMessages) =>
               currentMessages.map((msg) =>
                 msg.id === message.id ? { ...msg, id: databaseId } : msg
@@ -157,12 +144,11 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         }
       }
 
-      // Invalidate the messages for the current chat to refetch from DB
       if (chatId && chatId !== "new") {
         invalidateMessages();
       }
 
-      // Check if a new session was created and update the session list optimistically
+      // Handle new session creation
       const newSessionAnnotation = message.annotations?.find(
         (a) =>
           typeof a === "object" &&
@@ -181,12 +167,10 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         ) {
           const newSessionId = (data as { sessionId: string }).sessionId;
 
-          // Transfer model selection from "new" to the actual session ID
           if (chatId === "new") {
             transferModelSelection("new", newSessionId);
           }
 
-          // Fetch the new session and add it to the cache
           const supabase = (await import("@/utils/supabase/client")).createClient();
           const newSession = await (
             await import("@/utils/supabase/db")
@@ -195,14 +179,13 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
           if (newSession) {
             updateSessionInCache(newSession);
           } else {
-            // Fallback to invalidation if fetching fails
             invalidateSessions();
           }
-          // Redirect to the new session
+
           router.push(`/chat/${newSessionId}`);
         }
       } else if (chatId && chatId !== "new") {
-        // This was an existing chat, so fetch its updated state and update cache
+        // Update existing chat session
         const supabase = (await import("@/utils/supabase/client")).createClient();
         const updatedSession = await (
           await import("@/utils/supabase/db")
@@ -219,7 +202,6 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
 
   const isLoading = status === "submitted" || status === "streaming";
 
-  // Retry/Regenerate handler for messages
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
       const messageIndex = messages.findIndex((m) => m.id === messageId);
@@ -228,17 +210,12 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       const messageToRetry = messages[messageIndex];
       if (!messageToRetry) return;
 
-      // A small helper to introduce a delay
       const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
       try {
-        // First, delete messages from database after the retry point
         if (chatId && chatId !== "new") {
           const supabase = (await import("@/utils/supabase/client")).createClient();
 
-          console.log("🔄 Deleting messages after:", messageId);
-
-          // Call the delete_messages_after function to clear subsequent messages
           const { error: deleteError } = await supabase.rpc("delete_messages_after", {
             p_message_id: messageId,
           });
@@ -249,22 +226,17 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
             return;
           }
 
-          // Invalidate messages to refetch from database, but don't block
           invalidateMessages();
         }
 
-        // Truncate local messages to the retry point (excluding the message being retried)
         const messagesUpToRetryPoint = messages.slice(0, messageIndex);
         setMessages(messagesUpToRetryPoint);
 
-        // A short delay to allow React state to update before proceeding
         await delay(50);
 
-        // If it's a user message, re-append it and generate AI response
         if (messageToRetry.role === "user") {
-          // Re-append the user message with original ID preserved
           const userMessageToResubmit = {
-            id: messageToRetry.id, // Keep original ID for sync
+            id: messageToRetry.id,
             role: "user" as const,
             content: messageToRetry.content,
             ...(messageToRetry.parts && { parts: messageToRetry.parts }),
@@ -274,7 +246,6 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
           };
           append(userMessageToResubmit);
         } else {
-          // If it's an AI message, use reload to regenerate
           reload();
         }
 
@@ -284,7 +255,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         updateState({
           uiError: "Failed to retry message. Please try again.",
         });
-        // Invalidate messages to restore the original state
+
         if (chatId && chatId !== "new") {
           invalidateMessages();
         }
@@ -304,12 +275,10 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
     ]
   );
 
-  // Update scroll state
   useEffect(() => {
     updateState({ showScrollToBottom });
   }, [showScrollToBottom, updateState]);
 
-  // Form submission handler
   const handleFormSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
@@ -362,9 +331,9 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
             }
           : {};
 
-      if (attachments.length > 0) {
+      if (attachments.length > 0 && process.env.NODE_ENV === "development") {
         console.log(
-          "📎 Frontend attachments being sent:",
+          "Frontend attachments being sent:",
           JSON.stringify(chatRequestOptions.experimental_attachments, null, 2)
         );
       }
@@ -372,8 +341,6 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       append(messageToAppend, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
-
-      // Trigger the focus effect
       setForceFocus(true);
     },
     [append, state.attachedFiles, input, setInput, updateState]
@@ -382,7 +349,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   useEffect(() => {
     if (forceFocus) {
       chatInputRef.current?.focus();
-      setForceFocus(false); // Reset the trigger
+      setForceFocus(false);
     }
   }, [forceFocus]);
 
@@ -396,7 +363,6 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
     [handleFormSubmit]
   );
 
-  // Computed values
   const canSubmit = useMemo(
     () => (input.trim().length > 0 || state.attachedFiles.length > 0) && !isLoading,
     [input, state.attachedFiles.length, isLoading]
@@ -418,6 +384,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         error={error}
         uiError={state.uiError}
         onDismissUiError={() => updateState({ uiError: null })}
+        onRetry={reload}
       />
 
       <ChatInput

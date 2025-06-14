@@ -69,6 +69,7 @@ interface MessagesListProps {
   error?: Error;
   uiError?: string | null;
   onDismissUiError: () => void;
+  onRetry?: () => void;
 }
 
 export const MessagesList = memo(
@@ -84,6 +85,7 @@ export const MessagesList = memo(
     error,
     uiError,
     onDismissUiError,
+    onRetry,
   }: MessagesListProps) => (
     <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-4">
@@ -104,7 +106,12 @@ export const MessagesList = memo(
 
         {isLoading && <StreamingIndicator />}
 
-        <ErrorDisplay error={error} uiError={uiError} onDismissUiError={onDismissUiError} />
+        <ErrorDisplay
+          error={error}
+          uiError={uiError}
+          onDismissUiError={onDismissUiError}
+          onRetry={onRetry}
+        />
 
         <div ref={messagesEndRef} className="h-1" />
       </div>
