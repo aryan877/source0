@@ -1,8 +1,8 @@
 "use client";
 
 import { useWindow } from "@/hooks/use-window";
-import { Bars3Icon } from "@heroicons/react/24/outline";
 import { Button } from "@heroui/react";
+import { PanelRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./sidebar";
@@ -60,7 +60,7 @@ export function AppShell({ children }: AppShellProps) {
         className="fixed left-4 top-4 z-[60] h-10 w-10"
         aria-label="Toggle menu"
       >
-        <Bars3Icon className="h-5 w-5" />
+        <PanelRight className="h-5 w-5" />
       </Button>
       <Sidebar
         selectedChatId={currentChatId}

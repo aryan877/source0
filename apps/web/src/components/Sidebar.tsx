@@ -257,15 +257,12 @@ const ChatItem = memo(
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <div className="rounded-md bg-content2 p-1">
                 <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
               </div>
               <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
             </div>
-            <p className="mb-1 truncate text-xs leading-relaxed text-default-500">
-              No summary available
-            </p>
             <p className="text-xs text-default-400">{formatTimestamp(updatedAt)}</p>
           </div>
 

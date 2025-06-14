@@ -5,7 +5,13 @@ import {
   type ReasoningLevel,
 } from "@/config/models";
 import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
-import { addMessage, createChatSession, getMessages, type MessagePart } from "@/utils/supabase/db";
+import {
+  addMessage,
+  createChatSession,
+  getMessages,
+  updateChatSessionTitle,
+  type MessagePart,
+} from "@/utils/supabase/db";
 import { createClient } from "@/utils/supabase/server";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
@@ -15,6 +21,7 @@ import {
   createDataStreamResponse,
   DataStreamWriter,
   experimental_generateImage as generateImage,
+  generateText,
   streamText,
   type Attachment,
   type CoreMessage,
@@ -412,6 +419,37 @@ const logGoogleMetadata = (
 };
 
 // ============================================================================
+// TITLE GENERATION
+// ============================================================================
+
+const generateChatTitle = async (userMessage: string): Promise<string> => {
+  try {
+    const { text } = await generateText({
+      model: openai("gpt-4o-mini"),
+      messages: [
+        {
+          role: "system",
+          content:
+            "Generate a concise, descriptive title (max 50 characters) for this chat based on the user's first message. The title should capture the main topic or intent. Don't use quotes or extra formatting.",
+        },
+        {
+          role: "user",
+          content: userMessage,
+        },
+      ],
+      maxTokens: 50,
+      temperature: 0.7,
+    });
+
+    return text.trim().substring(0, 50);
+  } catch (error) {
+    console.error("Failed to generate title with GPT-4o-mini:", error);
+    // Fallback to truncated user message
+    return userMessage.substring(0, 50);
+  }
+};
+
+// ============================================================================
 // MAIN API HANDLER
 // ============================================================================
 
@@ -461,16 +499,16 @@ export async function POST(req: Request): Promise<Response> {
 
     // Handle session creation
     let currentSessionId = sessionId;
+    let isNewSession = false;
     if (!currentSessionId || currentSessionId === "new") {
       const sessionTimer = createTimer("Session Creation");
-      const firstUserMessage = messages.find((m) => m.role === "user")?.content;
-      const title =
-        typeof firstUserMessage === "string" ? firstUserMessage.substring(0, 50) : "New Chat";
-      const newSession = await createChatSession(supabase, user.id, title);
+      // Create session with temporary title first
+      const newSession = await createChatSession(supabase, user.id, "New Chat");
       currentSessionId = newSession.id;
+      isNewSession = true;
       sessionTimer.end();
 
-      console.log(`✨ Created new chat session`, { newSessionId: currentSessionId, title });
+      console.log(`✨ Created new chat session`, { newSessionId: currentSessionId });
     }
 
     // Get model configuration
@@ -601,6 +639,25 @@ export async function POST(req: Request): Promise<Response> {
             });
             assistantSaveTimer.end();
             console.log("📝 Saved assistant response to DB");
+
+            // Generate and update title for new sessions
+            if (isNewSession) {
+              const titleTimer = createTimer("Title Generation");
+              try {
+                const firstUserMessage = messages.find((m) => m.role === "user")?.content;
+                if (typeof firstUserMessage === "string" && firstUserMessage.trim()) {
+                  const generatedTitle = await generateChatTitle(firstUserMessage);
+                  await updateChatSessionTitle(supabase, currentSessionId!, generatedTitle);
+                  console.log("🏷️ Updated session title:", {
+                    sessionId: currentSessionId,
+                    title: generatedTitle,
+                  });
+                }
+              } catch (error) {
+                console.error("Failed to generate/update session title:", error);
+              }
+              titleTimer.end();
+            }
 
             // Handle grounding metadata
             if (providerMetadata?.google?.groundingMetadata) {

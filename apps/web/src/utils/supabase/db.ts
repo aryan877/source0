@@ -135,6 +135,22 @@ export async function getChatSessions(
 }
 
 /**
+ * Updates a chat session's title.
+ */
+export async function updateChatSessionTitle(
+  supabase: SupabaseClient,
+  sessionId: string,
+  title: string
+): Promise<void> {
+  const { error } = await supabase.from("chat_sessions").update({ title }).eq("id", sessionId);
+
+  if (error) {
+    console.error("Error updating chat session title:", error);
+    throw new Error("Failed to update chat session title.");
+  }
+}
+
+/**
  * Converts database chat messages to AI SDK `Message` objects for the UI.
  * It creates a simple string representation for the `content` field and
  * attaches the full, structured `parts` data to `experimental_attachments`
