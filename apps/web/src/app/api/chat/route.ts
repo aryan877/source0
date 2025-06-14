@@ -1,6 +1,11 @@
 import { type ReasoningLevel } from "@/config/models";
 import { createDataStreamResponse, streamText, type Message } from "ai";
-import { createOrGetSession, getAuthenticatedUser, saveUserMessage } from "./utils/database";
+import {
+  createOrGetSession,
+  getAuthenticatedUser,
+  saveAssistantMessage,
+  saveUserMessage,
+} from "./utils/database";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { processMessages } from "./utils/messages";
 import {
@@ -60,7 +65,114 @@ export async function POST(req: Request): Promise<Response> {
       await saveUserMessage(supabase, userMessageToSave, currentSessionId, user.id);
     }
 
-    const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
+    // Check for image generation request BEFORE streaming
+    const lastUserMessage = messages[messages.length - 1];
+    const userText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
+    const imageGenRegex = /(?:generate|create|make).*(?:image|picture|photo|drawing)/i;
+    const isImageGenerationRequest =
+      imageGenRegex.test(userText) && modelConfig.capabilities.includes("image-generation");
+
+    console.log("🔍 Checking for image generation request:");
+    console.log("User message:", userText);
+    console.log(
+      "Has image-generation capability:",
+      modelConfig.capabilities.includes("image-generation")
+    );
+    console.log("Is image generation request:", isImageGenerationRequest);
+
+    // If this is an image generation request, handle it directly
+    if (isImageGenerationRequest) {
+      console.log("🎨 Direct image generation requested, bypassing streaming...");
+
+      // Import the image generation function
+      const { generateImageDirectly } = await import("./utils/stream-handlers");
+
+      try {
+        const imagePrompt = userText.replace(imageGenRegex, "").trim() || userText;
+        const { imageBuffer } = await generateImageDirectly(imagePrompt);
+        const { generateId } = await import("./utils/database");
+        const messageId = generateId();
+        const filePath = `uploads/${user.id}/generated-${messageId}.png`;
+
+        // Upload to Supabase storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("chat-attachments")
+          .upload(filePath, imageBuffer, {
+            contentType: "image/png",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("chat-attachments")
+          .getPublicUrl(uploadData.path);
+
+        const imageUrl = publicUrlData.publicUrl;
+
+        // Save the assistant message
+        await saveAssistantMessage(
+          supabase,
+          messageId,
+          currentSessionId,
+          user.id,
+          [
+            { type: "text", text: "Here is the generated image:" },
+            {
+              type: "file",
+              file: {
+                name: "generated-image.png",
+                mimeType: "image/png",
+                url: imageUrl,
+                path: filePath,
+                size: imageBuffer.length,
+              },
+            },
+          ],
+          model,
+          modelConfig.provider,
+          { reasoningLevel, searchEnabled },
+          {}
+        );
+
+        // Return streaming response compatible with frontend
+        return createDataStreamResponse({
+          execute: (dataStream) => {
+            // Write the text content first
+            dataStream.writeData("Here is the generated image:");
+
+            // Send the message saved annotation
+            dataStream.writeMessageAnnotation({
+              type: "message_saved",
+              data: { databaseId: messageId, sessionId: currentSessionId },
+            });
+
+            // Send the image file
+            dataStream.writeMessageAnnotation({
+              type: "file_part",
+              data: {
+                type: "file",
+                mimeType: "image/png",
+                url: imageUrl,
+                filename: "generated-image.png",
+              },
+            });
+          },
+          onError: (error: unknown) => handleStreamError(error, "ImageGeneration"),
+        });
+      } catch (error) {
+        console.error("❌ Direct image generation failed:", error);
+        return createErrorResponse(
+          `Image generation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          500,
+          "IMAGE_GENERATION_ERROR"
+        );
+      }
+    }
+
+    const systemMessage = buildSystemMessage(modelConfig, searchEnabled, isImageGenerationRequest);
     const finalMessages = [{ role: "system" as const, content: systemMessage }, ...coreMessages];
 
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);

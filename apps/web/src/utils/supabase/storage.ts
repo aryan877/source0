@@ -1,9 +1,8 @@
 import { createClient } from "./client";
 
 const supabase = createClient();
-
-// Storage bucket name for chat attachments
 const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export interface UploadResult {
   url: string;
@@ -31,6 +30,59 @@ export interface FileInfo {
   metadata: Record<string, unknown>;
 }
 
+const ALLOWED_TYPES = [
+  // Images
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  // Videos
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  // Audio
+  "audio/mpeg",
+  "audio/wav",
+  "audio/mp4",
+  "audio/webm",
+  // Documents
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "text/html",
+  "application/pdf",
+  "application/json",
+  "application/xml",
+  // Office Documents
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+
+const validateFile = (file: File): { valid: boolean; error?: string } => {
+  if (file.size > MAX_FILE_SIZE) {
+    return { valid: false, error: "File size must be less than 50MB" };
+  }
+
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return {
+      valid: false,
+      error: "File type not supported",
+    };
+  }
+
+  return { valid: true };
+};
+
+const generateFilePath = (userId: string, file: File, folder: string = "uploads"): string => {
+  const timestamp = Date.now();
+  const fileExtension = file.name.split(".").pop();
+  const fileName = `${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
+  return `${folder}/${userId}/${fileName}`;
+};
+
 /**
  * Upload a file to Supabase storage
  */
@@ -39,82 +91,29 @@ export async function uploadFile(
   folder: string = "uploads"
 ): Promise<UploadResult | Omit<UploadError, "file">> {
   try {
-    // Get current user for folder organization
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     if (!user) {
       return { error: "User must be authenticated to upload files" };
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileExtension = file.name.split(".").pop();
-    const fileName = `${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
-
-    // Organize files by user ID for security: folder/userId/filename
-    const filePath = `${folder}/${user.id}/${fileName}`;
-
-    // Validate file size (max 50MB, aligned with backend)
-    if (file.size > 50 * 1024 * 1024) {
-      return { error: "File size must be less than 50MB" };
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      return { error: validation.error! };
     }
 
-    // Validate file type (aligned with backend)
-    const allowedTypes = [
-      // Images
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-      "image/gif",
-      "image/svg+xml",
-      // Videos
-      "video/mp4",
-      "video/webm",
-      "video/quicktime",
-      // Audio
-      "audio/mpeg",
-      "audio/wav",
-      "audio/mp4",
-      "audio/webm",
-      // Documents
-      "text/plain",
-      "text/markdown",
-      "text/csv",
-      "text/html",
-      "application/pdf",
-      "application/json",
-      "application/xml",
-      // Office Documents
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ];
+    const filePath = generateFilePath(user.id, file, folder);
 
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        error: "File type not supported",
-        details:
-          "For a full list of supported types, please check the application's configuration.",
-      };
-    }
-
-    // Upload file to Supabase storage
     const { data, error } = await supabase.storage
       .from(CHAT_ATTACHMENTS_BUCKET)
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      .upload(filePath, file, { cacheControl: "3600", upsert: false });
 
     if (error) {
       console.error("Upload error:", error);
       return { error: "Failed to upload file", details: error.message };
     }
 
-    // Since the bucket is public, we can get the public URL directly
     const { data: publicUrlData } = supabase.storage
       .from(CHAT_ATTACHMENTS_BUCKET)
       .getPublicUrl(data.path);

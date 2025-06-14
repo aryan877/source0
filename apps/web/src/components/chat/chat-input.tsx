@@ -4,10 +4,11 @@ import { type ReasoningLevel } from "@/config/models";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
 import { forwardRef, memo, useImperativeHandle, useRef } from "react";
-import { FileAttachment, type AttachedFileWithUrl } from "./file-attachment";
+import { FileAttachment } from "./file-attachment";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
+import { type AttachedFileWithUrl } from "./utils/file-utils";
 
 interface ChatInputProps {
   input: string;

@@ -18,18 +18,6 @@ interface ChatWindowProps {
   initialMessages?: Message[];
 }
 
-const logError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
-  const isDevelopment = process.env.NODE_ENV === "development";
-  console.error(`[Chat Error - ${context}]`, {
-    error: {
-      message: error.message,
-      name: error.name,
-      stack: isDevelopment ? error.stack : undefined,
-    },
-    ...data,
-  });
-};
-
 const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   const { state, updateState, selectedModel } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
@@ -67,7 +55,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       id: chatId === "new" ? undefined : chatId,
     },
     onError: (error) => {
-      logError(error, "useChat Hook Error", {
+      console.error("useChat Hook Error", error, {
         chatId,
         selectedModel: selectedModel,
         reasoningLevel: state.reasoningLevel,
@@ -90,9 +78,9 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       }
 
       if (!response.ok) {
-        logError(
-          new Error(`HTTP ${response.status}: ${response.statusText}`),
+        console.error(
           "API Response Error",
+          new Error(`HTTP ${response.status}: ${response.statusText}`),
           {
             chatId,
             selectedModel: selectedModel,
@@ -113,6 +101,35 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
           usage,
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Handle file part annotation for generated images
+      const filePartAnnotation = message.annotations?.find(
+        (a) =>
+          typeof a === "object" &&
+          a !== null &&
+          !Array.isArray(a) &&
+          (a as { type?: unknown }).type === "file_part"
+      );
+
+      if (filePartAnnotation) {
+        const filePart = (filePartAnnotation as { data?: unknown }).data;
+        if (filePart) {
+          setMessages((currentMessages) =>
+            currentMessages.map((msg) => {
+              if (msg.id === message.id) {
+                const newParts: Message["parts"] = msg.parts ? [...msg.parts] : [];
+                // If there's no text part, add one from content.
+                if (!newParts.some((p) => p.type === "text")) {
+                  newParts.unshift({ type: "text", text: msg.content });
+                }
+                newParts.push(filePart as any);
+                return { ...msg, parts: newParts };
+              }
+              return msg;
+            })
+          );
+        }
       }
 
       // Handle message saved annotation
