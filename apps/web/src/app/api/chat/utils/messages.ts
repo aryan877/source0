@@ -17,6 +17,55 @@ interface ClientAttachment extends Attachment {
 type UserContentPart = TextPart | ImagePart | FilePart;
 type AssistantContentPart = TextPart | FilePart; // Assistants might have other parts like tool calls
 
+// OpenAI-specific helper functions
+const isOpenAIProvider = (modelConfig: ModelConfig) => modelConfig.provider === "OpenAI";
+
+const shouldSkipImageFromAssistant = (modelConfig: ModelConfig, mimeType: string) =>
+  isOpenAIProvider(modelConfig) && mimeType.startsWith("image/");
+
+const addOpenAIImageExplanation = (
+  coreParts: AssistantContentPart[],
+  modelConfig: ModelConfig,
+  messageParts: Array<{ type: string; text?: string; mimeType?: string; url?: string }> | undefined
+) => {
+  if (!isOpenAIProvider(modelConfig)) return;
+
+  const hasImages = messageParts?.some((p) => p.mimeType?.startsWith("image/"));
+
+  if (hasImages) {
+    coreParts.unshift({ type: "text", text: "Generated image by AI assistant:" });
+  }
+};
+
+const createOpenAIUserImageMessage = async (
+  message: Message,
+  modelConfig: ModelConfig
+): Promise<CoreMessage | null> => {
+  if (!isOpenAIProvider(modelConfig)) return null;
+
+  const messageParts = (message as any).parts as Array<{
+    type: string;
+    text?: string;
+    mimeType?: string;
+    url?: string;
+  }>;
+
+  const imageParts: UserContentPart[] = [];
+
+  // Handle image parts from message parts
+  if (messageParts?.length) {
+    for (const part of messageParts) {
+      if (part.url && part.mimeType?.startsWith("image/")) {
+        const { corePart } = await processAttachment(part.url, part.mimeType, modelConfig, false);
+        if (corePart) imageParts.push(corePart as UserContentPart);
+      }
+    }
+  }
+
+  // Return user message with images if any exist
+  return imageParts.length > 0 ? { role: "user", content: imageParts } : null;
+};
+
 async function processAttachment(
   url: string,
   mimeType: string,
@@ -114,6 +163,10 @@ async function processAssistantMessage(
           coreParts.push({ type: "text", text: part.text });
         }
       } else if (part.url && part.mimeType) {
+        // Skip images for OpenAI models - they'll be handled as user messages
+        if (shouldSkipImageFromAssistant(modelConfig, part.mimeType)) {
+          continue;
+        }
         const { corePart } = await processAttachment(part.url, part.mimeType, modelConfig, true);
         if (corePart) coreParts.push(corePart as AssistantContentPart);
       }
@@ -122,9 +175,16 @@ async function processAssistantMessage(
 
   for (const att of attachments) {
     if (!att.contentType || !att.url) continue;
+    // Skip images for OpenAI models - they'll be handled as user messages
+    if (shouldSkipImageFromAssistant(modelConfig, att.contentType)) {
+      continue;
+    }
     const { corePart } = await processAttachment(att.url, att.contentType, modelConfig, true);
     if (corePart) coreParts.push(corePart as AssistantContentPart);
   }
+
+  // Add explanatory text for OpenAI models when images are present
+  addOpenAIImageExplanation(coreParts, modelConfig, messageParts);
 
   if (coreParts.length === 0) return null;
   const firstPart = coreParts[0];
@@ -165,6 +225,12 @@ export const processMessages = async (
       case "assistant": {
         const coreMessage = await processAssistantMessage(message, modelConfig);
         if (coreMessage) coreMessages.push(coreMessage);
+
+        // For OpenAI models, create additional user messages for images since they can't read assistant files properly
+        const openAIUserImageMessage = await createOpenAIUserImageMessage(message, modelConfig);
+        if (openAIUserImageMessage) {
+          coreMessages.push(openAIUserImageMessage);
+        }
         break;
       }
       default:

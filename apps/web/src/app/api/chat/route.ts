@@ -14,6 +14,7 @@ import {
   createResumableStreamContext,
   type ResumableStreamContext,
 } from "resumable-stream/ioredis";
+import { inspect } from "util";
 import {
   appendStreamId,
   createOrGetSession,
@@ -179,6 +180,8 @@ export async function POST(req: Request): Promise<Response> {
     if (streamContext) {
       const streamId = generateId();
       await appendStreamId(supabase, currentSessionId, streamId);
+
+      console.log("finalMessages", inspect(finalMessages, { depth: null }));
 
       const stream = createDataStream({
         execute: (dataStream) => {

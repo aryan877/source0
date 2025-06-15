@@ -108,11 +108,18 @@ export const MODELS: ModelConfig[] = [
   ),
 
   // GPT Models
-  createModel("gpt-4o", "GPT-4o", "Advanced multimodal model with reasoning", "OpenAI", "gpt-4o", {
-    capabilities: ["image"],
-    maxTokens: 4096,
-    category: "flagship",
-  }),
+  createModel(
+    "gpt-4o",
+    "GPT-4o",
+    "Advanced multimodal model with reasoning",
+    "OpenAI",
+    "gpt-4o-2024-11-20",
+    {
+      capabilities: ["image"],
+      maxTokens: 4096,
+      category: "flagship",
+    }
+  ),
   createModel(
     "gpt-4o-mini",
     "GPT-4o Mini",
