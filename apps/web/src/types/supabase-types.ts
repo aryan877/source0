@@ -116,35 +116,20 @@ export type Database = {
       chat_stream_ids: {
         Row: {
           chat_id: string
-          completed_at: string | null
           created_at: string | null
           id: string
-          last_activity_at: string | null
-          started_at: string | null
-          status: string | null
-          stream_config: Json | null
           stream_id: string
         }
         Insert: {
           chat_id: string
-          completed_at?: string | null
           created_at?: string | null
           id?: string
-          last_activity_at?: string | null
-          started_at?: string | null
-          status?: string | null
-          stream_config?: Json | null
           stream_id: string
         }
         Update: {
           chat_id?: string
-          completed_at?: string | null
           created_at?: string | null
           id?: string
-          last_activity_at?: string | null
-          started_at?: string | null
-          status?: string | null
-          stream_config?: Json | null
           stream_id?: string
         }
         Relationships: [
@@ -174,28 +159,8 @@ export type Database = {
         }
         Returns: string
       }
-      cancel_or_fail_stream: {
-        Args: { p_stream_id: string; p_final_status?: string }
-        Returns: boolean
-      }
-      complete_stream: {
-        Args: { p_stream_id: string }
-        Returns: boolean
-      }
-      create_resumable_stream: {
-        Args: { p_chat_id: string; p_stream_id: string; p_stream_config?: Json }
-        Returns: string
-      }
-      delete_messages_after: {
-        Args: { p_message_id: string }
-        Returns: number
-      }
       generate_share_slug: {
         Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_active_stream_id: {
-        Args: { p_chat_id: string }
         Returns: string
       }
       get_branch_ancestry: {

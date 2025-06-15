@@ -3,9 +3,9 @@
 import { type GroundingMetadata } from "@/types/google-metadata";
 import {
   ArrowPathIcon,
+  ArrowTurnRightUpIcon,
   CheckIcon,
   ClipboardDocumentIcon,
-  CodeBracketIcon,
   CpuChipIcon,
   UserIcon,
   WrenchScrewdriverIcon,
@@ -353,22 +353,24 @@ const MessageBubble = memo(
             </div>
           </Tooltip>
 
-          <Tooltip content="Branch from here" placement="top" delay={300}>
-            <div>
-              <Button
-                variant="light"
-                size="sm"
-                isIconOnly
-                onPress={handleBranch}
-                className="transition-all hover:scale-105 hover:bg-content2"
-              >
-                <CodeBracketIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          </Tooltip>
+          {!isUser && (
+            <Tooltip content="Branch from here" placement="top" delay={300}>
+              <div>
+                <Button
+                  variant="light"
+                  size="sm"
+                  isIconOnly
+                  onPress={handleBranch}
+                  className="transition-all hover:scale-105 hover:bg-content2"
+                >
+                  <ArrowTurnRightUpIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </Tooltip>
+          )}
         </div>
       );
-    }, [showActions, handleRetry, copied, handleCopy, handleBranch, isLoading]);
+    }, [showActions, handleRetry, copied, handleCopy, handleBranch, isLoading, isUser]);
 
     return (
       <div

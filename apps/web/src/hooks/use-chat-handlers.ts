@@ -15,15 +15,53 @@ export const useChatHandlers = (
     updateState({ uiError: error })
   );
 
+  const getImageDimensions = useCallback(
+    (file: File): Promise<{ width: number; height: number } | null> => {
+      return new Promise((resolve) => {
+        if (!file.type.startsWith("image/")) {
+          resolve(null);
+          return;
+        }
+
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        };
+
+        img.src = url;
+      });
+    },
+    []
+  );
+
   const handleFileAttach = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
       if (files.length === 0) return;
 
-      const newAttachedFiles: AttachedFileWithUrl[] = files.map((file) => ({
-        file,
-        uploading: true,
-      }));
+      // Get dimensions for all files before creating AttachedFileWithUrl objects
+      const filesWithDimensions = await Promise.all(
+        files.map(async (file) => {
+          const dimensions = await getImageDimensions(file);
+          return { file, dimensions };
+        })
+      );
+
+      const newAttachedFiles: AttachedFileWithUrl[] = filesWithDimensions.map(
+        ({ file, dimensions }) => ({
+          file,
+          uploading: true,
+          ...(dimensions && { width: dimensions.width, height: dimensions.height }),
+        })
+      );
 
       updateState((prev) => ({
         attachedFiles: [...prev.attachedFiles, ...newAttachedFiles],
@@ -50,7 +88,7 @@ export const useChatHandlers = (
         }),
       }));
     },
-    [updateState, uploadFilesToStorage]
+    [updateState, uploadFilesToStorage, getImageDimensions]
   );
 
   const handleRemoveFile = useCallback(

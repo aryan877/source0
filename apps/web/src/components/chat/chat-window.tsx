@@ -7,6 +7,7 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
+import { deleteMessageAndAfter, deleteMessagesAfter } from "@/services/chat-messages";
 import { createSession, getSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -247,16 +248,13 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
       try {
         if (chatId && chatId !== "new") {
-          const supabase = (await import("@/utils/supabase/client")).createClient();
-
-          const { error: deleteError } = await supabase.rpc("delete_messages_after", {
-            p_message_id: messageId,
-          });
-
-          if (deleteError) {
-            console.error("Database delete error:", deleteError);
-            updateState({ uiError: "Failed to retry message. Please try again." });
-            return;
+          // Use different delete strategies based on message role
+          if (messageToRetry.role === "assistant") {
+            // For assistant messages, delete the message itself AND all messages after it
+            await deleteMessageAndAfter(messageId);
+          } else {
+            // For user messages, delete only messages after (keep the user message)
+            await deleteMessagesAfter(messageId);
           }
 
           invalidateMessages();

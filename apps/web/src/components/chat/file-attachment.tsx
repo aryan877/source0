@@ -22,11 +22,27 @@ interface FileAttachmentProps {
   onRemove: (index: number) => void;
 }
 
-const FileIcon = ({ file, previewUrl }: { file: File; previewUrl?: string }) => {
-  if (isImageFile(file) && previewUrl) {
+const FileIcon = ({
+  file,
+  previewUrl,
+  width,
+  height,
+}: {
+  file: File;
+  previewUrl?: string;
+  width?: number;
+  height?: number;
+}) => {
+  if (isImageFile(file) && previewUrl && width && height) {
     return (
       <div className="h-12 w-12 overflow-hidden rounded-lg">
-        <Image src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+        <Image
+          src={previewUrl}
+          alt={file.name}
+          width={width}
+          height={height}
+          className="h-full w-full object-cover"
+        />
       </div>
     );
   }
@@ -87,7 +103,12 @@ export const FileAttachment = ({ files, onRemove }: FileAttachmentProps) => {
             <CardBody className="p-4">
               <div className={`flex items-center gap-3 ${uploading ? "opacity-50" : ""}`}>
                 <div className="flex-shrink-0">
-                  <FileIcon file={file} previewUrl={previewUrl} />
+                  <FileIcon
+                    file={file}
+                    previewUrl={previewUrl}
+                    width={attachedFile.width}
+                    height={attachedFile.height}
+                  />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="max-w-[200px] truncate text-sm font-semibold">{file.name}</span>

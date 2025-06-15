@@ -10,6 +10,8 @@ export interface UploadResult {
   name: string;
   size: number;
   contentType: string;
+  width?: number;
+  height?: number;
 }
 
 export interface UploadError {
@@ -84,6 +86,33 @@ const generateFilePath = (userId: string, file: File, folder: string = "uploads"
 };
 
 /**
+ * Get image dimensions from a file
+ */
+const getImageDimensions = (file: File): Promise<{ width: number; height: number } | null> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/")) {
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+
+    img.src = url;
+  });
+};
+
+/**
  * Upload a file to Supabase storage
  */
 export async function uploadFile(
@@ -102,6 +131,9 @@ export async function uploadFile(
     if (!validation.valid) {
       return { error: validation.error! };
     }
+
+    // Get image dimensions if it's an image file
+    const dimensions = await getImageDimensions(file);
 
     const filePath = generateFilePath(user.id, file, folder);
 
@@ -124,6 +156,7 @@ export async function uploadFile(
       name: file.name,
       size: file.size,
       contentType: file.type,
+      ...(dimensions && { width: dimensions.width, height: dimensions.height }),
     };
   } catch (error) {
     console.error("Upload error:", error);

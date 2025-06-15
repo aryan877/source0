@@ -438,52 +438,7 @@ BEGIN
 END;
 $$;
 
---
--- Function: delete_messages_after(p_message_id)
--- Description: Deletes all messages after a specific message in the same session.
--- This is useful for retry functionality where we want to retry from a specific message.
---
-CREATE OR REPLACE FUNCTION delete_messages_after(p_message_id text)
-RETURNS integer
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_session_id uuid;
-    v_message_time timestamptz;
-    v_session_owner_id uuid;
-    v_deleted_count integer;
-BEGIN
-    -- Get session and timestamp of the reference message.
-    SELECT session_id, created_at 
-    INTO v_session_id, v_message_time
-    FROM chat_messages 
-    WHERE id = p_message_id;
-    
-    IF v_session_id IS NULL THEN
-        RAISE EXCEPTION 'Message not found';
-    END IF;
 
-    -- Security Check: Ensure the user owns the session.
-    SELECT user_id INTO v_session_owner_id
-    FROM chat_sessions
-    WHERE id = v_session_id;
-
-    IF v_session_owner_id IS NULL OR v_session_owner_id != auth.uid() THEN
-        RAISE EXCEPTION 'Permission denied. You must be the owner of the session to delete messages.';
-    END IF;
-    
-    -- Delete all messages after this one in the same session (but not the message itself).
-    DELETE FROM chat_messages 
-    WHERE session_id = v_session_id 
-    AND created_at > v_message_time
-    AND id != p_message_id;
-    
-    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
-    
-    RETURN v_deleted_count;
-END;
-$$;
 
 --
 -- Function: get_session_branches(p_session_id)
@@ -628,8 +583,9 @@ $$;
 -- Message Retry
 --
 
--- Delete all messages after a specific message for retry functionality:
--- SELECT delete_messages_after('message-id-to-retry-from');
+-- Message retry is now handled client-side using the chat-messages service functions:
+-- - deleteMessagesAfter() for user message retry
+-- - deleteMessageAndAfter() for assistant message retry
 
 
 --

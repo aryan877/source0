@@ -5,6 +5,8 @@ export interface AttachedFileWithUrl {
   uploadResult?: UploadResult;
   uploading?: boolean;
   error?: string;
+  width?: number;
+  height?: number;
 }
 
 export const formatFileSize = (bytes: number): string => {
