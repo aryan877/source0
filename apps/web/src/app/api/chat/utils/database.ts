@@ -99,4 +99,36 @@ export const updateSessionTitle = async (supabase: any, sessionId: string, messa
   }
 };
 
+/**
+ * The 'chat_stream_ids' table is used for resumable streams.
+ * It is defined in the main database schema migration.
+ */
+export const appendStreamId = async (
+  supabase: any,
+  chatId: string,
+  streamId: string
+): Promise<void> => {
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .insert({ chat_id: chatId, stream_id: streamId });
+  if (error) {
+    console.error(`Error appending stream ID: ${error.message}`);
+    throw new Error(`Failed to append stream ID: ${error.message}`);
+  }
+};
+
+export const loadStreams = async (supabase: any, chatId: string): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from("chat_stream_ids")
+    .select("stream_id")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Error loading stream IDs: ${error.message}`);
+    throw new Error(`Failed to load stream IDs: ${error.message}`);
+  }
+  return data?.map((row: { stream_id: string }) => row.stream_id) ?? [];
+};
+
 export { uuidv4 as generateId };

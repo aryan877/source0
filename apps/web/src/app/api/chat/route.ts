@@ -1,12 +1,31 @@
 import { type ReasoningLevel } from "@/config/models";
-import { createDataStreamResponse, streamText, type Message } from "ai";
+import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
+import { pub, sub } from "@/utils/redis";
+import { convertToAiMessages, getMessages } from "@/utils/supabase/db";
 import {
+  createDataStream,
+  createDataStreamResponse,
+  streamText,
+  type JSONValue,
+  type Message,
+} from "ai";
+import { after } from "next/server";
+import {
+  createResumableStreamContext,
+  type ResumableStreamContext,
+} from "resumable-stream/ioredis";
+import {
+  appendStreamId,
   createOrGetSession,
+  generateId,
   getAuthenticatedUser,
+  loadStreams,
   saveAssistantMessage,
   saveUserMessage,
+  updateSessionTitle,
 } from "./utils/database";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
+import { handleImageGenerationRequest } from "./utils/image-generation";
 import { processMessages } from "./utils/messages";
 import {
   buildProviderOptions,
@@ -15,9 +34,19 @@ import {
   getModelById,
   getModelMapping,
 } from "./utils/models";
-import { createStreamHandlers } from "./utils/stream-handlers";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+let streamContext: ResumableStreamContext | undefined;
+if (pub && sub) {
+  streamContext = createResumableStreamContext({
+    waitUntil: after,
+    publisher: pub,
+    subscriber: sub,
+  });
+} else {
+  console.warn("Redis not configured, resumable streams are disabled.");
+}
 
 interface ChatRequest {
   messages: Message[];
@@ -26,6 +55,76 @@ interface ChatRequest {
   searchEnabled?: boolean;
   id?: string;
 }
+
+export async function GET(req: Request): Promise<Response> {
+  const { searchParams } = new URL(req.url);
+  const chatId = searchParams.get("chatId");
+
+  if (!chatId) {
+    return createErrorResponse("chatId is required", 400, "BAD_REQUEST");
+  }
+
+  if (!streamContext) {
+    return new Response(null, { status: 204 }); // Resuming not supported
+  }
+
+  const { supabase } = await getAuthenticatedUser();
+  const streamIds = await loadStreams(supabase, chatId);
+
+  if (streamIds.length === 0) {
+    return new Response(null, { status: 204 }); // No streams to resume
+  }
+
+  const recentStreamId = streamIds.at(0); // most recent is first
+  if (!recentStreamId) {
+    return new Response(null, { status: 204 });
+  }
+
+  const emptyDataStream = createDataStream({ execute: () => {} });
+  const stream = await streamContext.resumableStream(recentStreamId, () => emptyDataStream);
+
+  if (stream) {
+    return new Response(stream, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      status: 200,
+    });
+  }
+
+  // Stream has already finished, but client might have missed the final message.
+  // Send the last message to ensure client-side state is consistent.
+  const dbMessages = await getMessages(supabase, chatId);
+  const messages = convertToAiMessages(dbMessages);
+  const mostRecentMessage = messages?.at(-1);
+
+  if (!mostRecentMessage || mostRecentMessage.role !== "assistant") {
+    return new Response(emptyDataStream, { status: 200 });
+  }
+
+  const streamWithMessage = createDataStream({
+    execute: (buffer) => {
+      buffer.writeData({
+        type: "append-message",
+        message: JSON.stringify(mostRecentMessage),
+      });
+    },
+  });
+
+  return new Response(streamWithMessage, { status: 200 });
+}
+
+const logGoogleMetadata = (
+  providerMetadata: ProviderMetadata | undefined
+): GoogleProviderMetadata["groundingMetadata"] | null => {
+  const grounding = providerMetadata?.google?.groundingMetadata;
+  if (grounding && process.env.NODE_ENV === "development") {
+    console.log("Grounding:", {
+      queries: grounding.webSearchQueries?.length ?? 0,
+      chunks: grounding.groundingChunks?.length ?? 0,
+      supports: grounding.groundingSupports?.length ?? 0,
+    });
+  }
+  return grounding;
+};
 
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -65,139 +164,122 @@ export async function POST(req: Request): Promise<Response> {
       await saveUserMessage(supabase, userMessageToSave, currentSessionId, user.id);
     }
 
-    // Check for image generation request BEFORE streaming
-    const lastUserMessage = messages[messages.length - 1];
-    const userText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
-    const imageGenRegex = /(?:generate|create|make).*(?:image|picture|photo|drawing)/i;
-    const isImageGenerationRequest =
-      imageGenRegex.test(userText) && modelConfig.capabilities.includes("image-generation");
-
-    console.log("🔍 Checking for image generation request:");
-    console.log("User message:", userText);
-    console.log(
-      "Has image-generation capability:",
-      modelConfig.capabilities.includes("image-generation")
-    );
-    console.log("Is image generation request:", isImageGenerationRequest);
-
-    // If this is an image generation request, handle it directly
-    if (isImageGenerationRequest) {
-      console.log("🎨 Direct image generation requested, bypassing streaming...");
-
-      // Import the image generation function
-      const { generateImageDirectly } = await import("./utils/stream-handlers");
-
-      try {
-        const imagePrompt = userText.replace(imageGenRegex, "").trim() || userText;
-        const { imageBuffer } = await generateImageDirectly(imagePrompt);
-        const { generateId } = await import("./utils/database");
-        const messageId = generateId();
-        const filePath = `uploads/${user.id}/generated-${messageId}.png`;
-
-        // Upload to Supabase storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("chat-attachments")
-          .upload(filePath, imageBuffer, {
-            contentType: "image/png",
-            upsert: false,
-          });
-
-        if (uploadError) {
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
-        }
-
-        const { data: publicUrlData } = supabase.storage
-          .from("chat-attachments")
-          .getPublicUrl(uploadData.path);
-
-        const imageUrl = publicUrlData.publicUrl;
-
-        // Save the assistant message
-        await saveAssistantMessage(
-          supabase,
-          messageId,
-          currentSessionId,
-          user.id,
-          [
-            { type: "text", text: "Here is the generated image:" },
-            {
-              type: "file",
-              file: {
-                name: "generated-image.png",
-                mimeType: "image/png",
-                url: imageUrl,
-                path: filePath,
-                size: imageBuffer.length,
-              },
-            },
-          ],
-          model,
-          modelConfig.provider,
-          { reasoningLevel, searchEnabled },
-          {}
-        );
-
-        // Return streaming response compatible with frontend
-        return createDataStreamResponse({
-          execute: (dataStream) => {
-            // Write the text content first
-            dataStream.writeData("Here is the generated image:");
-
-            // Send the message saved annotation
-            dataStream.writeMessageAnnotation({
-              type: "message_saved",
-              data: { databaseId: messageId, sessionId: currentSessionId },
-            });
-
-            // Send the image file
-            dataStream.writeMessageAnnotation({
-              type: "file_part",
-              data: {
-                type: "file",
-                mimeType: "image/png",
-                url: imageUrl,
-                filename: "generated-image.png",
-              },
-            });
-          },
-          onError: (error: unknown) => handleStreamError(error, "ImageGeneration"),
-        });
-      } catch (error) {
-        console.error("❌ Direct image generation failed:", error);
-        return createErrorResponse(
-          `Image generation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-          500,
-          "IMAGE_GENERATION_ERROR"
-        );
-      }
+    if (modelConfig.capabilities.includes("image-generation")) {
+      const lastUserMessage = messages[messages.length - 1];
+      const prompt = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
+      return handleImageGenerationRequest(supabase, user, currentSessionId, modelConfig, prompt);
     }
 
-    const systemMessage = buildSystemMessage(modelConfig, searchEnabled, isImageGenerationRequest);
+    const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
     const finalMessages = [{ role: "system" as const, content: systemMessage }, ...coreMessages];
 
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);
     const providerOptions = buildProviderOptions(modelConfig, reasoningLevel);
 
+    if (streamContext) {
+      const streamId = generateId();
+      await appendStreamId(supabase, currentSessionId, streamId);
+
+      const stream = createDataStream({
+        execute: (dataStream) => {
+          const result = streamText({
+            model: modelInstance,
+            messages: finalMessages,
+            maxSteps: 5,
+            ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+            onFinish: async ({ text, providerMetadata, usage }) => {
+              const messageId = generateId();
+
+              if (text) {
+                await saveAssistantMessage(
+                  supabase,
+                  messageId,
+                  currentSessionId,
+                  user.id,
+                  [{ type: "text", text }],
+                  model,
+                  modelConfig.provider,
+                  { reasoningLevel, searchEnabled, usage }
+                );
+              }
+
+              dataStream.writeMessageAnnotation({
+                type: "message_saved",
+                data: { databaseId: messageId, sessionId: currentSessionId },
+              });
+
+              if (isNewSession) {
+                await updateSessionTitle(supabase, currentSessionId, messages);
+              }
+
+              const groundingMetadata = logGoogleMetadata(providerMetadata);
+              if (groundingMetadata) {
+                dataStream.writeMessageAnnotation({
+                  type: "grounding",
+                  data: groundingMetadata as JSONValue,
+                });
+              }
+            },
+            onError: ({ error }) =>
+              console.error(
+                "Stream error:",
+                error instanceof Error ? error.message : String(error)
+              ),
+          });
+
+          result.mergeIntoDataStream(dataStream, {
+            sendReasoning: modelConfig.capabilities.includes("reasoning"),
+            sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
+          });
+        },
+        onError: (error: unknown) => handleStreamError(error, "DataStream"),
+      });
+      return new Response(await streamContext.resumableStream(streamId, () => stream), {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    // Fallback to non-resumable stream if Redis is not configured
     return createDataStreamResponse({
       execute: (dataStream) => {
-        const streamHandlers = createStreamHandlers(
-          supabase,
-          currentSessionId,
-          user.id,
-          model,
-          modelConfig,
-          reasoningLevel,
-          searchEnabled,
-          isNewSession,
-          messages
-        );
-
         const result = streamText({
           model: modelInstance,
           messages: finalMessages,
           maxSteps: 5,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-          onFinish: (finishResult) => streamHandlers.onFinish(finishResult, dataStream),
+          onFinish: async ({ text, providerMetadata, usage }) => {
+            const messageId = generateId();
+
+            if (text) {
+              await saveAssistantMessage(
+                supabase,
+                messageId,
+                currentSessionId,
+                user.id,
+                [{ type: "text", text }],
+                model,
+                modelConfig.provider,
+                { reasoningLevel, searchEnabled, usage }
+              );
+            }
+
+            dataStream.writeMessageAnnotation({
+              type: "message_saved",
+              data: { databaseId: messageId, sessionId: currentSessionId },
+            });
+
+            if (isNewSession) {
+              await updateSessionTitle(supabase, currentSessionId, messages);
+            }
+
+            const groundingMetadata = logGoogleMetadata(providerMetadata);
+            if (groundingMetadata) {
+              dataStream.writeMessageAnnotation({
+                type: "grounding",
+                data: groundingMetadata as JSONValue,
+              });
+            }
+          },
           onError: ({ error }) =>
             console.error("Stream error:", error instanceof Error ? error.message : String(error)),
         });

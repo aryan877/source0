@@ -2,6 +2,7 @@
 
 import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
+import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
@@ -42,7 +43,19 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
     updateState
   );
 
-  const { messages, input, setInput, status, stop, error, append, reload, setMessages } = useChat({
+  const {
+    messages,
+    input,
+    setInput,
+    status,
+    stop,
+    error,
+    append,
+    reload,
+    setMessages,
+    data,
+    experimental_resume,
+  } = useChat({
     api: "/api/chat",
     id: chatId === "new" ? undefined : chatId,
     initialMessages: messagesToUse,
@@ -165,43 +178,8 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         invalidateMessages();
       }
 
-      // Handle new session creation
-      const newSessionAnnotation = message.annotations?.find(
-        (a) =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "new_session"
-      );
-
-      if (newSessionAnnotation) {
-        const data = (newSessionAnnotation as { data?: unknown }).data;
-        if (
-          typeof data === "object" &&
-          data !== null &&
-          "sessionId" in data &&
-          typeof (data as { sessionId?: unknown }).sessionId === "string"
-        ) {
-          const newSessionId = (data as { sessionId: string }).sessionId;
-
-          if (chatId === "new") {
-            transferModelSelection("new", newSessionId);
-          }
-
-          const supabase = (await import("@/utils/supabase/client")).createClient();
-          const newSession = await (
-            await import("@/utils/supabase/db")
-          ).getChatSession(supabase, newSessionId);
-
-          if (newSession) {
-            updateSessionInCache(newSession);
-          } else {
-            invalidateSessions();
-          }
-
-          router.push(`/chat/${newSessionId}`);
-        }
-      } else if (chatId && chatId !== "new") {
+      // Handle existing chat session updates
+      if (chatId && chatId !== "new") {
         // Update existing chat session
         const supabase = (await import("@/utils/supabase/client")).createClient();
         const updatedSession = await (
@@ -216,6 +194,37 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       }
     },
   });
+
+  useAutoResume({
+    autoResume: chatId !== "new",
+    initialMessages: messagesToUse,
+    experimental_resume,
+    data,
+    setMessages,
+  });
+
+  // Handle pending first message from sessionStorage for new sessions
+  useEffect(() => {
+    if (chatId === "new") return;
+
+    const pendingMessageData = sessionStorage.getItem("pendingFirstMessage");
+    if (!pendingMessageData) return;
+
+    try {
+      const { message, chatRequestOptions } = JSON.parse(pendingMessageData);
+
+      // Clear the pending message
+      sessionStorage.removeItem("pendingFirstMessage");
+
+      // Submit the pending message
+      append(message, chatRequestOptions);
+      setInput("");
+      updateState({ attachedFiles: [] });
+    } catch (error) {
+      console.error("Failed to process pending message:", error);
+      sessionStorage.removeItem("pendingFirstMessage");
+    }
+  }, [chatId, append, setInput, updateState]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -297,7 +306,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   }, [showScrollToBottom, updateState]);
 
   const handleFormSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       updateState({ uiError: null });
 
@@ -355,12 +364,67 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         );
       }
 
+      // If this is a new chat, create the session immediately and redirect
+      if (chatId === "new") {
+        try {
+          // Store the message and attachments in sessionStorage for the new session
+          const messageData = {
+            message: messageToAppend,
+            chatRequestOptions,
+            selectedModel: selectedModel,
+            reasoningLevel: state.reasoningLevel,
+            searchEnabled: state.searchEnabled,
+          };
+          sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
+
+          // Create new session via API
+          const response = await fetch("/api/chat/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: selectedModel,
+              reasoningLevel: state.reasoningLevel,
+              searchEnabled: state.searchEnabled,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to create session");
+          }
+
+          const { sessionId } = await response.json();
+
+          // Transfer model selection to new session
+          transferModelSelection("new", sessionId);
+
+          // Redirect immediately to the new session
+          router.push(`/chat/${sessionId}`);
+          return;
+        } catch (error) {
+          console.error("Failed to create new session:", error);
+          updateState({ uiError: "Failed to create new chat. Please try again." });
+          return;
+        }
+      }
+
       append(messageToAppend, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
       setForceFocus(true);
     },
-    [append, state.attachedFiles, input, setInput, updateState]
+    [
+      append,
+      state.attachedFiles,
+      input,
+      setInput,
+      updateState,
+      chatId,
+      selectedModel,
+      state.reasoningLevel,
+      state.searchEnabled,
+      transferModelSelection,
+      router,
+    ]
   );
 
   useEffect(() => {

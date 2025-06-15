@@ -110,29 +110,13 @@ ON DELETE SET NULL;
 --
 CREATE TABLE IF NOT EXISTS chat_stream_ids (
     -- Primary Key
-    id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     -- Association
-    chat_id             uuid            NOT NULL 
-                                       REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    
+    chat_id uuid NOT NULL REFERENCES chat_sessions (id) ON DELETE CASCADE,
     -- Stream data
-    stream_id           text            NOT NULL UNIQUE,
-    
-    -- Stream State Management
-    status              text            DEFAULT 'active' 
-                                       CHECK (status IN ('active', 'completed', 'failed', 'cancelled')),
-    
-    -- Stream Timing
-    started_at          timestamptz     DEFAULT now(),
-    completed_at        timestamptz,
-    last_activity_at    timestamptz     DEFAULT now(),
-    
-    -- Extensibility
-    stream_config       jsonb           DEFAULT '{}'::jsonb,
-    
+    stream_id text NOT NULL UNIQUE,
     -- Timestamp
-    created_at          timestamptz     DEFAULT now()
+    created_at timestamptz DEFAULT now()
 );
 
 -- ================================================================================
@@ -183,13 +167,6 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_model_config_gin
 -- Indexes for `chat_stream_ids`
 CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_chat 
     ON chat_stream_ids(chat_id);
-
-CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_status 
-    ON chat_stream_ids(status, last_activity_at);
-
-CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_active_streams 
-    ON chat_stream_ids(status, started_at) 
-    WHERE status = 'active';
 
 -- ================================================================================
 -- Supabase Storage Configuration
@@ -588,117 +565,6 @@ END;
 $$;
 
 --
--- Function: create_resumable_stream(p_chat_id, p_stream_id, p_stream_config)
--- Description: Creates a record for a new resumable stream session.
---
-CREATE OR REPLACE FUNCTION create_resumable_stream(
-    p_chat_id uuid, 
-    p_stream_id text,
-    p_stream_config jsonb DEFAULT '{}'::jsonb
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_stream_record_id uuid;
-BEGIN
-    INSERT INTO chat_stream_ids (
-        chat_id, 
-        stream_id, 
-        status, 
-        stream_config,
-        started_at,
-        last_activity_at
-    ) 
-    VALUES (
-        p_chat_id, 
-        p_stream_id, 
-        'active',
-        p_stream_config,
-        now(),
-        now()
-    )
-    RETURNING id INTO v_stream_record_id;
-    
-    RETURN v_stream_record_id;
-END;
-$$;
-
---
--- Function: get_active_stream_id(p_chat_id)
--- Description: Retrieves the most recent, active, non-expired stream ID for a chat.
---
-CREATE OR REPLACE FUNCTION get_active_stream_id(p_chat_id uuid)
-RETURNS text
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_stream_id text;
-BEGIN
-    -- Find the most recent, active, non-expired stream ID for the chat.
-    -- The timeout (e.g., '1 hour') should align with application/SDK logic.
-    SELECT stream_id 
-    INTO v_stream_id
-    FROM chat_stream_ids
-    WHERE chat_id = p_chat_id
-      AND status = 'active'
-      AND last_activity_at > (now() - interval '1 hour') -- Example timeout
-    ORDER BY started_at DESC
-    LIMIT 1;
-
-    RETURN v_stream_id;
-END;
-$$;
-
---
--- Function: complete_stream(p_stream_id)
--- Description: Marks a stream as completed.
---
-CREATE OR REPLACE FUNCTION complete_stream(p_stream_id text)
-RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    UPDATE chat_stream_ids 
-    SET 
-        status = 'completed',
-        completed_at = now(),
-        last_activity_at = now()
-    WHERE stream_id = p_stream_id;
-    
-    RETURN FOUND;
-END;
-$$;
-
---
--- Function: cancel_or_fail_stream(p_stream_id, p_final_status)
--- Description: Marks an active stream as 'cancelled' or 'failed'.
---
-CREATE OR REPLACE FUNCTION cancel_or_fail_stream(
-    p_stream_id text,
-    p_final_status text DEFAULT 'cancelled' -- 'cancelled' or 'failed'
-)
-RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    UPDATE chat_stream_ids 
-    SET 
-        status = p_final_status,
-        completed_at = now(),
-        last_activity_at = now()
-    WHERE stream_id = p_stream_id
-    AND status = 'active';
-    
-    RETURN FOUND;
-END;
-$$;
-
---
 -- Function: generate_share_slug()
 -- Description: Generates a short, unique, random string suitable for a URL slug.
 --
@@ -790,10 +656,9 @@ $$;
 --
 -- Overview
 --
--- This schema is designed to support the Vercel AI SDK's resumable streaming feature.
--- This feature relies on an external Redis instance to manage stream state (e.g.,
--- buffering and checkpoints), while this database schema is responsible for storing
--- the mapping between a chat session and its `stream_id`.
+-- This schema supports the Vercel AI SDK's resumable streaming feature. The feature
+-- relies on an external Redis instance to manage the stream's state (e.g., buffering),
+-- while this database schema stores a log of stream identifiers for each chat session.
 --
 -- For resumable streaming to function, the application environment must be
 -- configured with credentials for a Redis instance.
@@ -823,27 +688,22 @@ $$;
 --
 -- Implementation Notes
 -- --------------------
--- To enable resumability, the `experimental_resumeStream` function from the
--- Vercel AI SDK should be used instead of `streamText` or `streamObject` directly.
+-- The application uses the `resumable-stream` library to enable stream resumption.
+-- The server-side logic for this is as follows:
 --
--- A typical server-side implementation flow is as follows:
+-- 1. On a GET request to resume, the API queries the `chat_stream_ids` table to
+--    find the most recent `stream_id` for a given `chat_id`. This ID is then
+--    used to attempt resumption via the `resumableStream` function.
 --
--- 1. On a new chat request, check for an active `stream_id` for the given
---    chat session in the `chat_stream_ids` table. The `get_active_stream_id`
---    function can be used for this purpose.
+-- 2. On a POST request for a new turn, the API generates a new `streamId`.
 --
--- 2. If an active stream ID exists, call `experimental_resumeStream({ streamId })`
---    to resume the stream.
+-- 3. The new `streamId` is inserted into the `chat_stream_ids` table, linking
+--    it to the current `chat_id`.
 --
--- 3. If no active stream exists, proceed with a standard `streamText` call. The
---    underlying library will generate a new `streamId`.
+-- This database schema provides the `chat_stream_ids` table to support this logic.
 --
--- 4. This new `streamId` must be captured from the stream's result and stored in the
---    `chat_stream_ids` table. The `create_resumable_stream` function is provided
---    for this.
+-- This database schema provides the necessary table to support this server-side logic.
 --
--- 5. When the stream completes, its status should be updated in the database using
---    the `complete_stream` or `cancel_or_fail_stream` functions.
---
--- This database schema provides the necessary tables and helper functions to
--- support this server-side logic.
+-- ================================================================================
+-- Usage Examples
+-- ================================================================================

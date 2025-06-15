@@ -94,11 +94,7 @@ export const createModelInstance = (
   return provider(model);
 };
 
-export const buildSystemMessage = (
-  config: ModelConfig,
-  searchEnabled: boolean,
-  isImageGenRequest: boolean = false
-): string => {
+export const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string => {
   const parts = [
     "You are a helpful AI assistant. Respond naturally and clearly.",
     config.capabilities.includes("search") &&
@@ -106,9 +102,6 @@ export const buildSystemMessage = (
       "You have access to web search. Use it for current info and cite sources.",
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
-    config.capabilities.includes("image-generation") &&
-      isImageGenRequest &&
-      "The user wants to generate images. Respond with: I'll generate that image for you. [GENERATE_IMAGE: detailed prompt]",
     "Use markdown code blocks with language specifiers: ```python code ```",
   ];
 
