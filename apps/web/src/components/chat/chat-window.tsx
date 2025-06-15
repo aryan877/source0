@@ -6,6 +6,8 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
+import { useAuth } from "@/hooks/useAuth";
+import { createSession, getSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
@@ -16,12 +18,12 @@ import { MessagesList } from "./messages-list";
 
 interface ChatWindowProps {
   chatId: string;
-  initialMessages?: Message[];
 }
 
-const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
+const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const { state, updateState, selectedModel } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
+  const { user } = useAuth();
   const router = useRouter();
   const [forceFocus, setForceFocus] = useState(false);
 
@@ -32,8 +34,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
   } = useChatMessages(chatId);
   const { invalidateSessions, updateSessionInCache } = useChatSessions();
 
-  const messagesToUse =
-    chatId !== "new" && queryMessages.length > 0 ? queryMessages : initialMessages;
+  const messagesToUse = chatId !== "new" ? queryMessages : [];
 
   const { messagesContainerRef, messagesEndRef, showScrollToBottom, scrollToBottom } =
     useScrollManagement(messagesToUse.length);
@@ -126,19 +127,27 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       );
 
       if (imageGenerationAnnotation) {
-        const annotationData = (imageGenerationAnnotation as { data?: any }).data;
+        const annotationData = (
+          imageGenerationAnnotation as {
+            data?: {
+              filePart?: NonNullable<Message["parts"]>[number];
+              databaseId?: string;
+              content?: string;
+            };
+          }
+        ).data;
         if (annotationData?.filePart && annotationData?.databaseId) {
-          setMessages((currentMessages) =>
+          setMessages((currentMessages: Message[]) =>
             currentMessages.map((msg) => {
               if (msg.id === message.id) {
                 const newParts: Message["parts"] = [
-                  { type: "text", text: annotationData.content },
-                  annotationData.filePart,
+                  { type: "text", text: annotationData.content ?? "" },
+                  annotationData.filePart as NonNullable<Message["parts"]>[number],
                 ];
                 return {
                   ...msg,
-                  id: annotationData.databaseId,
-                  content: annotationData.content,
+                  id: annotationData.databaseId ?? "",
+                  content: annotationData.content ?? "",
                   parts: newParts,
                 };
               }
@@ -184,10 +193,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       // Handle existing chat session updates
       if (chatId && chatId !== "new") {
         // Update existing chat session
-        const supabase = (await import("@/utils/supabase/client")).createClient();
-        const updatedSession = await (
-          await import("@/utils/supabase/db")
-        ).getChatSession(supabase, chatId);
+        const updatedSession = await getSession(chatId);
 
         if (updatedSession) {
           updateSessionInCache(updatedSession);
@@ -290,18 +296,7 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         }
       }
     },
-    [
-      messages,
-      setMessages,
-      reload,
-      append,
-      chatId,
-      selectedModel,
-      state.reasoningLevel,
-      state.searchEnabled,
-      invalidateMessages,
-      updateState,
-    ]
+    [messages, setMessages, reload, append, chatId, invalidateMessages, updateState]
   );
 
   useEffect(() => {
@@ -367,8 +362,13 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         );
       }
 
-      // If this is a new chat, create the session immediately and redirect
+      // If this is a new chat, create the session directly using Supabase
       if (chatId === "new") {
+        if (!user) {
+          updateState({ uiError: "Please log in to start a chat." });
+          return;
+        }
+
         try {
           // Store the message and attachments in sessionStorage for the new session
           const messageData = {
@@ -380,28 +380,17 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
           };
           sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
-          // Create new session via API
-          const response = await fetch("/api/chat/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: selectedModel,
-              reasoningLevel: state.reasoningLevel,
-              searchEnabled: state.searchEnabled,
-            }),
-          });
+          // Create new session directly using Supabase
+          const newSession = await createSession(user.id, "New Chat");
 
-          if (!response.ok) {
-            throw new Error("Failed to create session");
-          }
-
-          const { sessionId } = await response.json();
+          // Update the sidebar immediately by adding to cache
+          updateSessionInCache(newSession);
 
           // Transfer model selection to new session
-          transferModelSelection("new", sessionId);
+          transferModelSelection("new", newSession.id);
 
           // Redirect immediately to the new session
-          router.push(`/chat/${sessionId}`);
+          router.push(`/chat/${newSession.id}`);
           return;
         } catch (error) {
           console.error("Failed to create new session:", error);
@@ -427,6 +416,8 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
       state.searchEnabled,
       transferModelSelection,
       router,
+      user,
+      updateSessionInCache,
     ]
   );
 

@@ -30,7 +30,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const isLanguageSupported = useMemo(() => {
     // The 'any' cast is a temporary workaround for a potential type mismatch
     // in older shiki versions but ensures broad compatibility.
-    return (Object.keys(bundledLanguages) as any[]).includes(language);
+    return (Object.keys(bundledLanguages) as string[]).includes(language);
   }, [language]);
 
   const handleCopy = useCallback(async () => {

@@ -1,7 +1,17 @@
 import { type ReasoningLevel } from "@/config/models";
+import {
+  createOrGetSession,
+  generateChatTitle,
+  getMessages,
+  saveAssistantMessageServer,
+  saveUserMessageServer,
+  serverAppendStreamId,
+  serverLoadStreamIds,
+} from "@/services";
 import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
+import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
-import { convertToAiMessages, getMessages } from "@/utils/supabase/db";
+import { createClient } from "@/utils/supabase/server";
 import {
   createDataStream,
   createDataStreamResponse,
@@ -15,16 +25,7 @@ import {
   type ResumableStreamContext,
 } from "resumable-stream/ioredis";
 import { inspect } from "util";
-import {
-  appendStreamId,
-  createOrGetSession,
-  generateId,
-  getAuthenticatedUser,
-  loadStreams,
-  saveAssistantMessage,
-  saveUserMessage,
-  updateSessionTitle,
-} from "./utils/database";
+import { v4 as uuidv4 } from "uuid";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { handleImageGenerationRequest } from "./utils/image-generation";
 import { processMessages } from "./utils/messages";
@@ -69,8 +70,15 @@ export async function GET(req: Request): Promise<Response> {
     return new Response(null, { status: 204 }); // Resuming not supported
   }
 
-  const { supabase } = await getAuthenticatedUser();
-  const streamIds = await loadStreams(supabase, chatId);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
+  }
+
+  const streamIds = await serverLoadStreamIds(supabase, chatId);
 
   if (streamIds.length === 0) {
     return new Response(null, { status: 204 }); // No streams to resume
@@ -93,7 +101,7 @@ export async function GET(req: Request): Promise<Response> {
 
   // Stream has already finished, but client might have missed the final message.
   // Send the last message to ensure client-side state is consistent.
-  const dbMessages = await getMessages(supabase, chatId);
+  const dbMessages = await getMessages(chatId);
   const messages = convertToAiMessages(dbMessages);
   const mostRecentMessage = messages?.at(-1);
 
@@ -138,13 +146,15 @@ export async function POST(req: Request): Promise<Response> {
       id: sessionId,
     } = body;
 
-    const { supabase, user } = await getAuthenticatedUser();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
     }
 
     const { sessionId: currentSessionId, isNewSession } = await createOrGetSession(
-      supabase,
       user.id,
       sessionId
     );
@@ -162,7 +172,7 @@ export async function POST(req: Request): Promise<Response> {
     const { coreMessages, userMessageToSave } = await processMessages(messages, modelConfig);
 
     if (userMessageToSave) {
-      await saveUserMessage(supabase, userMessageToSave, currentSessionId, user.id);
+      await saveUserMessageServer(supabase, userMessageToSave, currentSessionId, user.id);
     }
 
     if (modelConfig.capabilities.includes("image-generation")) {
@@ -178,8 +188,8 @@ export async function POST(req: Request): Promise<Response> {
     const providerOptions = buildProviderOptions(modelConfig, reasoningLevel);
 
     if (streamContext) {
-      const streamId = generateId();
-      await appendStreamId(supabase, currentSessionId, streamId);
+      const streamId = uuidv4();
+      await serverAppendStreamId(supabase, currentSessionId, streamId);
 
       console.log("finalMessages", inspect(finalMessages, { depth: null }));
 
@@ -191,10 +201,10 @@ export async function POST(req: Request): Promise<Response> {
             maxSteps: 5,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({ text, providerMetadata, usage }) => {
-              const messageId = generateId();
+              const messageId = uuidv4();
 
               if (text) {
-                await saveAssistantMessage(
+                await saveAssistantMessageServer(
                   supabase,
                   messageId,
                   currentSessionId,
@@ -212,7 +222,7 @@ export async function POST(req: Request): Promise<Response> {
               });
 
               if (isNewSession) {
-                await updateSessionTitle(supabase, currentSessionId, messages);
+                await generateChatTitle(currentSessionId, messages);
               }
 
               const groundingMetadata = logGoogleMetadata(providerMetadata);
@@ -251,10 +261,10 @@ export async function POST(req: Request): Promise<Response> {
           maxSteps: 5,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
           onFinish: async ({ text, providerMetadata, usage }) => {
-            const messageId = generateId();
+            const messageId = uuidv4();
 
             if (text) {
-              await saveAssistantMessage(
+              await saveAssistantMessageServer(
                 supabase,
                 messageId,
                 currentSessionId,
@@ -272,7 +282,7 @@ export async function POST(req: Request): Promise<Response> {
             });
 
             if (isNewSession) {
-              await updateSessionTitle(supabase, currentSessionId, messages);
+              await generateChatTitle(currentSessionId, messages);
             }
 
             const groundingMetadata = logGoogleMetadata(providerMetadata);

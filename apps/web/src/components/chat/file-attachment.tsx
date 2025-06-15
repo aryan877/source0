@@ -7,6 +7,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Button, Card, CardBody, Spinner } from "@heroui/react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   type AttachedFileWithUrl,
@@ -25,7 +26,7 @@ const FileIcon = ({ file, previewUrl }: { file: File; previewUrl?: string }) => 
   if (isImageFile(file) && previewUrl) {
     return (
       <div className="h-12 w-12 overflow-hidden rounded-lg">
-        <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+        <Image src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
       </div>
     );
   }

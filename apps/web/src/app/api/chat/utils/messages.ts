@@ -1,5 +1,5 @@
 import { type ModelConfig, PROVIDER_MAPPING } from "@/config/models";
-import { type MessagePart } from "@/utils/supabase/db";
+import { type MessagePart } from "@/services";
 import {
   type Attachment,
   type CoreMessage,

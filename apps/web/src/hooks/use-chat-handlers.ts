@@ -1,4 +1,4 @@
-import { type AttachedFileWithUrl } from "@/components/chat/file-attachment";
+import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
 import { type ChatState } from "@/hooks/use-chat-state";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useModelSelectorStore } from "@/stores/model-selector-store";

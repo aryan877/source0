@@ -29,6 +29,7 @@ import {
   ScrollShadow,
   useDisclosure,
 } from "@heroui/react";
+import { User } from "@supabase/supabase-js";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useState } from "react";
@@ -110,7 +111,7 @@ const useSidebarState = () => {
   };
 };
 
-const useChatHandlers = (
+const useSidebarChatHandlers = (
   selectedChatId: string,
   onSelectChat: (chatId: string) => void,
   onClose: () => void,
@@ -120,7 +121,7 @@ const useChatHandlers = (
   deleteSession: ReturnType<typeof useChatSessions>["deleteSession"]
 ) => {
   const handleNewChat = useCallback(() => {
-    router.push("/chat");
+    router.push("/");
     // Only close sidebar on mobile screens
     if (windowObj && windowObj.innerWidth < 1024) {
       onClose();
@@ -132,7 +133,7 @@ const useChatHandlers = (
       const originalChat = chats.find((c) => c.id === chatId);
       if (originalChat) {
         // For now, just redirect to a new chat - we can implement forking later
-        router.push("/chat");
+        router.push("/");
       }
     },
     [chats, router]
@@ -329,7 +330,7 @@ const ChatList = memo(
     onForkChat: (chatId: string) => void;
     onDeleteChat: (chatId: string) => void;
     isLoading: boolean;
-    error: any;
+    error: Error | null;
     onRetry: () => void;
     isDeletingSession: boolean;
   }) => {
@@ -368,7 +369,7 @@ const ChatList = memo(
 
 ChatList.displayName = "ChatList";
 
-const UserInfo = memo(({ user }: { user: any }) => (
+const UserInfo = memo(({ user }: { user: User }) => (
   <div className="rounded-lg bg-content2 p-2">
     <div className="flex items-center gap-2">
       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
@@ -437,7 +438,7 @@ const SidebarBottomActions = memo(
     onToggleTheme,
     onOpenSettings,
   }: {
-    user: any;
+    user: User | null;
     onSignOut: () => void;
     mounted: boolean;
     currentTheme: string;
@@ -539,7 +540,7 @@ export const Sidebar = memo(
       invalidateSessions,
     } = useChatSessions();
 
-    const { handleNewChat, handleForkChat, handleDeleteChat } = useChatHandlers(
+    const { handleNewChat, handleForkChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
       onSelectChat,
       onClose,

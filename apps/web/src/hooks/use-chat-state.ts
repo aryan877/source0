@@ -1,4 +1,4 @@
-import { type AttachedFileWithUrl } from "@/components/chat/file-attachment";
+import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
 import { type ReasoningLevel } from "@/config/models";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useCallback, useState } from "react";

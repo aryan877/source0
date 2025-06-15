@@ -28,16 +28,6 @@ interface CustomFileUIPart {
   path?: string;
 }
 
-interface ModelMetadata {
-  modelUsed?: string;
-  modelProvider?: string;
-}
-
-interface ModelMetadataAnnotation {
-  type: "model_metadata";
-  data: ModelMetadata;
-}
-
 // A simplified type guard that checks for the properties we need on a JSONValue object
 function isModelMetadataAnnotation(
   obj: JSONValue

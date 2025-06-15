@@ -22,11 +22,7 @@ export function AppShell({ children }: AppShellProps) {
       setIsSidebarOpen(false);
     }
 
-    if (chatId === "new") {
-      router.push("/chat");
-    } else {
-      router.push(`/chat/${chatId}`);
-    }
+    router.push(`/chat/${chatId}`);
   };
 
   const handleOpenSettings = () => {
@@ -44,10 +40,10 @@ export function AppShell({ children }: AppShellProps) {
 
   const currentChatId = useMemo(() => {
     const segments = pathname.split("/").filter(Boolean);
-    if (segments[0] === "chat") {
-      return segments[1] || "new";
+    if (segments[0] === "chat" && segments[1]) {
+      return segments[1];
     }
-    return "new";
+    return "";
   }, [pathname]);
 
   return (

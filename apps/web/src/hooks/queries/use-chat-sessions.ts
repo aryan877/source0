@@ -1,32 +1,9 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
-import { getChatSessions, type ChatSession } from "@/utils/supabase/db";
+import { deleteSession, getUserSessions, type ChatSession } from "@/services/chat-sessions";
+import { chatSessionsKeys } from "@/utils/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../useAuth";
-
-// Query keys
-export const chatSessionsKeys = {
-  all: ["chat-sessions"] as const,
-  byUser: (userId: string) => [...chatSessionsKeys.all, "user", userId] as const,
-};
-
-// Fetch function using existing db.ts function
-async function fetchChatSessions(userId: string): Promise<ChatSession[]> {
-  const supabase = createClient();
-  return await getChatSessions(supabase, userId);
-}
-
-// Delete function
-async function deleteChatSession(sessionId: string): Promise<void> {
-  const supabase = createClient();
-
-  const { error } = await supabase.from("chat_sessions").delete().eq("id", sessionId);
-
-  if (error) {
-    throw new Error(`Failed to delete chat session: ${error.message}`);
-  }
-}
 
 // Main hook
 export function useChatSessions() {
@@ -35,14 +12,14 @@ export function useChatSessions() {
 
   const query = useQuery({
     queryKey: user?.id ? chatSessionsKeys.byUser(user.id) : [],
-    queryFn: () => fetchChatSessions(user!.id),
+    queryFn: () => getUserSessions(user!.id),
     enabled: !!user?.id,
     staleTime: 30 * 1000, // 30 seconds - chat sessions change frequently
     refetchOnWindowFocus: true,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteChatSession,
+    mutationFn: deleteSession,
     onSuccess: (_, sessionId) => {
       // Remove the deleted session from cache
       if (user?.id) {

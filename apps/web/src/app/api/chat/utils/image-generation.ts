@@ -1,6 +1,7 @@
+import { ModelConfig } from "@/config/models";
+import { saveAssistantMessageServer } from "@/services";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
-import { createDataStreamResponse } from "ai";
-import { generateId, saveAssistantMessage } from "./database";
+import { createDataStreamResponse, generateId } from "ai";
 import { handleStreamError } from "./errors";
 
 async function generateImageWithOpenAI(
@@ -81,7 +82,7 @@ export async function handleImageGenerationRequest(
   supabase: SupabaseClient,
   user: User,
   sessionId: string,
-  modelConfig: any,
+  modelConfig: ModelConfig,
   prompt: string
 ): Promise<Response> {
   const messageId = generateId();
@@ -105,7 +106,7 @@ export async function handleImageGenerationRequest(
       data: { publicUrl },
     } = supabase.storage.from("chat-attachments").getPublicUrl(uploadData.path);
 
-    await saveAssistantMessage(
+    await saveAssistantMessageServer(
       supabase,
       messageId,
       sessionId,
@@ -125,8 +126,7 @@ export async function handleImageGenerationRequest(
       ],
       modelConfig.id,
       modelConfig.provider,
-      { reasoningLevel: "low", searchEnabled: false },
-      {}
+      { reasoningLevel: "low", searchEnabled: false }
     );
 
     return createDataStreamResponse({
