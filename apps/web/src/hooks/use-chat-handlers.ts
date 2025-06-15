@@ -62,8 +62,8 @@ export const useChatHandlers = (
     [updateState]
   );
 
-  const handleForkChat = useCallback((messageId: string) => {
-    console.log("Fork chat from message:", messageId);
+  const handleBranchChat = useCallback((messageId: string) => {
+    console.log("Branch chat from message:", messageId);
   }, []);
 
   const handleModelChange = useCallback(
@@ -76,7 +76,7 @@ export const useChatHandlers = (
   return {
     handleFileAttach,
     handleRemoveFile,
-    handleForkChat,
+    handleBranchChat,
     handleModelChange,
   };
 };

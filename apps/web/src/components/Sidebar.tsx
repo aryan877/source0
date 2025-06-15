@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowRightOnRectangleIcon,
   ChatBubbleLeftRightIcon,
-  CodeBracketIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
   MoonIcon,
@@ -52,7 +51,6 @@ interface ChatItemProps {
   updatedAt: string;
   isSelected: boolean;
   onSelect: (chatId: string) => void;
-  onFork: (chatId: string) => void;
   onDelete: (chatId: string) => void;
   isDeleting: boolean;
 }
@@ -128,17 +126,6 @@ const useSidebarChatHandlers = (
     }
   }, [router, windowObj, onClose]);
 
-  const handleForkChat = useCallback(
-    (chatId: string) => {
-      const originalChat = chats.find((c) => c.id === chatId);
-      if (originalChat) {
-        // For now, just redirect to a new chat - we can implement forking later
-        router.push("/");
-      }
-    },
-    [chats, router]
-  );
-
   const handleDeleteChat = useCallback(
     (chatId: string) => {
       deleteSession(chatId);
@@ -152,7 +139,6 @@ const useSidebarChatHandlers = (
 
   return {
     handleNewChat,
-    handleForkChat,
     handleDeleteChat,
   };
 };
@@ -239,16 +225,7 @@ const ErrorState = memo(({ onRetry }: { onRetry: () => void }) => (
 ErrorState.displayName = "ErrorState";
 
 const ChatItem = memo(
-  ({
-    chatId,
-    title,
-    updatedAt,
-    isSelected,
-    onSelect,
-    onFork,
-    onDelete,
-    isDeleting,
-  }: ChatItemProps) => {
+  ({ chatId, title, updatedAt, isSelected, onSelect, onDelete, isDeleting }: ChatItemProps) => {
     return (
       <div
         className={`group relative cursor-pointer rounded-lg p-3 transition-all duration-200 ${
@@ -283,16 +260,11 @@ const ChatItem = memo(
               </DropdownTrigger>
               <DropdownMenu
                 onAction={(key) => {
-                  if (key === "fork") {
-                    onFork(chatId);
-                  } else if (key === "delete") {
+                  if (key === "delete") {
                     onDelete(chatId);
                   }
                 }}
               >
-                <DropdownItem key="fork" startContent={<CodeBracketIcon className="h-4 w-4" />}>
-                  Fork Chat
-                </DropdownItem>
                 <DropdownItem
                   key="delete"
                   className="text-danger"
@@ -317,7 +289,6 @@ const ChatList = memo(
     chats,
     selectedChatId,
     onSelectChat,
-    onForkChat,
     onDeleteChat,
     isLoading,
     error,
@@ -327,7 +298,6 @@ const ChatList = memo(
     chats: ReturnType<typeof useChatSessions>["sessions"];
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
-    onForkChat: (chatId: string) => void;
     onDeleteChat: (chatId: string) => void;
     isLoading: boolean;
     error: Error | null;
@@ -355,7 +325,6 @@ const ChatList = memo(
                 updatedAt={chat.updated_at || new Date().toISOString()}
                 isSelected={!isOnNewChat && selectedChatId === chat.id}
                 onSelect={onSelectChat}
-                onFork={onForkChat}
                 onDelete={onDeleteChat}
                 isDeleting={isDeletingSession}
               />
@@ -540,7 +509,7 @@ export const Sidebar = memo(
       invalidateSessions,
     } = useChatSessions();
 
-    const { handleNewChat, handleForkChat, handleDeleteChat } = useSidebarChatHandlers(
+    const { handleNewChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
       onSelectChat,
       onClose,
@@ -571,7 +540,6 @@ export const Sidebar = memo(
             chats={chats}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onForkChat={handleForkChat}
             onDeleteChat={handleDeleteChat}
             isLoading={isLoadingChats}
             error={chatsError}

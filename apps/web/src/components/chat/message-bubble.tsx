@@ -47,12 +47,12 @@ function isModelMetadataAnnotation(
 interface MessageBubbleProps {
   message: Message;
   onRetry: (messageId: string) => void;
-  onFork: (messageId: string) => void;
+  onBranch: (messageId: string) => void;
   isLoading?: boolean;
 }
 
 const MessageBubble = memo(
-  ({ message, onRetry, onFork, isLoading = false }: MessageBubbleProps) => {
+  ({ message, onRetry, onBranch, isLoading = false }: MessageBubbleProps) => {
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const isUser = message.role === "user";
@@ -79,9 +79,9 @@ const MessageBubble = memo(
       onRetry(message.id);
     }, [onRetry, message.id]);
 
-    const handleFork = useCallback(() => {
-      onFork(message.id);
-    }, [onFork, message.id]);
+    const handleBranch = useCallback(() => {
+      onBranch(message.id);
+    }, [onBranch, message.id]);
 
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
@@ -353,13 +353,13 @@ const MessageBubble = memo(
             </div>
           </Tooltip>
 
-          <Tooltip content="Fork from here" placement="top" delay={300}>
+          <Tooltip content="Branch from here" placement="top" delay={300}>
             <div>
               <Button
                 variant="light"
                 size="sm"
                 isIconOnly
-                onPress={handleFork}
+                onPress={handleBranch}
                 className="transition-all hover:scale-105 hover:bg-content2"
               >
                 <CodeBracketIcon className="h-4 w-4" />
@@ -368,7 +368,7 @@ const MessageBubble = memo(
           </Tooltip>
         </div>
       );
-    }, [showActions, handleRetry, copied, handleCopy, handleFork, isLoading]);
+    }, [showActions, handleRetry, copied, handleCopy, handleBranch, isLoading]);
 
     return (
       <div

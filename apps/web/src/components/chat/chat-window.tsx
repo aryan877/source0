@@ -39,10 +39,8 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const { messagesContainerRef, messagesEndRef, showScrollToBottom, scrollToBottom } =
     useScrollManagement(messagesToUse.length);
 
-  const { handleFileAttach, handleRemoveFile, handleForkChat, handleModelChange } = useChatHandlers(
-    chatId,
-    updateState
-  );
+  const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
+    useChatHandlers(chatId, updateState);
 
   const {
     messages,
@@ -452,7 +450,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         isLoading={isLoading}
         isLoadingMessages={isLoadingMessages}
         chatId={chatId}
-        onForkChat={handleForkChat}
+        onBranchChat={handleBranchChat}
         onRetryMessage={handleRetryMessage}
         messagesContainerRef={messagesContainerRef}
         messagesEndRef={messagesEndRef}

@@ -62,7 +62,7 @@ interface MessagesListProps {
   isLoading: boolean;
   isLoadingMessages: boolean;
   chatId: string;
-  onForkChat: (messageId: string) => void;
+  onBranchChat: (messageId: string) => void;
   onRetryMessage: (messageId: string) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -78,7 +78,7 @@ export const MessagesList = memo(
     isLoading,
     isLoadingMessages,
     chatId,
-    onForkChat,
+    onBranchChat,
     onRetryMessage,
     messagesContainerRef,
     messagesEndRef,
@@ -97,7 +97,7 @@ export const MessagesList = memo(
               <MessageBubble
                 message={message}
                 onRetry={onRetryMessage}
-                onFork={onForkChat}
+                onBranch={onBranchChat}
                 isLoading={isLoading}
               />
             </div>
