@@ -1,4 +1,4 @@
-import { type ModelConfig } from "@/config/models";
+import { type ModelConfig, PROVIDER_MAPPING } from "@/config/models";
 import { type MessagePart } from "@/utils/supabase/db";
 import {
   type Attachment,
@@ -14,56 +14,78 @@ interface ClientAttachment extends Attachment {
   size?: number;
 }
 
+interface CustomFileUIPart {
+  type: "file";
+  url: string;
+  mimeType: string;
+  filename?: string;
+  path?: string;
+}
+
 type UserContentPart = TextPart | ImagePart | FilePart;
 type AssistantContentPart = TextPart | FilePart; // Assistants might have other parts like tool calls
 
-// OpenAI-specific helper functions
-const isOpenAIProvider = (modelConfig: ModelConfig) => modelConfig.provider === "OpenAI";
+// PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
+const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<keyof typeof PROVIDER_MAPPING>([
+  "OpenAI",
+  "Anthropic",
+]);
+
+// Configuration for image explanation text per provider
+const PROVIDER_IMAGE_EXPLANATIONS: Record<keyof typeof PROVIDER_MAPPING, string> = {
+  OpenAI: "Generated image by AI assistant:",
+  Anthropic: "Generated image by AI assistant:",
+  Google: "Generated image by AI assistant:",
+  xAI: "Generated image by AI assistant:",
+  Meta: "Generated image by AI assistant:",
+  DeepSeek: "Generated image by AI assistant:",
+  Qwen: "Generated image by AI assistant:",
+} as const;
+
+// Generic helper functions for providers that need assistant images converted to user messages
+const needsImageConversion = (modelConfig: ModelConfig) =>
+  PROVIDERS_NEEDING_IMAGE_CONVERSION.has(modelConfig.provider);
 
 const shouldSkipImageFromAssistant = (modelConfig: ModelConfig, mimeType: string) =>
-  isOpenAIProvider(modelConfig) && mimeType.startsWith("image/");
+  needsImageConversion(modelConfig) && mimeType.startsWith("image/");
 
-const addOpenAIImageExplanation = (
-  coreParts: AssistantContentPart[],
-  modelConfig: ModelConfig,
-  messageParts: Array<{ type: string; text?: string; mimeType?: string; url?: string }> | undefined
-) => {
-  if (!isOpenAIProvider(modelConfig)) return;
-
-  const hasImages = messageParts?.some((p) => p.mimeType?.startsWith("image/"));
-
-  if (hasImages) {
-    coreParts.unshift({ type: "text", text: "Generated image by AI assistant:" });
-  }
-};
-
-const createOpenAIUserImageMessage = async (
+const createUserImageMessage = async (
   message: Message,
   modelConfig: ModelConfig
 ): Promise<CoreMessage | null> => {
-  if (!isOpenAIProvider(modelConfig)) return null;
+  if (!needsImageConversion(modelConfig)) return null;
 
-  const messageParts = (message as any).parts as Array<{
-    type: string;
-    text?: string;
-    mimeType?: string;
-    url?: string;
-  }>;
+  const messageParts = message.parts;
 
   const imageParts: UserContentPart[] = [];
 
   // Handle image parts from message parts
   if (messageParts?.length) {
     for (const part of messageParts) {
-      if (part.url && part.mimeType?.startsWith("image/")) {
-        const { corePart } = await processAttachment(part.url, part.mimeType, modelConfig, false);
-        if (corePart) imageParts.push(corePart as UserContentPart);
+      if (part.type === "file") {
+        const filePart = part as unknown as CustomFileUIPart;
+        if (filePart.url && filePart.mimeType?.startsWith("image/")) {
+          const { corePart } = await processAttachment(
+            filePart.url,
+            filePart.mimeType,
+            modelConfig,
+            false
+          );
+          if (corePart) imageParts.push(corePart as UserContentPart);
+        }
       }
     }
   }
 
-  // Return user message with images if any exist
-  return imageParts.length > 0 ? { role: "user", content: imageParts } : null;
+  // Add explanation text at the beginning if we have images
+  if (imageParts.length > 0) {
+    const explanationText =
+      PROVIDER_IMAGE_EXPLANATIONS[modelConfig.provider] || "Generated image by AI assistant:";
+    imageParts.unshift({ type: "text", text: explanationText });
+    return { role: "user", content: imageParts };
+  }
+
+  return null;
 };
 
 async function processAttachment(
@@ -143,48 +165,36 @@ async function processAssistantMessage(
   message: Message,
   modelConfig: ModelConfig
 ): Promise<CoreMessage | null> {
-  const attachments = (message.experimental_attachments as ClientAttachment[]) ?? [];
   const coreParts: AssistantContentPart[] = [];
 
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
   if (textContent) coreParts.push({ type: "text", text: textContent });
 
-  const messageParts = (message as any).parts as Array<{
-    type: string;
-    text?: string;
-    mimeType?: string;
-    url?: string;
-  }>;
+  const messageParts = message.parts;
 
   if (messageParts?.length) {
     for (const part of messageParts) {
-      if (part.type === "text" && part.text) {
+      if (part.type === "text" && "text" in part) {
         if (!coreParts.some((p) => p.type === "text" && p.text === part.text)) {
           coreParts.push({ type: "text", text: part.text });
         }
-      } else if (part.url && part.mimeType) {
-        // Skip images for OpenAI models - they'll be handled as user messages
-        if (shouldSkipImageFromAssistant(modelConfig, part.mimeType)) {
-          continue;
+      } else if (part.type === "file") {
+        const filePart = part as unknown as CustomFileUIPart;
+        if (filePart.url && filePart.mimeType) {
+          if (shouldSkipImageFromAssistant(modelConfig, filePart.mimeType)) {
+            continue;
+          }
+          const { corePart } = await processAttachment(
+            filePart.url,
+            filePart.mimeType,
+            modelConfig,
+            true
+          );
+          if (corePart) coreParts.push(corePart as AssistantContentPart);
         }
-        const { corePart } = await processAttachment(part.url, part.mimeType, modelConfig, true);
-        if (corePart) coreParts.push(corePart as AssistantContentPart);
       }
     }
   }
-
-  for (const att of attachments) {
-    if (!att.contentType || !att.url) continue;
-    // Skip images for OpenAI models - they'll be handled as user messages
-    if (shouldSkipImageFromAssistant(modelConfig, att.contentType)) {
-      continue;
-    }
-    const { corePart } = await processAttachment(att.url, att.contentType, modelConfig, true);
-    if (corePart) coreParts.push(corePart as AssistantContentPart);
-  }
-
-  // Add explanatory text for OpenAI models when images are present
-  addOpenAIImageExplanation(coreParts, modelConfig, messageParts);
 
   if (coreParts.length === 0) return null;
   const firstPart = coreParts[0];
@@ -226,10 +236,10 @@ export const processMessages = async (
         const coreMessage = await processAssistantMessage(message, modelConfig);
         if (coreMessage) coreMessages.push(coreMessage);
 
-        // For OpenAI models, create additional user messages for images since they can't read assistant files properly
-        const openAIUserImageMessage = await createOpenAIUserImageMessage(message, modelConfig);
-        if (openAIUserImageMessage) {
-          coreMessages.push(openAIUserImageMessage);
+        // For providers that need image conversion, create additional user messages for images since they can't read assistant files properly
+        const userImageMessage = await createUserImageMessage(message, modelConfig);
+        if (userImageMessage) {
+          coreMessages.push(userImageMessage);
         }
         break;
       }

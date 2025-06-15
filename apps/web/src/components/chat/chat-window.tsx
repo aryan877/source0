@@ -116,28 +116,31 @@ const ChatWindow = memo(({ chatId, initialMessages = [] }: ChatWindowProps) => {
         });
       }
 
-      // Handle file part annotation for generated images
-      const filePartAnnotation = message.annotations?.find(
+      // Handle image generation complete annotation
+      const imageGenerationAnnotation = message.annotations?.find(
         (a) =>
           typeof a === "object" &&
           a !== null &&
           !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "file_part"
+          (a as { type?: unknown }).type === "image_generation_complete"
       );
 
-      if (filePartAnnotation) {
-        const filePart = (filePartAnnotation as { data?: unknown }).data;
-        if (filePart) {
+      if (imageGenerationAnnotation) {
+        const annotationData = (imageGenerationAnnotation as { data?: any }).data;
+        if (annotationData?.filePart && annotationData?.databaseId) {
           setMessages((currentMessages) =>
             currentMessages.map((msg) => {
               if (msg.id === message.id) {
-                const newParts: Message["parts"] = msg.parts ? [...msg.parts] : [];
-                // If there's no text part, add one from content.
-                if (!newParts.some((p) => p.type === "text")) {
-                  newParts.unshift({ type: "text", text: msg.content });
-                }
-                newParts.push(filePart as any);
-                return { ...msg, parts: newParts };
+                const newParts: Message["parts"] = [
+                  { type: "text", text: annotationData.content },
+                  annotationData.filePart,
+                ];
+                return {
+                  ...msg,
+                  id: annotationData.databaseId,
+                  content: annotationData.content,
+                  parts: newParts,
+                };
               }
               return msg;
             })

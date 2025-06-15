@@ -131,18 +131,18 @@ export async function handleImageGenerationRequest(
 
     return createDataStreamResponse({
       execute: (dataStream) => {
-        dataStream.writeData("Here is the generated image:");
         dataStream.writeMessageAnnotation({
-          type: "message_saved",
-          data: { databaseId: messageId, sessionId: sessionId },
-        });
-        dataStream.writeMessageAnnotation({
-          type: "file_part",
+          type: "image_generation_complete",
           data: {
-            type: "file",
-            mimeType: "image/png",
-            url: publicUrl,
-            filename: "generated-image.png",
+            databaseId: messageId,
+            sessionId: sessionId,
+            content: "Here is the generated image:",
+            filePart: {
+              type: "file",
+              mimeType: "image/png",
+              url: publicUrl,
+              filename: "generated-image.png",
+            },
           },
         });
       },
@@ -150,32 +150,6 @@ export async function handleImageGenerationRequest(
     });
   } catch (error) {
     console.error("❌ Direct image generation failed:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-    await saveAssistantMessage(
-      supabase,
-      messageId,
-      sessionId,
-      user.id,
-      [{ type: "text", text: `Sorry, I couldn't generate the image. ${errorMessage}` }],
-      modelConfig.id,
-      modelConfig.provider,
-      {},
-      { isError: true }
-    );
-
-    return createDataStreamResponse({
-      execute: (dataStream) => {
-        dataStream.writeData(`Image generation failed: ${errorMessage}`);
-        dataStream.writeMessageAnnotation({
-          type: "error",
-          data: { message: `Image generation failed: ${errorMessage}` },
-        });
-        dataStream.writeMessageAnnotation({
-          type: "message_saved",
-          data: { databaseId: messageId, sessionId: sessionId },
-        });
-      },
-    });
+    throw error;
   }
 }
