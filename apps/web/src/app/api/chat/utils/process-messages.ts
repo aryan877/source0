@@ -1,5 +1,6 @@
 import { type ModelConfig, PROVIDER_MAPPING } from "@/config/models";
 import { type MessagePart } from "@/services";
+import { convertPartsForDb } from "@/utils/message-utils";
 import {
   type Attachment,
   type CoreMessage,
@@ -130,28 +131,19 @@ async function processUserMessage(
   dbParts: MessagePart[];
 }> {
   const attachments = (message.experimental_attachments as ClientAttachment[]) ?? [];
-  const dbParts: MessagePart[] = [];
   const coreParts: UserContentPart[] = [];
 
+  // Use the helper to properly convert message parts to database format )
+  const dbParts = convertPartsForDb(message);
+
+  // Build coreParts for the AI model (different from database storage)
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
   if (textContent) {
-    dbParts.push({ type: "text", text: textContent });
     coreParts.push({ type: "text", text: textContent });
   }
 
   for (const att of attachments) {
     if (!att.contentType || !att.url) continue;
-
-    dbParts.push({
-      type: "file",
-      file: {
-        name: att.name ?? "file",
-        mimeType: att.contentType,
-        url: att.url,
-        path: att.path ?? "",
-        size: att.size ?? 0,
-      },
-    });
 
     const { corePart } = await processAttachment(att.url, att.contentType, modelConfig, false);
     if (corePart) coreParts.push(corePart as UserContentPart);

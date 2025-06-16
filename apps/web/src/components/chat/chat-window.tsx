@@ -51,6 +51,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
     useChatHandlers(
       chatId,
+      state,
       updateState,
       updateSessionInCache,
       transferModelSelection,

@@ -1,4 +1,5 @@
 import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
+import { getModelById } from "@/config/models";
 import { type ChatState } from "@/hooks/use-chat-state";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { branchSession, ChatSession, getSession } from "@/services/chat-sessions";
@@ -7,6 +8,7 @@ import { useCallback } from "react";
 
 export const useChatHandlers = (
   chatId: string,
+  state: ChatState,
   updateState: (
     updates: Partial<ChatState> | ((prevState: ChatState) => Partial<ChatState>)
   ) => void,
@@ -164,10 +166,22 @@ export const useChatHandlers = (
   );
 
   const handleModelChange = useCallback(
-    (model: string) => {
-      setSelectedModel(chatId, model);
+    (modelId: string) => {
+      setSelectedModel(chatId, modelId);
+      const newModel = getModelById(modelId);
+
+      if (newModel) {
+        const supportedLevels = newModel.reasoningLevels;
+        // If the new model supports reasoning, check the current level
+        if (supportedLevels && supportedLevels.length > 0) {
+          if (!supportedLevels.includes(state.reasoningLevel)) {
+            // If current level is not supported, set to the first available
+            updateState({ reasoningLevel: supportedLevels[0] });
+          }
+        }
+      }
     },
-    [chatId, setSelectedModel]
+    [chatId, setSelectedModel, state.reasoningLevel, updateState]
   );
 
   return {
