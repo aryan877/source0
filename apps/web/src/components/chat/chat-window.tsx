@@ -386,12 +386,13 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
    *
    * This function:
    * 1. Finds the message to retry in the conversation
-   * 2. Deletes that message and all subsequent messages from the database
-   * 3. Removes them from the local state
-   * 4. Re-sends the original user message
+   * 2. If it's a user message, retries that message directly
+   * 3. If it's an assistant message, finds the previous user message and retries that
+   * 4. Deletes the target message and all subsequent messages from the database
+   * 5. Removes them from the local state
+   * 6. Re-sends the user message
    *
-   * Only user messages can be retried. This is used when a user wants to
-   * regenerate a response or fix a conversation flow.
+   * This provides consistent retry behavior regardless of which message is clicked.
    */
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
@@ -399,35 +400,62 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         updateState({ uiError: null });
         stop(); // Stop any ongoing requests first
 
-        const retryIndex = messages.findIndex((m) => m.id === messageId);
-        if (retryIndex === -1) {
+        const clickedMessageIndex = messages.findIndex((m) => m.id === messageId);
+        if (clickedMessageIndex === -1) {
           console.error("Retry failed: message not found", { messageId });
           updateState({ uiError: "Message to retry not found." });
           return;
         }
 
-        const messageToRetry = messages[retryIndex];
-        if (!messageToRetry) {
-          // This case should theoretically not be hit if retryIndex is valid
+        const clickedMessage = messages[clickedMessageIndex];
+        if (!clickedMessage) {
           console.error("Retry failed: message object not found", { messageId });
           updateState({ uiError: "Message to retry not found." });
           return;
         }
 
-        if (messageToRetry.role !== "user") {
-          updateState({ uiError: "Only user messages can be retried." });
-          return;
+        let userMessageToRetry: Message;
+        let retryFromIndex: number;
+
+        if (clickedMessage.role === "user") {
+          // If clicking on a user message, retry that message
+          userMessageToRetry = clickedMessage;
+          retryFromIndex = clickedMessageIndex;
+        } else {
+          // If clicking on an assistant message, find the previous user message
+          let userMessageIndex = -1;
+          for (let i = clickedMessageIndex - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg && msg.role === "user") {
+              userMessageIndex = i;
+              break;
+            }
+          }
+
+          if (userMessageIndex === -1) {
+            updateState({ uiError: "No user message found to retry." });
+            return;
+          }
+
+          const foundUserMessage = messages[userMessageIndex];
+          if (!foundUserMessage) {
+            updateState({ uiError: "User message not found to retry." });
+            return;
+          }
+
+          userMessageToRetry = foundUserMessage;
+          retryFromIndex = userMessageIndex;
         }
 
         if (chatId && chatId !== "new") {
-          await deleteFromPoint(messageId);
+          await deleteFromPoint(userMessageToRetry.id);
           invalidateMessages();
         }
 
-        // Remove the message and everything after it
-        setMessages((currentMessages) => currentMessages.slice(0, retryIndex));
+        // Remove the user message and everything after it
+        setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
 
-        append(messageToRetry);
+        append(userMessageToRetry);
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
