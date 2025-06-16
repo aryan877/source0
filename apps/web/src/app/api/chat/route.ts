@@ -1,7 +1,7 @@
 import { type ReasoningLevel } from "@/config/models";
 import {
   createOrGetSession,
-  generateChatTitle,
+  generateTitleOnly,
   getMessages,
   saveAssistantMessageServer,
   saveUserMessageServer,
@@ -12,19 +12,12 @@ import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/goog
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
 import { createClient } from "@/utils/supabase/server";
-import {
-  createDataStream,
-  createDataStreamResponse,
-  streamText,
-  type JSONValue,
-  type Message,
-} from "ai";
+import { createDataStream, streamText, type JSONValue, type Message } from "ai";
 import { after } from "next/server";
 import {
   createResumableStreamContext,
   type ResumableStreamContext,
 } from "resumable-stream/ioredis";
-import { inspect } from "util";
 import { v4 as uuidv4 } from "uuid";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { handleImageGenerationRequest } from "./utils/image-generation";
@@ -56,6 +49,7 @@ interface ChatRequest {
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
   id?: string;
+  isFirstMessage?: boolean;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -143,8 +137,11 @@ export async function POST(req: Request): Promise<Response> {
       model = "gemini-2.5-flash",
       reasoningLevel = "medium",
       searchEnabled = false,
-      id: sessionId,
+      id,
+      isFirstMessage = false,
     } = body;
+
+    const sessionId = id || uuidv4();
 
     const supabase = await createClient();
     const {
@@ -154,10 +151,7 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
     }
 
-    const { sessionId: currentSessionId, isNewSession } = await createOrGetSession(
-      user.id,
-      sessionId
-    );
+    const { sessionId: finalSessionId } = await createOrGetSession(user.id, sessionId);
 
     const modelConfig = getModelById(model);
     if (!modelConfig) {
@@ -172,13 +166,13 @@ export async function POST(req: Request): Promise<Response> {
     const { coreMessages, userMessageToSave } = await processMessages(messages, modelConfig);
 
     if (userMessageToSave) {
-      await saveUserMessageServer(supabase, userMessageToSave, currentSessionId, user.id);
+      await saveUserMessageServer(supabase, userMessageToSave, finalSessionId, user.id);
     }
 
     if (modelConfig.capabilities.includes("image-generation")) {
       const lastUserMessage = messages[messages.length - 1];
       const prompt = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
-      return handleImageGenerationRequest(supabase, user, currentSessionId, modelConfig, prompt);
+      return handleImageGenerationRequest(supabase, user, finalSessionId, modelConfig, prompt);
     }
 
     const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
@@ -189,12 +183,10 @@ export async function POST(req: Request): Promise<Response> {
 
     if (streamContext) {
       const streamId = uuidv4();
-      await serverAppendStreamId(supabase, currentSessionId, streamId);
-
-      console.log("finalMessages", inspect(finalMessages, { depth: null }));
+      await serverAppendStreamId(supabase, finalSessionId, streamId);
 
       const stream = createDataStream({
-        execute: (dataStream) => {
+        execute: async (dataStream) => {
           const result = streamText({
             model: modelInstance,
             messages: finalMessages,
@@ -203,11 +195,12 @@ export async function POST(req: Request): Promise<Response> {
             onFinish: async ({ text, providerMetadata, usage }) => {
               const messageId = uuidv4();
 
+              // Save the assistant message first
               if (text) {
                 await saveAssistantMessageServer(
                   supabase,
                   messageId,
-                  currentSessionId,
+                  finalSessionId,
                   user.id,
                   [{ type: "text", text }],
                   model,
@@ -218,11 +211,45 @@ export async function POST(req: Request): Promise<Response> {
 
               dataStream.writeMessageAnnotation({
                 type: "message_saved",
-                data: { databaseId: messageId, sessionId: currentSessionId },
+                data: { databaseId: messageId, sessionId: finalSessionId },
               });
 
-              if (isNewSession) {
-                await generateChatTitle(currentSessionId, messages);
+              // Generate title for first message and send as annotation
+              if (isFirstMessage && userMessageToSave) {
+                console.log("Generating title for first message");
+                try {
+                  const firstUserMessage =
+                    typeof userMessageToSave.content === "string"
+                      ? userMessageToSave.content
+                      : userMessageToSave.parts?.find((p) => p.type === "text")?.text || "";
+
+                  const generatedTitle = await generateTitleOnly(firstUserMessage);
+                  console.log(
+                    `Title generated for session: ${finalSessionId} - "${generatedTitle}"`
+                  );
+
+                  // Update the title in the database using server-side client
+                  const { error: titleError } = await supabase
+                    .from("chat_sessions")
+                    .update({ title: generatedTitle })
+                    .eq("id", finalSessionId);
+
+                  if (titleError) {
+                    console.error("Failed to update title in database:", titleError);
+                  }
+
+                  // Send title update annotation to refresh sidebar
+                  dataStream.writeMessageAnnotation({
+                    type: "title_generated",
+                    data: {
+                      sessionId: finalSessionId,
+                      title: generatedTitle,
+                      userId: user.id,
+                    },
+                  });
+                } catch (error) {
+                  console.error("Failed to generate title:", error);
+                }
               }
 
               const groundingMetadata = logGoogleMetadata(providerMetadata);
@@ -252,58 +279,8 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // Fallback to non-resumable stream if Redis is not configured
-    return createDataStreamResponse({
-      execute: (dataStream) => {
-        const result = streamText({
-          model: modelInstance,
-          messages: finalMessages,
-          maxSteps: 5,
-          ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-          onFinish: async ({ text, providerMetadata, usage }) => {
-            const messageId = uuidv4();
-
-            if (text) {
-              await saveAssistantMessageServer(
-                supabase,
-                messageId,
-                currentSessionId,
-                user.id,
-                [{ type: "text", text }],
-                model,
-                modelConfig.provider,
-                { reasoningLevel, searchEnabled, usage }
-              );
-            }
-
-            dataStream.writeMessageAnnotation({
-              type: "message_saved",
-              data: { databaseId: messageId, sessionId: currentSessionId },
-            });
-
-            if (isNewSession) {
-              await generateChatTitle(currentSessionId, messages);
-            }
-
-            const groundingMetadata = logGoogleMetadata(providerMetadata);
-            if (groundingMetadata) {
-              dataStream.writeMessageAnnotation({
-                type: "grounding",
-                data: groundingMetadata as JSONValue,
-              });
-            }
-          },
-          onError: ({ error }) =>
-            console.error("Stream error:", error instanceof Error ? error.message : String(error)),
-        });
-
-        result.mergeIntoDataStream(dataStream, {
-          sendReasoning: modelConfig.capabilities.includes("reasoning"),
-          sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
-        });
-      },
-      onError: (error: unknown) => handleStreamError(error, "DataStream"),
-    });
+    // This should never happen since Redis is always configured
+    throw new Error("Redis not configured - this should not happen");
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     return getErrorResponse(err);

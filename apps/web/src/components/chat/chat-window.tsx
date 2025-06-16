@@ -8,11 +8,11 @@ import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteMessageAndAfter, deleteMessagesAfter } from "@/services/chat-messages";
-import { createSession, getSession } from "@/services/chat-sessions";
+import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
@@ -26,14 +26,13 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
   const router = useRouter();
-  const [forceFocus, setForceFocus] = useState(false);
 
   const {
     messages: queryMessages,
     isLoading: isLoadingMessages,
     invalidateMessages,
   } = useChatMessages(chatId);
-  const { invalidateSessions, updateSessionInCache } = useChatSessions();
+  const { updateSessionInCache } = useChatSessions();
 
   const messagesToUse = chatId !== "new" ? queryMessages : [];
 
@@ -66,6 +65,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       reasoningLevel: state.reasoningLevel,
       searchEnabled: state.searchEnabled,
       id: chatId === "new" ? undefined : chatId,
+      isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
     },
     onError: (error) => {
       console.error("useChat Hook Error", error, {
@@ -185,20 +185,59 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         }
       }
 
-      if (chatId && chatId !== "new") {
-        invalidateMessages();
+      // Handle title generated annotation
+      const titleGeneratedAnnotation = message.annotations?.find(
+        (a) =>
+          typeof a === "object" &&
+          a !== null &&
+          !Array.isArray(a) &&
+          (a as { type?: unknown }).type === "title_generated"
+      );
+
+      let generatedTitle: string | null = null;
+      let annotationUserId: string | null = null;
+
+      if (titleGeneratedAnnotation) {
+        const data = (titleGeneratedAnnotation as { data?: unknown }).data;
+
+        if (
+          typeof data === "object" &&
+          data !== null &&
+          "sessionId" in data &&
+          "title" in data &&
+          "userId" in data &&
+          typeof (data as { sessionId?: unknown }).sessionId === "string" &&
+          typeof (data as { title?: unknown }).title === "string" &&
+          typeof (data as { userId?: unknown }).userId === "string"
+        ) {
+          const { sessionId, title, userId } = data as {
+            sessionId: string;
+            title: string;
+            userId: string;
+          };
+
+          if (sessionId === chatId) {
+            generatedTitle = title;
+            annotationUserId = userId;
+            console.log("Title generated for session:", title);
+          }
+        }
       }
 
-      // Handle existing chat session updates
-      if (chatId && chatId !== "new") {
-        // Update existing chat session
-        const updatedSession = await getSession(chatId);
+      // Handle existing chat session updates and refresh sidebar
+      if (chatId && chatId !== "new" && generatedTitle && annotationUserId) {
+        const sessionUpdate: ChatSession = {
+          id: chatId,
+          title: generatedTitle,
+          updated_at: new Date().toISOString(),
+        } as ChatSession;
 
-        if (updatedSession) {
-          updateSessionInCache(updatedSession);
-        } else {
-          invalidateSessions();
-        }
+        updateSessionInCache(sessionUpdate, annotationUserId);
+      }
+
+      // Always invalidate messages to get fresh data
+      if (chatId && chatId !== "new") {
+        invalidateMessages();
       }
     },
   });
@@ -224,7 +263,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       // Clear the pending message
       sessionStorage.removeItem("pendingFirstMessage");
 
-      // Submit the pending message
+      // Submit the pending message with the isFirstMessage flag
       append(message, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
@@ -369,7 +408,10 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           // Store the message and attachments in sessionStorage for the new session
           const messageData = {
             message: messageToAppend,
-            chatRequestOptions,
+            chatRequestOptions: {
+              ...chatRequestOptions,
+              isFirstMessage: true, // Mark as first message for new session
+            },
             selectedModel: selectedModel,
             reasoningLevel: state.reasoningLevel,
             searchEnabled: state.searchEnabled,
@@ -380,7 +422,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           const newSession = await createSession(user.id, "New Chat");
 
           // Update the sidebar immediately by adding to cache
-          updateSessionInCache(newSession);
+          updateSessionInCache(newSession, user.id);
 
           // Transfer model selection to new session
           transferModelSelection("new", newSession.id);
@@ -398,7 +440,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       append(messageToAppend, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
-      setForceFocus(true);
+      setTimeout(() => chatInputRef.current?.focus(), 0);
     },
     [
       append,
@@ -416,13 +458,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       updateSessionInCache,
     ]
   );
-
-  useEffect(() => {
-    if (forceFocus) {
-      chatInputRef.current?.focus();
-      setForceFocus(false);
-    }
-  }, [forceFocus]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

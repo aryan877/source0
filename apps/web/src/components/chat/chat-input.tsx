@@ -109,7 +109,6 @@ export const ChatInput = memo(
                     input: "text-sm resize-none",
                   }}
                   onKeyDown={onKeyDown}
-                  isDisabled={isLoading}
                 />
 
                 <div className="flex items-center justify-between gap-2 pt-2">

@@ -43,30 +43,61 @@ export function useChatSessions() {
     }
   };
 
-  const updateSessionInCache = (updatedSession: ChatSession) => {
-    if (!user?.id) return;
+  const updateSessionInCache = (updatedSession: ChatSession, userId?: string) => {
+    // Use provided userId or fall back to current user
+    const targetUserId = userId || user?.id;
+
+    if (!targetUserId) {
+      console.error("Cannot update session cache: no user ID available");
+      return;
+    }
+
     queryClient.setQueryData(
-      chatSessionsKeys.byUser(user.id),
-      (oldData: ChatSession[] | undefined) => {
-        if (!oldData) return [updatedSession];
-
-        const newData = oldData.map((session) =>
-          session.id === updatedSession.id ? updatedSession : session
-        );
-
-        // If the session was not found, add it to the top.
-        if (!oldData.some((session) => session.id === updatedSession.id)) {
-          newData.unshift(updatedSession);
+      chatSessionsKeys.byUser(targetUserId),
+      (oldData: ChatSession[] | undefined): ChatSession[] => {
+        // If no existing data, return array with just the updated session
+        if (!oldData) {
+          return [
+            {
+              ...updatedSession,
+              updated_at: updatedSession.updated_at || new Date().toISOString(),
+            },
+          ];
         }
 
-        // Re-sort by updated_at descending
-        newData.sort((a, b) => {
+        // Find existing session index
+        const existingIndex = oldData.findIndex((session) => session.id === updatedSession.id);
+
+        let newData: ChatSession[];
+
+        if (existingIndex >= 0) {
+          // Update existing session immutably
+          newData = oldData.map((session, index) =>
+            index === existingIndex
+              ? {
+                  ...session,
+                  ...updatedSession,
+                  updated_at: updatedSession.updated_at || new Date().toISOString(),
+                }
+              : session
+          );
+        } else {
+          // Add new session to the beginning
+          newData = [
+            {
+              ...updatedSession,
+              updated_at: updatedSession.updated_at || new Date().toISOString(),
+            },
+            ...oldData,
+          ];
+        }
+
+        // Sort by updated_at descending (most recent first)
+        return newData.sort((a, b) => {
           const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
           const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
           return dateB - dateA;
         });
-
-        return newData;
       }
     );
   };
