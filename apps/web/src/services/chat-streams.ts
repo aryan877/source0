@@ -162,3 +162,18 @@ export async function serverLoadStreamIds(
 
   return data?.map((row: { stream_id: string }) => row.stream_id) ?? [];
 }
+
+/**
+ * Delete a specific stream ID using server-side client
+ */
+export async function serverDeleteStreamId(
+  supabase: SupabaseClient,
+  streamId: string
+): Promise<void> {
+  const { error } = await supabase.from("chat_stream_ids").delete().eq("stream_id", streamId);
+
+  if (error) {
+    console.error(`Error deleting stream ID: ${error.message}`);
+    throw new Error(`Failed to delete stream ID: ${error.message}`);
+  }
+}

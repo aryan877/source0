@@ -7,7 +7,7 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteMessageAndAfter, deleteMessagesAfter } from "@/services/chat-messages";
+import { deleteFromPoint, deleteMessage } from "@/services/chat-messages";
 import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -52,7 +52,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     stop,
     error,
     append,
-    reload,
     setMessages,
     data,
     experimental_resume,
@@ -62,6 +61,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     initialMessages: messagesToUse,
     sendExtraMessageFields: true,
     generateId: () => uuidv4(),
+    experimental_throttle: 100,
     body: {
       model: selectedModel,
       reasoningLevel: state.reasoningLevel,
@@ -107,6 +107,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       }
     },
     onFinish: async (message, { usage, finishReason }) => {
+      console.log("onFinish", message, { usage, finishReason });
       if (process.env.NODE_ENV === "development") {
         console.log("Chat stream finished", {
           chatId,
@@ -244,12 +245,66 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     },
   });
 
-  // Sync messages from DB to useChat state when loaded
-  useEffect(() => {
-    if (status === "ready" && messagesToUse.length > 0 && messages.length === 0) {
-      setMessages(messagesToUse);
+  // Create a custom stop handler that deletes the stream first
+  const handleStop = useCallback(async () => {
+    stop();
+  }, [stop]);
+
+  // Regenerate the last assistant response
+  const handleRegenerate = useCallback(async () => {
+    const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
+
+    if (!lastUserMessage) {
+      console.error("No user message found to regenerate response from.");
+      updateState({ uiError: "Could not find a message to regenerate." });
+      return;
     }
-  }, [messagesToUse, messages, status, setMessages]);
+
+    // Find the last assistant message and delete it before regenerating
+    const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
+
+    try {
+      updateState({ uiError: null });
+      stop();
+
+      if (lastAssistantMessage && chatId && chatId !== "new") {
+        await deleteMessage(lastAssistantMessage.id);
+      }
+
+      // To regenerate, we trim the messages list to exclude the old assistant response,
+      // and then we append the last user message again to trigger a new generation.
+      let lastUserMessageIndex = -1;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]?.role === "user") {
+          lastUserMessageIndex = i;
+          break;
+        }
+      }
+
+      if (lastUserMessageIndex !== -1) {
+        // We slice the array to the point right before the last user message.
+        const messagesBeforeLastUser = messages.slice(0, lastUserMessageIndex);
+
+        // Then we set this as the new message list.
+        setMessages(messagesBeforeLastUser);
+
+        // And finally, we append the last user message to start a new stream.
+        // `useChat` will internally add this message to the list and make the API call.
+        await append(lastUserMessage);
+      }
+    } catch (error) {
+      console.error("Error during regeneration:", error);
+      updateState({
+        uiError: "Failed to regenerate response. Please try again.",
+      });
+      // Restore state on error
+      if (chatId && chatId !== "new") {
+        // A delay can help ensure the UI has time to process the error state
+        // before we force a refresh of the data.
+        setTimeout(() => invalidateMessages(), 500);
+      }
+    }
+  }, [messages, stop, chatId, updateState, setMessages, append, invalidateMessages]);
 
   useAutoResume({
     autoResume: chatId !== "new",
@@ -294,61 +349,50 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
-      const messageIndex = messages.findIndex((m) => m.id === messageId);
-      if (messageIndex === -1) return;
-
-      const messageToRetry = messages[messageIndex];
-      if (!messageToRetry) return;
-
-      const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
       try {
-        if (chatId && chatId !== "new") {
-          // Use different delete strategies based on message role
-          if (messageToRetry.role === "assistant") {
-            // For assistant messages, delete the message itself AND all messages after it
-            await deleteMessageAndAfter(messageId);
-          } else {
-            // For user messages, delete only messages after (keep the user message)
-            await deleteMessagesAfter(messageId);
-          }
-
-          invalidateMessages();
-        }
-
-        const messagesUpToRetryPoint = messages.slice(0, messageIndex);
-        setMessages(messagesUpToRetryPoint);
-
-        await delay(50);
-
-        if (messageToRetry.role === "user") {
-          const userMessageToResubmit = {
-            id: messageToRetry.id,
-            role: "user" as const,
-            content: messageToRetry.content,
-            ...(messageToRetry.parts && { parts: messageToRetry.parts }),
-            ...(messageToRetry.experimental_attachments && {
-              experimental_attachments: messageToRetry.experimental_attachments,
-            }),
-          };
-          append(userMessageToResubmit);
-        } else {
-          reload();
-        }
-
         updateState({ uiError: null });
+        stop(); // Stop any ongoing requests first
+
+        const retryIndex = messages.findIndex((m) => m.id === messageId);
+        if (retryIndex === -1) {
+          console.error("Retry failed: message not found", { messageId });
+          updateState({ uiError: "Message to retry not found." });
+          return;
+        }
+
+        const messageToRetry = messages[retryIndex];
+        if (!messageToRetry) {
+          // This case should theoretically not be hit if retryIndex is valid
+          console.error("Retry failed: message object not found", { messageId });
+          updateState({ uiError: "Message to retry not found." });
+          return;
+        }
+
+        if (messageToRetry.role !== "user") {
+          updateState({ uiError: "Only user messages can be retried." });
+          return;
+        }
+
+        if (chatId && chatId !== "new") {
+          await deleteFromPoint(messageId);
+        }
+
+        // Filter out the message being retried and any subsequent assistant messages
+        const newMessages = messages.slice(0, retryIndex);
+        setMessages(newMessages);
+
+        append(messageToRetry);
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
           uiError: "Failed to retry message. Please try again.",
         });
-
         if (chatId && chatId !== "new") {
-          invalidateMessages();
+          setTimeout(() => invalidateMessages(), 500);
         }
       }
     },
-    [messages, setMessages, reload, append, chatId, invalidateMessages, updateState]
+    [messages, stop, chatId, updateState, setMessages, append, invalidateMessages]
   );
 
   useEffect(() => {
@@ -496,10 +540,18 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const chatInputRef = useRef<ChatInputRef | null>(null);
 
+  const uniqueMessages = useMemo(() => {
+    const messageMap = new Map<string, Message>();
+    for (const message of messages) {
+      messageMap.set(message.id, message);
+    }
+    return Array.from(messageMap.values());
+  }, [messages]);
+
   return (
     <div className="flex h-full flex-col">
       <MessagesList
-        messages={messages}
+        messages={uniqueMessages}
         isLoading={isLoading}
         isLoadingMessages={isLoadingMessages}
         chatId={chatId}
@@ -510,7 +562,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         error={error}
         uiError={state.uiError}
         onDismissUiError={() => updateState({ uiError: null })}
-        onRetry={reload}
+        onRetry={handleRegenerate}
       />
 
       <ChatInput
@@ -532,7 +584,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         onFileAttach={handleFileAttach}
         onRemoveFile={handleRemoveFile}
         onScrollToBottom={scrollToBottom}
-        onStop={stop}
+        onStop={handleStop}
         onClearUiError={() => updateState({ uiError: null })}
         ref={chatInputRef}
       />

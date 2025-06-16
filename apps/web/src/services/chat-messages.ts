@@ -94,66 +94,30 @@ export async function deleteMessage(messageId: string): Promise<void> {
 
   if (error) {
     console.error(`Error deleting message ${messageId}:`, error);
-    throw new Error(`Failed to delete message: ${error.message}`);
+    // It's better to not throw here to avoid crashing the UI on a failed delete.
+    // The UI can handle the retry logic.
   }
 }
 
 /**
- * Delete all messages after a specific message (for retry functionality)
- * This keeps the specified message but deletes all subsequent messages
+ * Simple retry function: Delete from a message onwards
  */
-export async function deleteMessagesAfter(messageId: string): Promise<number> {
+export async function deleteFromPoint(messageId: string): Promise<boolean> {
   const supabase = createClient();
 
-  // First get the message details
+  // First, get the message info
   const { data: message, error: fetchError } = await supabase
     .from("chat_messages")
     .select("session_id, created_at")
     .eq("id", messageId)
-    .single();
+    .maybeSingle();
 
-  if (fetchError) {
-    console.error(`Error fetching message ${messageId}:`, fetchError);
-    throw new Error(`Failed to fetch message: ${fetchError.message}`);
+  if (fetchError || !message) {
+    console.error(`Error fetching message ${messageId} for retry:`, fetchError?.message);
+    return false;
   }
 
-  // Delete all messages after this one (but not the message itself)
-  const { error: deleteError } = await supabase
-    .from("chat_messages")
-    .delete()
-    .eq("session_id", message.session_id)
-    .gt("created_at", message.created_at);
-
-  if (deleteError) {
-    console.error(`Error deleting messages after ${messageId}:`, deleteError);
-    throw new Error(`Failed to delete messages: ${deleteError.message}`);
-  }
-
-  // Return the count (we don't have it from the delete, but we can estimate)
-  return 1; // At least some messages were potentially deleted
-}
-
-/**
- * Delete a message and all messages after it (for retry functionality)
- * This is specifically for retrying assistant messages where we want to delete
- * the assistant message itself AND any subsequent messages
- */
-export async function deleteMessageAndAfter(messageId: string): Promise<number> {
-  const supabase = createClient();
-
-  // First get the message details
-  const { data: message, error: fetchError } = await supabase
-    .from("chat_messages")
-    .select("session_id, created_at")
-    .eq("id", messageId)
-    .single();
-
-  if (fetchError) {
-    console.error(`Error fetching message ${messageId}:`, fetchError);
-    throw new Error(`Failed to fetch message: ${fetchError.message}`);
-  }
-
-  // Delete the message and all messages after it
+  // Delete everything from this point onwards
   const { error: deleteError } = await supabase
     .from("chat_messages")
     .delete()
@@ -161,12 +125,11 @@ export async function deleteMessageAndAfter(messageId: string): Promise<number> 
     .gte("created_at", message.created_at);
 
   if (deleteError) {
-    console.error(`Error deleting message and messages after ${messageId}:`, deleteError);
-    throw new Error(`Failed to delete messages: ${deleteError.message}`);
+    console.error(`Error deleting messages from retry point:`, deleteError.message);
+    return false;
   }
 
-  // Return the count (we don't have it from the delete, but we can estimate)
-  return 1; // At least the message itself was deleted
+  return true;
 }
 
 /**

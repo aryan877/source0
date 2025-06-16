@@ -30,6 +30,7 @@ import {
   getModelMapping,
 } from "./utils/models";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 let streamContext: ResumableStreamContext | undefined;
@@ -187,13 +188,18 @@ export async function POST(req: Request): Promise<Response> {
 
       const stream = createDataStream({
         execute: async (dataStream) => {
+          console.log(`Starting stream ${streamId} for session ${finalSessionId}`);
+
           const result = streamText({
             model: modelInstance,
             messages: finalMessages,
             maxSteps: 5,
+            // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onFinish: async ({ text, providerMetadata, usage }) => {
+            onFinish: async ({ text, providerMetadata, usage, finishReason }) => {
               const messageId = uuidv4();
+              console.log("finishReason", finishReason);
+              console.log(`Stream ${streamId} finished successfully`);
 
               // Save the assistant message first
               if (text) {
@@ -268,11 +274,13 @@ export async function POST(req: Request): Promise<Response> {
                 });
               }
             },
-            onError: ({ error }) =>
+            onError: ({ error }) => {
+              // Log LLM-specific errors (not abort errors)
               console.error(
-                "Stream error:",
+                "LLM Stream error:",
                 error instanceof Error ? error.message : String(error)
-              ),
+              );
+            },
           });
 
           result.mergeIntoDataStream(dataStream, {
@@ -280,7 +288,16 @@ export async function POST(req: Request): Promise<Response> {
             sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
           });
         },
-        onError: (error: unknown) => handleStreamError(error, "DataStream"),
+        onError: (error: unknown) => {
+          console.log(`DataStream ${streamId} encountered error:`, {
+            name: error instanceof Error ? error.name : "Unknown",
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+
+          // Handle other errors with the original handler
+          return handleStreamError(error, "DataStream");
+        },
       });
       return new Response(await streamContext.resumableStream(streamId, () => stream), {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
