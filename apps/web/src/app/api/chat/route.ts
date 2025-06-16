@@ -264,11 +264,20 @@ export async function POST(req: Request): Promise<Response> {
 
               // Send a SINGLE comprehensive annotation with all data batched together
               // This avoids the multi-annotation processing issues in AI SDK
+              let finalModelName = model;
+              if (
+                reasoningLevel &&
+                modelConfig?.reasoningLevels &&
+                modelConfig.reasoningLevels.length > 0
+              ) {
+                finalModelName = `${model} (${reasoningLevel})`;
+              }
+
               const annotationData = {
                 type: "message_complete",
                 data: {
                   // Model metadata
-                  modelUsed: model,
+                  modelUsed: finalModelName,
                   modelProvider: modelConfig.provider,
 
                   // Message saved data (only if successfully saved)

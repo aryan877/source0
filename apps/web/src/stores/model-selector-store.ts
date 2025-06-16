@@ -1,8 +1,9 @@
 import {
-  type ModelCapability,
-  type ModelConfig,
   DEFAULT_FAVORITES,
   DEFAULT_MODEL,
+  type ModelCapability,
+  type ModelConfig,
+  type ReasoningLevel,
 } from "@/config/models";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -22,6 +23,7 @@ interface ModelSelectorState {
 
   // Selected Model State (per chat)
   selectedModels: Record<string, string>;
+  selectedReasoningLevels: Record<string, ReasoningLevel>;
 
   // Hydration State
   hasHydrated: boolean;
@@ -37,6 +39,8 @@ interface ModelSelectorState {
   toggleFavorite: (modelId: string) => void;
   setSelectedModel: (chatId: string, modelId: string) => void;
   getSelectedModel: (chatId: string) => string;
+  setSelectedReasoningLevel: (chatId: string, level: ReasoningLevel) => void;
+  getSelectedReasoningLevel: (chatId: string) => ReasoningLevel;
   transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
@@ -55,6 +59,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedProvider: null,
       favorites: [],
       selectedModels: {},
+      selectedReasoningLevels: {},
       hasHydrated: false,
 
       // Actions
@@ -109,17 +114,40 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         return selectedModels[chatId] || DEFAULT_MODEL;
       },
 
+      setSelectedReasoningLevel: (chatId, level) => {
+        const { selectedReasoningLevels } = get();
+        set({
+          selectedReasoningLevels: {
+            ...selectedReasoningLevels,
+            [chatId]: level,
+          },
+        });
+      },
+
+      getSelectedReasoningLevel: (chatId) => {
+        const { selectedReasoningLevels } = get();
+        return selectedReasoningLevels[chatId] || "medium";
+      },
+
       transferModelSelection: (fromChatId, toChatId) => {
-        const { selectedModels } = get();
+        const { selectedModels, selectedReasoningLevels } = get();
         const modelToTransfer = selectedModels[fromChatId];
+        const reasoningLevelToTransfer = selectedReasoningLevels[fromChatId];
+
+        const newSelectedModels = { ...selectedModels };
+        const newSelectedReasoningLevels = { ...selectedReasoningLevels };
+
         if (modelToTransfer) {
-          set({
-            selectedModels: {
-              ...selectedModels,
-              [toChatId]: modelToTransfer,
-            },
-          });
+          newSelectedModels[toChatId] = modelToTransfer;
         }
+        if (reasoningLevelToTransfer) {
+          newSelectedReasoningLevels[toChatId] = reasoningLevelToTransfer;
+        }
+
+        set({
+          selectedModels: newSelectedModels,
+          selectedReasoningLevels: newSelectedReasoningLevels,
+        });
       },
 
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
@@ -156,6 +184,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       partialize: (state) => ({
         favorites: state.favorites,
         selectedModels: state.selectedModels,
+        selectedReasoningLevels: state.selectedReasoningLevels,
       }), // Persist both favorites and selected models per chat
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
@@ -165,6 +194,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         // Initialize selectedModels if it doesn't exist
         if (state && !state.selectedModels) {
           state.selectedModels = {};
+        }
+        // Initialize selectedReasoningLevels if it doesn't exist
+        if (state && !state.selectedReasoningLevels) {
+          state.selectedReasoningLevels = {};
         }
         // Mark as hydrated after rehydration
         if (state) {

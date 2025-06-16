@@ -1,4 +1,4 @@
-import { type ReasoningLevel } from "@/config/models";
+import { type ReasoningLevel, getModelById } from "@/config/models";
 import { type ChatMessage, type MessagePart } from "@/services/chat-messages";
 import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json } from "@/types/supabase-types";
@@ -624,6 +624,14 @@ export function prepareMessageForDb(
    * [{ type: "text", text: "Based on recent search results, it's 22°C in Paris." }]
    */
 
+  let finalModelName = model || null;
+  if (model && reasoningLevel) {
+    const modelConfig = getModelById(model);
+    if (modelConfig?.reasoningLevels && modelConfig.reasoningLevels.length > 0) {
+      finalModelName = `${model} (${reasoningLevel})`;
+    }
+  }
+
   // Create the final database-ready message object
   const preparedMessage: Omit<ChatMessage, "created_at"> = {
     id: message.id || uuidv4(),
@@ -633,7 +641,7 @@ export function prepareMessageForDb(
     // We cast here, assuming the calling context provides a valid role.
     role: message.role as ChatMessage["role"],
     parts: dbParts,
-    model_used: model || null,
+    model_used: finalModelName,
     model_provider: modelProvider || null,
     model_config: modelConfig,
     metadata: dbMetadata as Json,
@@ -653,7 +661,7 @@ export function prepareMessageForDb(
    *   parts: [
    *     { type: "text", text: "Based on recent search results, it's 22°C in Paris." }
    *   ],
-   *   model_used: "gemini-1.5-pro",
+   *   model_used: "gemini-1.5-pro (normal)",
    *   model_provider: "google",
    *   model_config: {
    *     reasoningLevel: "normal",
@@ -676,7 +684,7 @@ export function prepareMessageForDb(
    *   model_config, metadata, created_at
    * ) VALUES (
    *   'msg_789', 'sess_abc123', 'user_def456', 'assistant',
-   *   '[{"type":"text","text":"..."}]', 'gemini-1.5-pro', 'google',
+   *   '[{"type":"text","text":"..."}]', 'gemini-1.5-pro (normal)', 'google',
    *   '{"reasoningLevel":"normal","searchEnabled":true}',
    *   '{"usage":{...},"grounding":{...}}', now()
    * );
