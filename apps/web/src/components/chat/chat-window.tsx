@@ -7,7 +7,7 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteFromPoint, deleteMessage } from "@/services/chat-messages";
+import { deleteFromPoint } from "@/services";
 import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -82,16 +82,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       });
     },
     onResponse: (response) => {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`Chat API Response - Status: ${response.status}`, {
-          chatId,
-          selectedModel: selectedModel,
-          headers: Object.fromEntries(response.headers.entries()),
-          url: response.url,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
       if (!response.ok) {
         console.error(
           "API Response Error",
@@ -250,74 +240,37 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     stop();
   }, [stop]);
 
-  // Regenerate the last assistant response
-  const handleRegenerate = useCallback(async () => {
+  // Retry the last request after an error
+  const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
 
     if (!lastUserMessage) {
-      console.error("No user message found to regenerate response from.");
-      updateState({ uiError: "Could not find a message to regenerate." });
+      console.error("No user message found to retry.");
+      updateState({ uiError: "Could not find a message to retry." });
       return;
     }
-
-    // Find the last assistant message and delete it before regenerating
-    const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
     try {
       updateState({ uiError: null });
       stop();
 
-      if (lastAssistantMessage && chatId && chatId !== "new") {
-        await deleteMessage(lastAssistantMessage.id);
-      }
-
-      // To regenerate, we trim the messages list to exclude the old assistant response,
-      // and then we append the last user message again to trigger a new generation.
-      let lastUserMessageIndex = -1;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i]?.role === "user") {
-          lastUserMessageIndex = i;
-          break;
-        }
-      }
-
-      if (lastUserMessageIndex !== -1) {
-        // We slice the array to the point right before the last user message.
-        const messagesBeforeLastUser = messages.slice(0, lastUserMessageIndex);
-
-        // Then we set this as the new message list.
-        setMessages(messagesBeforeLastUser);
-
-        // And finally, we append the last user message to start a new stream.
-        // `useChat` will internally add this message to the list and make the API call.
-        await append(lastUserMessage);
-      }
+      // Simply re-send the last user message
+      await append(lastUserMessage);
     } catch (error) {
-      console.error("Error during regeneration:", error);
+      console.error("Error during request retry:", error);
       updateState({
-        uiError: "Failed to regenerate response. Please try again.",
+        uiError: "Failed to retry request. Please try again.",
       });
-      // Restore state on error
-      if (chatId && chatId !== "new") {
-        // A delay can help ensure the UI has time to process the error state
-        // before we force a refresh of the data.
-        setTimeout(() => invalidateMessages(), 500);
-      }
     }
-  }, [messages, stop, chatId, updateState, setMessages, append, invalidateMessages]);
+  }, [messages, stop, updateState, append]);
 
   // Sync messages from DB to useChat state when loaded or invalidated
   useEffect(() => {
     // Only sync when the chat is idle and not loading from DB
     if (status === "ready" && !isLoadingMessages) {
-      const areDifferent =
-        messages.length !== messagesToUse.length ||
-        messages.some((m, i) => m.id !== messagesToUse[i]?.id);
-      if (areDifferent) {
-        setMessages(messagesToUse);
-      }
+      setMessages(messagesToUse);
     }
-  }, [messagesToUse, setMessages, status, isLoadingMessages, messages]);
+  }, [messagesToUse, setMessages, status, isLoadingMessages]);
 
   useAutoResume({
     autoResume: chatId !== "new",
@@ -388,11 +341,11 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
         if (chatId && chatId !== "new") {
           await deleteFromPoint(messageId);
+          invalidateMessages();
         }
 
-        // Filter out the message being retried and any subsequent assistant messages
-        const newMessages = messages.slice(0, retryIndex);
-        setMessages(newMessages);
+        // Remove the message and everything after it
+        setMessages((currentMessages) => currentMessages.slice(0, retryIndex));
 
         append(messageToRetry);
       } catch (error) {
@@ -405,12 +358,58 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, setMessages, append, invalidateMessages]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
   useEffect(() => {
     updateState({ showScrollToBottom });
   }, [showScrollToBottom, updateState]);
+
+  const handleCreateNewSession = useCallback(
+    async (
+      message: Message,
+      chatRequestOptions?: Parameters<typeof append>[1] & { isFirstMessage?: boolean }
+    ) => {
+      if (!user) {
+        updateState({ uiError: "Please log in to start a chat." });
+        return;
+      }
+
+      try {
+        const messageData = {
+          message,
+          chatRequestOptions: {
+            ...chatRequestOptions,
+            isFirstMessage: true,
+          },
+          selectedModel,
+          reasoningLevel: state.reasoningLevel,
+          searchEnabled: state.searchEnabled,
+        };
+        sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
+
+        const newSession = await createSession(user.id, "New Chat");
+        updateSessionInCache(newSession, user.id);
+        transferModelSelection("new", newSession.id);
+        router.push(`/chat/${newSession.id}`);
+        setTimeout(() => scrollToBottom(), 100);
+      } catch (error) {
+        console.error("Failed to create new session:", error);
+        updateState({ uiError: "Failed to create new chat. Please try again." });
+      }
+    },
+    [
+      user,
+      updateState,
+      selectedModel,
+      state.reasoningLevel,
+      state.searchEnabled,
+      updateSessionInCache,
+      transferModelSelection,
+      router,
+      scrollToBottom,
+    ]
+  );
 
   const handleFormSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -429,7 +428,9 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
       const failedFiles = state.attachedFiles.filter((file) => file.error);
       if (failedFiles.length > 0) {
-        updateState({ uiError: "Some files failed to upload. Please remove them or try again." });
+        updateState({
+          uiError: "Some files failed to upload. Please remove them or try again.",
+        });
         return;
       }
 
@@ -462,54 +463,11 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           ? {
               experimental_attachments: attachments,
             }
-          : {};
+          : undefined;
 
-      if (attachments.length > 0 && process.env.NODE_ENV === "development") {
-        console.log(
-          "Frontend attachments being sent:",
-          JSON.stringify(chatRequestOptions.experimental_attachments, null, 2)
-        );
-      }
-
-      // If this is a new chat, create the session directly using Supabase
       if (chatId === "new") {
-        if (!user) {
-          updateState({ uiError: "Please log in to start a chat." });
-          return;
-        }
-
-        try {
-          // Store the message and attachments in sessionStorage for the new session
-          const messageData = {
-            message: messageToAppend,
-            chatRequestOptions: {
-              ...chatRequestOptions,
-              isFirstMessage: true, // Mark as first message for new session
-            },
-            selectedModel: selectedModel,
-            reasoningLevel: state.reasoningLevel,
-            searchEnabled: state.searchEnabled,
-          };
-          sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
-
-          // Create new session directly using Supabase
-          const newSession = await createSession(user.id, "New Chat");
-
-          // Update the sidebar immediately by adding to cache
-          updateSessionInCache(newSession, user.id);
-
-          // Transfer model selection to new session
-          transferModelSelection("new", newSession.id);
-
-          // Redirect immediately to the new session
-          router.push(`/chat/${newSession.id}`);
-          setTimeout(() => scrollToBottom(), 100);
-          return;
-        } catch (error) {
-          console.error("Failed to create new session:", error);
-          updateState({ uiError: "Failed to create new chat. Please try again." });
-          return;
-        }
+        await handleCreateNewSession(messageToAppend, chatRequestOptions);
+        return;
       }
 
       append(messageToAppend, chatRequestOptions);
@@ -525,13 +483,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       setInput,
       updateState,
       chatId,
-      selectedModel,
-      state.reasoningLevel,
-      state.searchEnabled,
-      transferModelSelection,
-      router,
-      user,
-      updateSessionInCache,
+      handleCreateNewSession,
       scrollToBottom,
     ]
   );
@@ -575,7 +527,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         error={error}
         uiError={state.uiError}
         onDismissUiError={() => updateState({ uiError: null })}
-        onRetry={handleRegenerate}
+        onRetry={handleRetryFailedRequest}
       />
 
       <ChatInput

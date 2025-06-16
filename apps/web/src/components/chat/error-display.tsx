@@ -49,12 +49,12 @@ export const ErrorDisplay = memo(
                   onPress={onRetry}
                   className="h-7 px-3 text-xs"
                 >
-                  Retry
+                  Try Again
                 </Button>
               )}
             </div>
 
-            {uiError && !error && (
+            {uiError && (
               <Button
                 isIconOnly
                 size="sm"
