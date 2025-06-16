@@ -1,10 +1,9 @@
 import { type AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
 import { type ReasoningLevel } from "@/config/models";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 export interface ChatState {
-  reasoningLevel: ReasoningLevel;
   searchEnabled: boolean;
   attachedFiles: AttachedFileWithUrl[];
   showScrollToBottom: boolean;
@@ -12,49 +11,39 @@ export interface ChatState {
 }
 
 export const useChatState = (chatId: string) => {
-  const {
-    getSelectedModel,
-    getSelectedReasoningLevel,
-    setSelectedReasoningLevel,
-    selectedReasoningLevels,
-  } = useModelSelectorStore();
-
-  const [state, setState] = useState<ChatState>(() => ({
-    reasoningLevel: getSelectedReasoningLevel(chatId),
+  const [state, setState] = useState<ChatState>({
     searchEnabled: false,
     attachedFiles: [],
     showScrollToBottom: false,
     uiError: null,
-  }));
+  });
 
   const updateState = useCallback(
     (updates: Partial<ChatState> | ((prevState: ChatState) => Partial<ChatState>)) => {
       setState((prev) => {
         const newUpdates = typeof updates === "function" ? updates(prev) : updates;
-        if (
-          newUpdates.reasoningLevel !== undefined &&
-          newUpdates.reasoningLevel !== prev.reasoningLevel
-        ) {
-          setSelectedReasoningLevel(chatId, newUpdates.reasoningLevel);
-        }
         return { ...prev, ...newUpdates };
       });
+    },
+    []
+  );
+
+  const selectedModel = useModelSelectorStore(
+    useCallback((state) => state.getSelectedModel(chatId), [chatId])
+  );
+
+  const reasoningLevel = useModelSelectorStore(
+    useCallback((state) => state.getSelectedReasoningLevel(chatId), [chatId])
+  );
+
+  const { setSelectedReasoningLevel } = useModelSelectorStore();
+
+  const setReasoningLevel = useCallback(
+    (level: ReasoningLevel) => {
+      setSelectedReasoningLevel(chatId, level);
     },
     [chatId, setSelectedReasoningLevel]
   );
 
-  const selectedModel = getSelectedModel(chatId);
-
-  // Effect to synchronize reasoningLevel from the store to local state
-  useEffect(() => {
-    const reasoningLevelInStore = selectedReasoningLevels[chatId] || "medium";
-    setState((prevState) => {
-      if (prevState.reasoningLevel !== reasoningLevelInStore) {
-        return { ...prevState, reasoningLevel: reasoningLevelInStore };
-      }
-      return prevState;
-    });
-  }, [chatId, selectedReasoningLevels]);
-
-  return { state, updateState, selectedModel };
+  return { state, updateState, selectedModel, reasoningLevel, setReasoningLevel };
 };

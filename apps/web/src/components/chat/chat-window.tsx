@@ -29,7 +29,8 @@ interface ChatWindowProps {
 }
 
 const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
-  const { state, updateState, selectedModel } = useChatState(chatId);
+  const { state, updateState, selectedModel, reasoningLevel, setReasoningLevel } =
+    useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
   const router = useRouter();
@@ -79,7 +80,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     experimental_throttle: 100,
     body: {
       model: selectedModel,
-      reasoningLevel: state.reasoningLevel,
+      reasoningLevel: reasoningLevel,
       searchEnabled: state.searchEnabled,
       id: chatId === "new" ? undefined : chatId,
       isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
@@ -88,7 +89,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       console.error("useChat Hook Error", error, {
         chatId,
         selectedModel: selectedModel,
-        reasoningLevel: state.reasoningLevel,
+        reasoningLevel: reasoningLevel,
         searchEnabled: state.searchEnabled,
         messageCount: messages.length,
         status,
@@ -238,7 +239,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         userId: user.id,
         model: selectedModel,
         modelProvider,
-        reasoningLevel: state.reasoningLevel,
+        reasoningLevel: reasoningLevel,
         searchEnabled: state.searchEnabled,
       });
 
@@ -250,7 +251,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           user.id,
           selectedModel,
           modelProvider,
-          { reasoningLevel: state.reasoningLevel, searchEnabled: state.searchEnabled },
+          { reasoningLevel: reasoningLevel, searchEnabled: state.searchEnabled },
           { fireAndForget: true, existingParts: preparedMessage.parts }
         );
       }
@@ -269,7 +270,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           console.error("Error marking stream as cancelled:", error);
         });
     }
-  }, [stop, chatId, messages, user, selectedModel, state.reasoningLevel, state.searchEnabled]);
+  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, state.searchEnabled]);
 
   /**
    * Retries the last failed chat request.
@@ -333,11 +334,11 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       sessionStorage.removeItem("pendingFirstMessage");
 
       // Restore the state that was saved when creating the session
-      if (reasoningLevel !== undefined || searchEnabled !== undefined) {
-        updateState({
-          ...(reasoningLevel !== undefined && { reasoningLevel }),
-          ...(searchEnabled !== undefined && { searchEnabled }),
-        });
+      if (reasoningLevel !== undefined) {
+        setReasoningLevel(reasoningLevel);
+      }
+      if (searchEnabled !== undefined) {
+        updateState({ searchEnabled });
       }
 
       // Submit the pending message with the isFirstMessage flag
@@ -348,7 +349,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       console.error("Failed to process pending message:", error);
       sessionStorage.removeItem("pendingFirstMessage");
     }
-  }, [chatId, append, setInput, updateState]);
+  }, [chatId, append, setInput, updateState, setReasoningLevel]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -474,7 +475,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
             isFirstMessage: true,
           },
           selectedModel,
-          reasoningLevel: state.reasoningLevel,
+          reasoningLevel: reasoningLevel,
           searchEnabled: state.searchEnabled,
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
@@ -493,7 +494,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       user,
       updateState,
       selectedModel,
-      state.reasoningLevel,
+      reasoningLevel,
       state.searchEnabled,
       updateSessionInCache,
       transferModelSelection,
@@ -620,14 +621,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         canSubmit={canSubmit}
         attachedFiles={state.attachedFiles}
         selectedModel={selectedModel}
-        reasoningLevel={state.reasoningLevel}
+        reasoningLevel={reasoningLevel}
         searchEnabled={state.searchEnabled}
         showScrollToBottom={state.showScrollToBottom}
         chatId={chatId}
         onSubmit={handleFormSubmit}
         onKeyDown={handleKeyDown}
         onModelChange={handleModelChange}
-        onReasoningLevelChange={(level) => updateState({ reasoningLevel: level })}
+        onReasoningLevelChange={setReasoningLevel}
         onSearchToggle={(enabled) => updateState({ searchEnabled: enabled })}
         onFileAttach={handleFileAttach}
         onRemoveFile={handleRemoveFile}

@@ -17,7 +17,8 @@ export const useChatHandlers = (
   router?: { push: (path: string) => void },
   user?: { id: string } | null
 ) => {
-  const { setSelectedModel } = useModelSelectorStore();
+  const { setSelectedModel, getSelectedReasoningLevel, setSelectedReasoningLevel } =
+    useModelSelectorStore();
   const { uploadFilesToStorage } = useFileUpload(chatId, (error) =>
     updateState({ uiError: error })
   );
@@ -169,19 +170,23 @@ export const useChatHandlers = (
     (modelId: string) => {
       setSelectedModel(chatId, modelId);
       const newModel = getModelById(modelId);
+      const currentReasoningLevel = getSelectedReasoningLevel(chatId);
 
       if (newModel) {
         const supportedLevels = newModel.reasoningLevels;
         // If the new model supports reasoning, check the current level
         if (supportedLevels && supportedLevels.length > 0) {
-          if (!supportedLevels.includes(state.reasoningLevel)) {
+          if (!supportedLevels.includes(currentReasoningLevel)) {
             // If current level is not supported, set to the first available
-            updateState({ reasoningLevel: supportedLevels[0] });
+            const newLevel = supportedLevels[0];
+            if (newLevel) {
+              setSelectedReasoningLevel(chatId, newLevel);
+            }
           }
         }
       }
     },
-    [chatId, setSelectedModel, state.reasoningLevel, updateState]
+    [chatId, setSelectedModel, getSelectedReasoningLevel, setSelectedReasoningLevel]
   );
 
   return {
