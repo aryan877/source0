@@ -67,7 +67,8 @@ export const ModelControls = ({
     }
 
     const hasReasoning = modelConfig.capabilities.includes("reasoning");
-    const hasSearch = modelConfig.capabilities.includes("search");
+    // Show search for all models except image generation models
+    const hasSearch = !modelConfig.capabilities.includes("image-generation");
     const supportsImages = modelConfig.capabilities.includes("image");
     const supportsPdf = modelConfig.capabilities.includes("pdf");
     const availableReasoningLevels = modelConfig.reasoningLevels || [];
@@ -209,8 +210,10 @@ export const ModelControls = ({
               </span>
               <span className="text-xs text-default-400">
                 {searchEnabled
-                  ? "Click to disable web search"
-                  : "Click to enable web search for real-time information"}
+                  ? modelConfig?.capabilities.includes("search")
+                    ? "Using built-in search grounding"
+                    : "Using web search tool for real-time information"
+                  : "Click to enable web search for current information"}
               </span>
             </div>
           }

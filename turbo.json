@@ -1,7 +1,13 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV", "OPENAI_API_KEY", "REDIS_URL", "REDIS_TLS_ENABLED"],
+  "globalEnv": [
+    "NODE_ENV",
+    "OPENAI_API_KEY",
+    "REDIS_URL",
+    "REDIS_TLS_ENABLED",
+    "TAVILY_API_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

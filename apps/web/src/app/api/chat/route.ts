@@ -28,6 +28,7 @@ import {
   getModelMapping,
 } from "./utils/models";
 import { processMessages } from "./utils/process-messages";
+import { getToolsForModel } from "./utils/tools";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -182,6 +183,7 @@ export async function POST(req: Request): Promise<Response> {
             model: modelInstance,
             messages: finalMessages,
             maxSteps: 5,
+            tools: getToolsForModel(searchEnabled, modelConfig),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({ text, providerMetadata, finishReason }) => {

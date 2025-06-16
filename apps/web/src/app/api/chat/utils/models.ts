@@ -95,11 +95,21 @@ export const createModelInstance = (
 };
 
 export const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string => {
+  const currentTime = new Date().toLocaleString("en-US", {
+    timeZone: "UTC",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
   const parts = [
-    "You are a helpful AI assistant. Respond naturally and clearly.",
-    config.capabilities.includes("search") &&
-      searchEnabled &&
-      "You have access to web search. Use it for current info and cite sources.",
+    `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
+    searchEnabled &&
+      "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
     "Use markdown code blocks with language specifiers: ```python code ```",
