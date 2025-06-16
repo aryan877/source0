@@ -6,7 +6,7 @@ import {
   saveAssistantMessageServer,
   saveUserMessageServer,
   serverAppendStreamId,
-  serverLoadStreamIds,
+  serverGetLatestStreamIdWithStatus,
 } from "@/services";
 import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
 import { convertToAiMessages } from "@/utils/message-utils";
@@ -73,16 +73,19 @@ export async function GET(req: Request): Promise<Response> {
     return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
   }
 
-  const streamIds = await serverLoadStreamIds(supabase, chatId);
+  // Check the most recent stream to see if it was cancelled
+  const latestStream = await serverGetLatestStreamIdWithStatus(supabase, chatId);
 
-  if (streamIds.length === 0) {
+  if (!latestStream) {
     return new Response(null, { status: 204 }); // No streams to resume
   }
 
-  const recentStreamId = streamIds.at(0); // most recent is first
-  if (!recentStreamId) {
-    return new Response(null, { status: 204 });
+  if (latestStream.cancelled) {
+    console.log(`Stream ${latestStream.streamId} was cancelled by user, not resuming`);
+    return new Response(null, { status: 204 }); // Stream was cancelled, don't resume
   }
+
+  const recentStreamId = latestStream.streamId;
 
   const emptyDataStream = createDataStream({ execute: () => {} });
   const stream = await streamContext.resumableStream(recentStreamId, () => emptyDataStream);
@@ -197,6 +200,21 @@ export async function POST(req: Request): Promise<Response> {
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({ text, providerMetadata, usage, finishReason }) => {
+              // Check if stream was cancelled before saving message
+              try {
+                const streamStatus = await serverGetLatestStreamIdWithStatus(
+                  supabase,
+                  finalSessionId
+                );
+                if (streamStatus?.streamId === streamId && streamStatus.cancelled) {
+                  console.log(`Stream ${streamId} was cancelled, skipping message save`);
+                  return; // Don't save message if stream was cancelled
+                }
+              } catch (error) {
+                console.error("Error checking stream status:", error);
+                // Continue with saving if we can't check status
+              }
+
               const messageId = uuidv4();
               console.log("finishReason", finishReason);
               console.log(`Stream ${streamId} finished successfully`);

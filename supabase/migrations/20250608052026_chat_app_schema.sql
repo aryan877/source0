@@ -115,6 +115,8 @@ CREATE TABLE IF NOT EXISTS chat_stream_ids (
     chat_id uuid NOT NULL REFERENCES chat_sessions (id) ON DELETE CASCADE,
     -- Stream data
     stream_id text NOT NULL UNIQUE,
+    -- Stream state
+    cancelled boolean DEFAULT false,
     -- Timestamp
     created_at timestamptz DEFAULT now()
 );

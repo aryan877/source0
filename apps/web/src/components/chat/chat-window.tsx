@@ -7,7 +7,7 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteFromPoint } from "@/services";
+import { deleteFromPoint, getLatestStreamIdWithStatus, markStreamAsCancelled } from "@/services";
 import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -235,10 +235,23 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     },
   });
 
-  // Create a custom stop handler that deletes the stream first
-  const handleStop = useCallback(async () => {
+  const handleStop = useCallback(() => {
+    if (chatId && chatId !== "new") {
+      getLatestStreamIdWithStatus(chatId)
+        .then((latestStream) => {
+          if (latestStream && !latestStream.cancelled) {
+            console.log(`Marking stream ${latestStream.streamId} as cancelled`);
+            return markStreamAsCancelled(latestStream.streamId);
+          }
+        })
+        .catch((error) => {
+          console.error("Error marking stream as cancelled:", error);
+        });
+    }
+
+    // Stop immediately without waiting
     stop();
-  }, [stop]);
+  }, [stop, chatId]);
 
   // Retry the last request after an error
   const handleRetryFailedRequest = useCallback(async () => {
@@ -279,6 +292,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     data,
     setMessages,
     messagesLoading: isLoadingMessages,
+    chatId: chatId !== "new" ? chatId : undefined,
   });
 
   useEffect(() => {

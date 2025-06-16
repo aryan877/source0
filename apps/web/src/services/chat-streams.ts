@@ -17,7 +17,7 @@ export async function appendStreamId(chatId: string, streamId: string): Promise<
 }
 
 /**
- * Load all stream IDs for a given chat
+ * Load all stream IDs for a given chat (excluding cancelled streams)
  */
 export async function loadStreamIds(chatId: string): Promise<string[]> {
   const supabase = createClient();
@@ -25,6 +25,7 @@ export async function loadStreamIds(chatId: string): Promise<string[]> {
     .from("chat_stream_ids")
     .select("stream_id")
     .eq("chat_id", chatId)
+    .eq("cancelled", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -67,6 +68,50 @@ export async function deleteStreamId(streamId: string): Promise<void> {
     console.error(`Error deleting stream ID: ${error.message}`);
     throw new Error(`Failed to delete stream ID: ${error.message}`);
   }
+}
+
+/**
+ * Mark a stream as cancelled
+ */
+export async function markStreamAsCancelled(streamId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ cancelled: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error(`Error marking stream as cancelled: ${error.message}`);
+    throw new Error(`Failed to mark stream as cancelled: ${error.message}`);
+  }
+}
+
+/**
+ * Get the most recent stream ID for a chat (including cancelled streams)
+ */
+export async function getLatestStreamIdWithStatus(chatId: string): Promise<{
+  streamId: string;
+  cancelled: boolean;
+} | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_stream_ids")
+    .select("stream_id, cancelled")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No rows found
+      return null;
+    }
+    console.error(`Error loading latest stream: ${error.message}`);
+    throw new Error(`Failed to load latest stream: ${error.message}`);
+  }
+
+  return data ? { streamId: data.stream_id, cancelled: data.cancelled } : null;
 }
 
 /**
@@ -143,7 +188,7 @@ export async function serverAppendStreamId(
 }
 
 /**
- * Load all stream IDs using server-side client
+ * Load all stream IDs using server-side client (excluding cancelled streams)
  */
 export async function serverLoadStreamIds(
   supabase: SupabaseClient,
@@ -153,6 +198,7 @@ export async function serverLoadStreamIds(
     .from("chat_stream_ids")
     .select("stream_id")
     .eq("chat_id", chatId)
+    .eq("cancelled", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -176,4 +222,52 @@ export async function serverDeleteStreamId(
     console.error(`Error deleting stream ID: ${error.message}`);
     throw new Error(`Failed to delete stream ID: ${error.message}`);
   }
+}
+
+/**
+ * Mark a stream as cancelled using server-side client
+ */
+export async function serverMarkStreamAsCancelled(
+  supabase: SupabaseClient,
+  streamId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ cancelled: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error(`Error marking stream as cancelled: ${error.message}`);
+    throw new Error(`Failed to mark stream as cancelled: ${error.message}`);
+  }
+}
+
+/**
+ * Get the most recent stream ID with status using server-side client
+ */
+export async function serverGetLatestStreamIdWithStatus(
+  supabase: SupabaseClient,
+  chatId: string
+): Promise<{
+  streamId: string;
+  cancelled: boolean;
+} | null> {
+  const { data, error } = await supabase
+    .from("chat_stream_ids")
+    .select("stream_id, cancelled")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No rows found
+      return null;
+    }
+    console.error(`Error loading latest stream: ${error.message}`);
+    throw new Error(`Failed to load latest stream: ${error.message}`);
+  }
+
+  return data ? { streamId: data.stream_id, cancelled: data.cancelled } : null;
 }
