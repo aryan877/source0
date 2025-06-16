@@ -1,6 +1,7 @@
 import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
 import { type ChatState } from "@/hooks/use-chat-state";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { branchSession, ChatSession, getSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useCallback } from "react";
 
@@ -8,7 +9,11 @@ export const useChatHandlers = (
   chatId: string,
   updateState: (
     updates: Partial<ChatState> | ((prevState: ChatState) => Partial<ChatState>)
-  ) => void
+  ) => void,
+  updateSessionInCache?: (session: ChatSession, userId: string) => void,
+  transferModelSelection?: (fromId: string, toId: string) => void,
+  router?: { push: (path: string) => void },
+  user?: { id: string } | null
 ) => {
   const { setSelectedModel } = useModelSelectorStore();
   const { uploadFilesToStorage } = useFileUpload(chatId, (error) =>
@@ -100,9 +105,63 @@ export const useChatHandlers = (
     [updateState]
   );
 
-  const handleBranchChat = useCallback((messageId: string) => {
-    console.log("Branch chat from message:", messageId);
-  }, []);
+  const handleBranchChat = useCallback(
+    async (messageId: string) => {
+      if (!user || !updateSessionInCache || !transferModelSelection || !router) {
+        console.error("Missing required dependencies for branching");
+        updateState({ uiError: "Unable to branch chat. Please try again." });
+        return;
+      }
+
+      if (chatId === "new") {
+        updateState({ uiError: "Cannot branch from a new chat." });
+        return;
+      }
+
+      try {
+        updateState({ uiError: null });
+        console.log("Branching chat from message:", messageId);
+
+        // Get the original session to use its title
+        const originalSession = await getSession(chatId);
+        const originalTitle = originalSession?.title || "Chat";
+        const branchTitle = `${originalTitle} (Branch)`;
+
+        // Create the branch
+        const newSessionId = await branchSession(chatId, messageId);
+
+        // Create a session object to update the cache with the correct title
+        const branchedSession: ChatSession = {
+          id: newSessionId,
+          user_id: user.id,
+          title: branchTitle, // Use the proper branch title
+          system_prompt: originalSession?.system_prompt || null,
+          branched_from_session_id: chatId,
+          branched_from_message_id: messageId,
+          is_public: false,
+          share_slug: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: originalSession?.metadata || {},
+        };
+
+        // Update the session cache
+        updateSessionInCache(branchedSession, user.id);
+
+        // Transfer model selection to the new chat
+        transferModelSelection(chatId, newSessionId);
+
+        // Navigate to the new chat
+        router.push(`/chat/${newSessionId}`);
+      } catch (error) {
+        console.error("Error branching chat:", error);
+        updateState({
+          uiError: "Failed to branch chat. Please try again.",
+        });
+      }
+    },
+    [chatId, user, updateSessionInCache, transferModelSelection, router, updateState]
+  );
 
   const handleModelChange = useCallback(
     (model: string) => {

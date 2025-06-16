@@ -411,6 +411,7 @@ BEGIN
     
     -- Copy all messages up to and including the branch point.
     INSERT INTO chat_messages (
+        id,
         session_id,
         user_id,
         role,
@@ -422,6 +423,7 @@ BEGIN
         metadata
     )
     SELECT 
+        gen_random_uuid()::text,  -- Generate new UUID for each message
         v_new_session_id,  -- New session ID
         user_id,
         role,

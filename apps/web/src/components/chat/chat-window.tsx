@@ -7,7 +7,13 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteFromPoint, getLatestStreamIdWithStatus, markStreamAsCancelled } from "@/services";
+import {
+  deleteFromPoint,
+  getLatestStreamIdWithStatus,
+  markStreamAsCancelled,
+  MessagePart,
+  saveAssistantMessage,
+} from "@/services";
 import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -42,7 +48,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     useScrollManagement();
 
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
-    useChatHandlers(chatId, updateState);
+    useChatHandlers(
+      chatId,
+      updateState,
+      updateSessionInCache,
+      transferModelSelection,
+      router,
+      user
+    );
 
   const {
     messages,
@@ -236,6 +249,74 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   });
 
   const handleStop = useCallback(() => {
+    // Stop the stream first - this is synchronous and immediate
+    stop();
+
+    // Process saving and stream cancellation in parallel (fire-and-forget)
+    const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
+
+    // Save partial message (non-blocking)
+    if (lastAssistantMessage && chatId !== "new" && user) {
+      console.log("Saving partial message due to user stop:", lastAssistantMessage);
+
+      // Convert message content and parts to database format
+      const parts: MessagePart[] = [];
+
+      // Add text content if available
+      const textContent =
+        typeof lastAssistantMessage.content === "string" ? lastAssistantMessage.content.trim() : "";
+      if (textContent) {
+        parts.push({ type: "text", text: textContent });
+      }
+
+      // Add parts from message.parts if available
+      if (lastAssistantMessage.parts?.length) {
+        for (const part of lastAssistantMessage.parts) {
+          if (
+            part.type === "text" &&
+            "text" in part &&
+            part.text &&
+            !parts.some((p) => p.type === "text" && p.text === part.text)
+          ) {
+            parts.push({ type: "text", text: part.text });
+          } else if (part.type === "file" && "url" in part) {
+            const filePart = part as unknown as {
+              url: string;
+              mimeType: string;
+              filename?: string;
+              path?: string;
+            };
+            parts.push({
+              type: "file",
+              file: {
+                name: filePart.filename || "file",
+                path: filePart.path || "",
+                url: filePart.url,
+                size: 0,
+                mimeType: filePart.mimeType,
+              },
+            });
+          }
+        }
+      }
+
+      // Save the partial message if we have content (fire-and-forget)
+      if (parts.length > 0) {
+        saveAssistantMessage(
+          lastAssistantMessage.id,
+          chatId,
+          user.id,
+          parts,
+          selectedModel,
+          "Assistant", // modelProvider - we can get this from model config if needed
+          { reasoningLevel: state.reasoningLevel, searchEnabled: state.searchEnabled },
+          {},
+          { fireAndForget: true }
+        );
+      }
+    }
+
+    // Cancel stream (fire-and-forget)
     if (chatId && chatId !== "new") {
       getLatestStreamIdWithStatus(chatId)
         .then((latestStream) => {
@@ -248,10 +329,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           console.error("Error marking stream as cancelled:", error);
         });
     }
-
-    // Stop immediately without waiting
-    stop();
-  }, [stop, chatId]);
+  }, [stop, chatId, messages, user, selectedModel, state.reasoningLevel, state.searchEnabled]);
 
   // Retry the last request after an error
   const handleRetryFailedRequest = useCallback(async () => {
@@ -276,14 +354,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       });
     }
   }, [messages, stop, updateState, append]);
-
-  // Sync messages from DB to useChat state when loaded or invalidated
-  useEffect(() => {
-    // Only sync when the chat is idle and not loading from DB
-    if (status === "ready" && !isLoadingMessages) {
-      setMessages(messagesToUse);
-    }
-  }, [messagesToUse, setMessages, status, isLoadingMessages]);
 
   useAutoResume({
     autoResume: chatId !== "new",
@@ -519,18 +589,10 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const chatInputRef = useRef<ChatInputRef | null>(null);
 
-  const uniqueMessages = useMemo(() => {
-    const messageMap = new Map<string, Message>();
-    for (const message of messages) {
-      messageMap.set(message.id, message);
-    }
-    return Array.from(messageMap.values());
-  }, [messages]);
-
   return (
     <div className="flex h-full flex-col">
       <MessagesList
-        messages={uniqueMessages}
+        messages={messages}
         isLoading={isLoading}
         isLoadingMessages={isLoadingMessages}
         chatId={chatId}

@@ -309,19 +309,30 @@ export async function saveAssistantMessage(
   model: string,
   modelProvider: string,
   modelConfig: Json,
-  metadata: Json = {}
-): Promise<DBChatMessage> {
-  return await addMessage({
+  metadata: Json = {},
+  options: { fireAndForget?: boolean } = {}
+): Promise<DBChatMessage | void> {
+  const messageData = {
     id: messageId,
     session_id: sessionId,
     user_id: userId,
-    role: "assistant",
+    role: "assistant" as const,
     parts,
     model_used: model,
     model_provider: modelProvider,
     model_config: modelConfig,
     metadata,
-  });
+  };
+
+  if (options.fireAndForget) {
+    // Fire and forget - don't block the caller
+    addMessage(messageData).catch((error) => {
+      console.error("Error saving assistant message (fire-and-forget):", error);
+    });
+    return;
+  }
+
+  return await addMessage(messageData);
 }
 
 /**

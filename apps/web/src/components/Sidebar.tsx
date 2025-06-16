@@ -5,6 +5,7 @@ import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowRightOnRectangleIcon,
+  ArrowTurnRightUpIcon,
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
@@ -50,6 +51,7 @@ interface ChatItemProps {
   title: string;
   updatedAt: string;
   isSelected: boolean;
+  isBranched: boolean;
   onSelect: (chatId: string) => void;
   onDelete: (chatId: string) => void;
   isDeleting: boolean;
@@ -225,7 +227,16 @@ const ErrorState = memo(({ onRetry }: { onRetry: () => void }) => (
 ErrorState.displayName = "ErrorState";
 
 const ChatItem = memo(
-  ({ chatId, title, updatedAt, isSelected, onSelect, onDelete, isDeleting }: ChatItemProps) => {
+  ({
+    chatId,
+    title,
+    updatedAt,
+    isSelected,
+    isBranched,
+    onSelect,
+    onDelete,
+    isDeleting,
+  }: ChatItemProps) => {
     return (
       <div
         className={`group relative cursor-pointer rounded-lg p-3 transition-all duration-200 ${
@@ -237,9 +248,18 @@ const ChatItem = memo(
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex items-center gap-2">
               <div className="rounded-md bg-content2 p-1">
-                <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
+                {isBranched ? (
+                  <ArrowTurnRightUpIcon className="h-3 w-3 text-warning-600" />
+                ) : (
+                  <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
+                )}
               </div>
               <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
+              {isBranched && (
+                <div className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-900/30 dark:text-warning-400">
+                  Branch
+                </div>
+              )}
             </div>
             <p className="text-xs text-default-400">{formatTimestamp(updatedAt)}</p>
           </div>
@@ -324,6 +344,7 @@ const ChatList = memo(
                 title={chat.title}
                 updatedAt={chat.updated_at || new Date().toISOString()}
                 isSelected={!isOnNewChat && selectedChatId === chat.id}
+                isBranched={!!chat.branched_from_session_id}
                 onSelect={onSelectChat}
                 onDelete={onDeleteChat}
                 isDeleting={isDeletingSession}
