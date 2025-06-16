@@ -8,7 +8,6 @@ import {
   serverAppendStreamId,
   serverGetLatestStreamIdWithStatus,
 } from "@/services";
-import { type GoogleProviderMetadata, type ProviderMetadata } from "@/types/google-metadata";
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
 import { createClient } from "@/utils/supabase/server";
@@ -119,20 +118,6 @@ export async function GET(req: Request): Promise<Response> {
   return new Response(streamWithMessage, { status: 200 });
 }
 
-const logGoogleMetadata = (
-  providerMetadata: ProviderMetadata | undefined
-): GoogleProviderMetadata["groundingMetadata"] | null => {
-  const grounding = providerMetadata?.google?.groundingMetadata;
-  if (grounding && process.env.NODE_ENV === "development") {
-    console.log("Grounding:", {
-      queries: grounding.webSearchQueries?.length ?? 0,
-      chunks: grounding.groundingChunks?.length ?? 0,
-      supports: grounding.groundingSupports?.length ?? 0,
-    });
-  }
-  return grounding;
-};
-
 export async function POST(req: Request): Promise<Response> {
   try {
     const body: ChatRequest = await req.json();
@@ -199,7 +184,7 @@ export async function POST(req: Request): Promise<Response> {
             maxSteps: 5,
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onFinish: async ({ text, providerMetadata, usage, finishReason }) => {
+            onFinish: async ({ text, providerMetadata, finishReason }) => {
               // Check if stream was cancelled before saving message
               try {
                 const streamStatus = await serverGetLatestStreamIdWithStatus(
@@ -219,34 +204,37 @@ export async function POST(req: Request): Promise<Response> {
               console.log("finishReason", finishReason);
               console.log(`Stream ${streamId} finished successfully`);
 
-              // Save the assistant message first
+              // The `saveAssistantMessageServer` and its helper `prepareMessageForDb`
+              // handle metadata processing internally.
+              let messageSaved = false;
               if (text) {
-                await saveAssistantMessageServer(
-                  supabase,
-                  messageId,
-                  finalSessionId,
-                  user.id,
-                  [{ type: "text", text }],
-                  model,
-                  modelConfig.provider,
-                  { reasoningLevel, searchEnabled, usage }
-                );
+                try {
+                  const assistantMessage: Message = {
+                    id: messageId,
+                    role: "assistant",
+                    content: text,
+                  };
+
+                  await saveAssistantMessageServer(
+                    supabase,
+                    assistantMessage,
+                    finalSessionId,
+                    user.id,
+                    model,
+                    modelConfig.provider,
+                    { reasoningLevel, searchEnabled },
+                    providerMetadata
+                  );
+
+                  messageSaved = true;
+                  console.log("Message saved successfully with ID:", messageId);
+                } catch (error) {
+                  console.error("Failed to save assistant message:", error);
+                }
               }
 
-              dataStream.writeMessageAnnotation({
-                type: "model_metadata",
-                data: {
-                  modelUsed: model,
-                  modelProvider: modelConfig.provider,
-                },
-              });
-
-              dataStream.writeMessageAnnotation({
-                type: "message_saved",
-                data: { databaseId: messageId, sessionId: finalSessionId },
-              });
-
-              // Generate title for first message and send as annotation
+              // Handle title generation for first message
+              let generatedTitle: string | null = null;
               if (isFirstMessage && userMessageToSave) {
                 console.log("Generating title for first message");
                 try {
@@ -255,7 +243,7 @@ export async function POST(req: Request): Promise<Response> {
                       ? userMessageToSave.content
                       : userMessageToSave.parts?.find((p) => p.type === "text")?.text || "";
 
-                  const generatedTitle = await generateTitleOnly(firstUserMessage);
+                  generatedTitle = await generateTitleOnly(firstUserMessage);
                   console.log(
                     `Title generated for session: ${finalSessionId} - "${generatedTitle}"`
                   );
@@ -269,28 +257,52 @@ export async function POST(req: Request): Promise<Response> {
                   if (titleError) {
                     console.error("Failed to update title in database:", titleError);
                   }
-
-                  // Send title update annotation to refresh sidebar
-                  dataStream.writeMessageAnnotation({
-                    type: "title_generated",
-                    data: {
-                      sessionId: finalSessionId,
-                      title: generatedTitle,
-                      userId: user.id,
-                    },
-                  });
                 } catch (error) {
                   console.error("Failed to generate title:", error);
                 }
               }
 
-              const groundingMetadata = logGoogleMetadata(providerMetadata);
-              if (groundingMetadata) {
-                dataStream.writeMessageAnnotation({
-                  type: "grounding",
-                  data: groundingMetadata as JSONValue,
-                });
-              }
+              // Send a SINGLE comprehensive annotation with all data batched together
+              // This avoids the multi-annotation processing issues in AI SDK
+              const annotationData = {
+                type: "message_complete",
+                data: {
+                  // Model metadata
+                  modelUsed: model,
+                  modelProvider: modelConfig.provider,
+
+                  // Message saved data (only if successfully saved)
+                  ...(messageSaved && {
+                    databaseId: messageId,
+                    sessionId: finalSessionId,
+                    messageSaved: true,
+                  }),
+
+                  // Title data (only if generated successfully)
+                  ...(generatedTitle && {
+                    titleGenerated: generatedTitle,
+                    userId: user.id,
+                  }),
+
+                  // Grounding data (only if available)
+                  ...(providerMetadata?.google?.groundingMetadata && {
+                    grounding: providerMetadata.google.groundingMetadata as JSONValue,
+                    hasGrounding: true,
+                  }),
+
+                  // Additional metadata for debugging
+                  isFirstMessage,
+                  timestamp: new Date().toISOString(),
+                } as JSONValue,
+              };
+
+              console.log(`Sending single comprehensive annotation for message ${messageId}:`, {
+                messageSaved,
+                hasTitle: !!generatedTitle,
+                hasGrounding: !!providerMetadata?.google?.groundingMetadata,
+              });
+
+              dataStream.writeMessageAnnotation(annotationData);
             },
             onError: ({ error }) => {
               // Log LLM-specific errors (not abort errors)

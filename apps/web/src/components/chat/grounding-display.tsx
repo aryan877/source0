@@ -1,6 +1,6 @@
 "use client";
 
-import { type GroundingChunk, type GroundingMetadata } from "@/types/google-metadata";
+import { type GroundingChunk, type GroundingMetadata } from "@/types/provider-metadata";
 import { LinkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { memo } from "react";
 import { ExpandableSection } from "./expandable-section";

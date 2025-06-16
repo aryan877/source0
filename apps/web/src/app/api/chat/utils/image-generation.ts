@@ -1,7 +1,7 @@
 import { ModelConfig } from "@/config/models";
 import { saveAssistantMessageServer } from "@/services";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
-import { createDataStreamResponse, generateId } from "ai";
+import { createDataStreamResponse, generateId, type Message } from "ai";
 import { handleStreamError } from "./errors";
 
 async function generateImageWithOpenAI(
@@ -106,24 +106,28 @@ export async function handleImageGenerationRequest(
       data: { publicUrl },
     } = supabase.storage.from("chat-attachments").getPublicUrl(uploadData.path);
 
-    await saveAssistantMessageServer(
-      supabase,
-      messageId,
-      sessionId,
-      user.id,
-      [
-        { type: "text", text: "Here is the generated image:" },
+    const assistantMessage: Message = {
+      id: messageId,
+      role: "assistant",
+      content: "Here is the generated image:",
+      parts: [
         {
           type: "file",
-          file: {
-            name: "generated-image.png",
-            mimeType: "image/png",
-            url: publicUrl,
-            path: filePath,
-            size: imageBuffer.length,
-          },
+          mimeType: "image/png",
+          // @ts-expect-error - TODO: fix this
+          url: publicUrl,
+          filename: "generated-image.png",
+          path: filePath,
+          size: imageBuffer.length,
         },
       ],
+    };
+
+    await saveAssistantMessageServer(
+      supabase,
+      assistantMessage,
+      sessionId,
+      user.id,
       modelConfig.id,
       modelConfig.provider,
       { reasoningLevel: "low", searchEnabled: false }

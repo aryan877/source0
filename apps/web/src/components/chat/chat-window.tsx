@@ -1,5 +1,6 @@
 "use client";
 
+import { getModelById } from "@/config/models";
 import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAutoResume } from "@/hooks/use-auto-resume";
@@ -122,132 +123,98 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         });
       }
 
-      // Handle image generation complete annotation
-      const imageGenerationAnnotation = message.annotations?.find(
+      // Handle the new comprehensive message_complete annotation
+      const messageCompleteAnnotation = message.annotations?.find(
         (a) =>
           typeof a === "object" &&
           a !== null &&
           !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "image_generation_complete"
+          (a as { type?: unknown }).type === "message_complete"
       );
 
-      if (imageGenerationAnnotation) {
-        const annotationData = (
-          imageGenerationAnnotation as {
-            data?: {
-              filePart?: NonNullable<Message["parts"]>[number];
-              databaseId?: string;
-              content?: string;
-            };
-          }
-        ).data;
-        if (annotationData?.filePart && annotationData?.databaseId) {
-          setMessages((currentMessages: Message[]) =>
-            currentMessages.map((msg) => {
-              if (msg.id === message.id) {
-                const newParts: Message["parts"] = [
-                  { type: "text", text: annotationData.content ?? "" },
-                  annotationData.filePart as NonNullable<Message["parts"]>[number],
-                ];
-                return {
-                  ...msg,
-                  id: annotationData.databaseId ?? "",
-                  content: annotationData.content ?? "",
-                  parts: newParts,
-                };
-              }
-              return msg;
-            })
-          );
-        }
-      }
+      let hasGrounding = false; // Default value
 
-      // Handle message saved annotation
-      const messageSavedAnnotation = message.annotations?.find(
-        (a) =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "message_saved"
-      );
+      if (messageCompleteAnnotation) {
+        const data = (messageCompleteAnnotation as { data?: unknown }).data;
+        if (typeof data === "object" && data !== null) {
+          const annotationData = data as {
+            databaseId?: string;
+            messageSaved?: boolean;
+            titleGenerated?: string;
+            userId?: string;
+            hasGrounding?: boolean;
+          };
 
-      if (messageSavedAnnotation) {
-        const data = (messageSavedAnnotation as { data?: unknown }).data;
-        if (
-          typeof data === "object" &&
-          data !== null &&
-          "databaseId" in data &&
-          typeof (data as { databaseId?: unknown }).databaseId === "string"
-        ) {
-          const databaseId = (data as { databaseId: string }).databaseId;
+          hasGrounding = annotationData.hasGrounding ?? false; // Update from annotation
 
-          if (message.id !== databaseId) {
+          console.log("Processing message_complete annotation:", {
+            originalId: message.id,
+            databaseId: annotationData.databaseId,
+            messageSaved: annotationData.messageSaved,
+            hasTitle: !!annotationData.titleGenerated,
+            hasGrounding: annotationData.hasGrounding,
+            annotationCount: message.annotations?.length || 0,
+          });
+
+          // Update message ID if it was saved successfully
+          if (annotationData.messageSaved && annotationData.databaseId) {
+            const databaseId = annotationData.databaseId;
             setMessages((currentMessages) =>
               currentMessages.map((msg) =>
                 msg.id === message.id ? { ...msg, id: databaseId } : msg
               )
             );
           }
-        }
-      }
 
-      // Handle title generated annotation
-      const titleGeneratedAnnotation = message.annotations?.find(
-        (a) =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "title_generated"
-      );
+          // Handle title update if generated
+          if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
+            const sessionUpdate: ChatSession = {
+              id: chatId,
+              title: annotationData.titleGenerated,
+              updated_at: new Date().toISOString(),
+            } as ChatSession;
 
-      let generatedTitle: string | null = null;
-      let annotationUserId: string | null = null;
-
-      if (titleGeneratedAnnotation) {
-        const data = (titleGeneratedAnnotation as { data?: unknown }).data;
-
-        if (
-          typeof data === "object" &&
-          data !== null &&
-          "sessionId" in data &&
-          "title" in data &&
-          "userId" in data &&
-          typeof (data as { sessionId?: unknown }).sessionId === "string" &&
-          typeof (data as { title?: unknown }).title === "string" &&
-          typeof (data as { userId?: unknown }).userId === "string"
-        ) {
-          const { sessionId, title, userId } = data as {
-            sessionId: string;
-            title: string;
-            userId: string;
-          };
-
-          if (sessionId === chatId) {
-            generatedTitle = title;
-            annotationUserId = userId;
-            console.log("Title generated for session:", title);
+            updateSessionInCache(sessionUpdate, annotationData.userId);
           }
         }
-      }
-
-      // Handle existing chat session updates and refresh sidebar
-      if (chatId && chatId !== "new" && generatedTitle && annotationUserId) {
-        const sessionUpdate: ChatSession = {
-          id: chatId,
-          title: generatedTitle,
-          updated_at: new Date().toISOString(),
-        } as ChatSession;
-
-        updateSessionInCache(sessionUpdate, annotationUserId);
+      } else {
+        console.log("No message_complete annotation found:", {
+          messageId: message.id,
+          annotationCount: message.annotations?.length || 0,
+          annotationTypes:
+            message.annotations?.map((a) =>
+              typeof a === "object" && a !== null && !Array.isArray(a)
+                ? (a as { type?: unknown }).type
+                : "unknown"
+            ) || [],
+        });
       }
 
       // Always invalidate messages to get fresh data
+      // Use longer delay for messages with grounding to ensure all DB operations complete
       if (chatId && chatId !== "new") {
-        invalidateMessages();
+        const delay = hasGrounding ? 200 : 100;
+        console.log(
+          `Scheduling invalidateMessages with ${delay}ms delay (hasGrounding: ${hasGrounding})`
+        );
+
+        setTimeout(() => {
+          invalidateMessages();
+        }, delay);
       }
     },
   });
 
+  /**
+   * Handles stopping the current streaming chat response.
+   *
+   * This function performs three main operations:
+   * 1. Immediately stops the streaming response
+   * 2. Saves any partial assistant message content to the database
+   * 3. Marks the stream as cancelled to prevent resumption
+   *
+   * All operations after stopping are fire-and-forget to ensure UI responsiveness.
+   */
   const handleStop = useCallback(() => {
     // Stop the stream first - this is synchronous and immediate
     stop();
@@ -302,16 +269,18 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
       // Save the partial message if we have content (fire-and-forget)
       if (parts.length > 0) {
+        // Get the model config to extract the proper provider
+        const modelConfig = getModelById(selectedModel);
+        const modelProvider = modelConfig?.provider || "Unknown";
+
         saveAssistantMessage(
-          lastAssistantMessage.id,
+          lastAssistantMessage,
           chatId,
           user.id,
-          parts,
           selectedModel,
-          "Assistant", // modelProvider - we can get this from model config if needed
+          modelProvider,
           { reasoningLevel: state.reasoningLevel, searchEnabled: state.searchEnabled },
-          {},
-          { fireAndForget: true }
+          { fireAndForget: true, existingParts: parts }
         );
       }
     }
@@ -331,7 +300,13 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     }
   }, [stop, chatId, messages, user, selectedModel, state.reasoningLevel, state.searchEnabled]);
 
-  // Retry the last request after an error
+  /**
+   * Retries the last failed chat request.
+   *
+   * This function finds the most recent user message and re-sends it.
+   * Used when there's a network error or other failure during message processing.
+   * Only user messages can be retried - assistant messages cannot be regenerated this way.
+   */
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
 
@@ -380,10 +355,19 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     if (!pendingMessageData) return;
 
     try {
-      const { message, chatRequestOptions } = JSON.parse(pendingMessageData);
+      const { message, chatRequestOptions, reasoningLevel, searchEnabled } =
+        JSON.parse(pendingMessageData);
 
       // Clear the pending message
       sessionStorage.removeItem("pendingFirstMessage");
+
+      // Restore the state that was saved when creating the session
+      if (reasoningLevel !== undefined || searchEnabled !== undefined) {
+        updateState({
+          ...(reasoningLevel !== undefined && { reasoningLevel }),
+          ...(searchEnabled !== undefined && { searchEnabled }),
+        });
+      }
 
       // Submit the pending message with the isFirstMessage flag
       append(message, chatRequestOptions);
@@ -397,6 +381,18 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const isLoading = status === "submitted" || status === "streaming";
 
+  /**
+   * Retries a specific message by its ID.
+   *
+   * This function:
+   * 1. Finds the message to retry in the conversation
+   * 2. Deletes that message and all subsequent messages from the database
+   * 3. Removes them from the local state
+   * 4. Re-sends the original user message
+   *
+   * Only user messages can be retried. This is used when a user wants to
+   * regenerate a response or fix a conversation flow.
+   */
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
       try {
@@ -449,6 +445,18 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     updateState({ showScrollToBottom });
   }, [showScrollToBottom, updateState]);
 
+  /**
+   * Creates a new chat session and handles the first message.
+   *
+   * This function:
+   * 1. Creates a new session in the database
+   * 2. Stores the pending message in sessionStorage (to survive navigation)
+   * 3. Navigates to the new session URL
+   * 4. The message will be automatically sent when the new page loads
+   *
+   * This pattern ensures the session exists before sending the first message,
+   * which is required for proper database relationships.
+   */
   const handleCreateNewSession = useCallback(
     async (
       message: Message,

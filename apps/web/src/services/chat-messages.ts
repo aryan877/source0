@@ -1,4 +1,7 @@
+import { ReasoningLevel } from "@/config/models";
+import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json, type Tables } from "@/types/supabase-types";
+import { prepareMessageForDb } from "@/utils/message-utils";
 import { createClient } from "@/utils/supabase/client";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type Message } from "ai";
@@ -278,156 +281,98 @@ export async function getMessageStats(sessionId: string): Promise<{
 }
 
 /**
- * Save a user message
+ * Client-side function to save a user message.
+ * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessage(
-  userMessage: Message & { dbParts: MessagePart[] },
+  userMessage: Message,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
-  return await addMessage({
-    id: userMessage.id,
-    session_id: sessionId,
-    user_id: userId,
-    role: "user",
-    parts: userMessage.dbParts,
-    model_used: null,
-    model_provider: null,
-    model_config: null,
-    metadata: {},
+  const preparedMessage = prepareMessageForDb({
+    message: userMessage,
+    sessionId,
+    userId,
   });
+  return addMessage(preparedMessage);
 }
 
 /**
- * Save an assistant message
+ * Client-side function to save an assistant message, often partially.
+ * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveAssistantMessage(
-  messageId: string,
+  message: Message,
   sessionId: string,
   userId: string,
-  parts: MessagePart[],
   model: string,
   modelProvider: string,
-  modelConfig: Json,
-  metadata: Json = {},
-  options: { fireAndForget?: boolean } = {}
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  options: { fireAndForget?: boolean; existingParts?: MessagePart[] } = {}
 ): Promise<DBChatMessage | void> {
-  const messageData = {
-    id: messageId,
-    session_id: sessionId,
-    user_id: userId,
-    role: "assistant" as const,
-    parts,
-    model_used: model,
-    model_provider: modelProvider,
-    model_config: modelConfig,
-    metadata,
-  };
+  const preparedMessage = prepareMessageForDb({
+    message,
+    sessionId,
+    userId,
+    model,
+    modelProvider,
+    reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
+    searchEnabled: modelConfig.searchEnabled,
+    existingParts: options.existingParts,
+  });
 
   if (options.fireAndForget) {
-    // Fire and forget - don't block the caller
-    addMessage(messageData).catch((error) => {
-      console.error("Error saving assistant message (fire-and-forget):", error);
+    addMessage(preparedMessage).catch((error) => {
+      console.error("Fire-and-forget saveAssistantMessage failed:", error);
     });
     return;
   }
-
-  return await addMessage(messageData);
+  return addMessage(preparedMessage);
 }
 
 /**
- * Save a system message
- */
-export async function saveSystemMessage(
-  messageId: string,
-  sessionId: string,
-  userId: string,
-  parts: MessagePart[],
-  metadata: Json = {}
-): Promise<DBChatMessage> {
-  return await addMessage({
-    id: messageId,
-    session_id: sessionId,
-    user_id: userId,
-    role: "system",
-    parts,
-    model_used: null,
-    model_provider: null,
-    model_config: null,
-    metadata,
-  });
-}
-
-/**
- * Save a tool message
- */
-export async function saveToolMessage(
-  messageId: string,
-  sessionId: string,
-  userId: string,
-  parts: MessagePart[],
-  metadata: Json = {}
-): Promise<DBChatMessage> {
-  return await addMessage({
-    id: messageId,
-    session_id: sessionId,
-    user_id: userId,
-    role: "tool",
-    parts,
-    model_used: null,
-    model_provider: null,
-    model_config: null,
-    metadata,
-  });
-}
-
-/**
- * Save a user message (server-side version)
+ * Server-side function to save a user message.
+ * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessageServer(
   supabase: SupabaseClient,
-  userMessage: Message & { dbParts: MessagePart[] },
+  userMessage: Message,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
-  return await addMessageServer(supabase, {
-    id: userMessage.id,
-    session_id: sessionId,
-    user_id: userId,
-    role: "user",
-    parts: userMessage.dbParts,
-    model_used: null,
-    model_provider: null,
-    model_config: null,
-    metadata: {},
+  const preparedMessage = prepareMessageForDb({
+    message: userMessage,
+    sessionId,
+    userId,
   });
+  return addMessageServer(supabase, preparedMessage);
 }
 
 /**
- * Save an assistant message (server-side version)
+ * Server-side function to save an assistant message.
+ * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveAssistantMessageServer(
   supabase: SupabaseClient,
-  messageId: string,
+  message: Message,
   sessionId: string,
   userId: string,
-  parts: MessagePart[],
   model: string,
   modelProvider: string,
-  modelConfig: Json,
-  metadata: Json = {}
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  providerMetadata?: ProviderMetadata
 ): Promise<DBChatMessage> {
-  return await addMessageServer(supabase, {
-    id: messageId,
-    session_id: sessionId,
-    user_id: userId,
-    role: "assistant",
-    parts,
-    model_used: model,
-    model_provider: modelProvider,
-    model_config: modelConfig,
-    metadata,
+  const preparedMessage = prepareMessageForDb({
+    message,
+    sessionId,
+    userId,
+    model,
+    modelProvider,
+    reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
+    searchEnabled: modelConfig.searchEnabled,
+    providerMetadata,
   });
+  return addMessageServer(supabase, preparedMessage);
 }
 
 /**

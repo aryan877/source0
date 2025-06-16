@@ -1,6 +1,6 @@
 "use client";
 
-import { type GroundingMetadata } from "@/types/google-metadata";
+import { type GroundingMetadata } from "@/types/provider-metadata";
 import {
   ArrowPathIcon,
   ArrowTurnRightUpIcon,
@@ -19,7 +19,13 @@ import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 
-// Type definitions for custom data structures to avoid 'any'
+/**
+ * Custom type definition for file parts in our message system.
+ *
+ * The AI SDK's built-in FileUIPart uses base64 data, but our application
+ * uses a URL-based file system. This interface defines the structure
+ * we expect when casting file parts from the AI SDK format.
+ */
 interface CustomFileUIPart {
   type: "file";
   url: string;
@@ -28,20 +34,34 @@ interface CustomFileUIPart {
   path?: string;
 }
 
+interface MessageCompleteData {
+  modelUsed?: string;
+  modelProvider?: string;
+  grounding?: GroundingMetadata;
+}
+
 // A simplified type guard that checks for the properties we need on a JSONValue object
-function isModelMetadataAnnotation(
-  obj: JSONValue
-): obj is { type: "model_metadata"; data: { modelUsed?: string; modelProvider?: string } } {
-  return (
-    typeof obj === "object" &&
-    obj !== null &&
-    !Array.isArray(obj) &&
-    "type" in obj &&
-    obj.type === "model_metadata" &&
-    "data" in obj &&
-    typeof obj.data === "object" &&
-    obj.data !== null
+function getMessageCompleteData(
+  annotations: readonly JSONValue[] | undefined
+): MessageCompleteData | null {
+  if (!annotations) return null;
+
+  const annotation = annotations.find(
+    (a) =>
+      typeof a === "object" &&
+      a !== null &&
+      !Array.isArray(a) &&
+      (a as { type?: string }).type === "message_complete"
   );
+
+  if (annotation) {
+    const data = (annotation as { data?: unknown }).data;
+    if (typeof data === "object" && data !== null) {
+      return data as MessageCompleteData;
+    }
+  }
+
+  return null;
 }
 
 interface MessageBubbleProps {
@@ -86,17 +106,15 @@ const MessageBubble = memo(
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
-      const annotation = message.annotations?.find(isModelMetadataAnnotation);
+      const completeData = getMessageCompleteData(message.annotations);
 
-      const data = annotation?.data;
-
-      if (!data?.modelUsed) {
+      if (!completeData?.modelUsed) {
         return null;
       }
 
       return {
-        modelUsed: data.modelUsed,
-        modelProvider: data.modelProvider,
+        modelUsed: completeData.modelUsed,
+        modelProvider: completeData.modelProvider,
       };
     }, [message.annotations, isUser]);
 
@@ -280,24 +298,8 @@ const MessageBubble = memo(
     }, [message.parts, isReasoningStreaming]);
 
     const renderGroundingMetadata = useMemo(() => {
-      if (!message.annotations?.length) return null;
-
-      let grounding: GroundingMetadata | null = null;
-      try {
-        const groundingAnnotation = message.annotations.find((annotation) => {
-          if (typeof annotation !== "object" || annotation === null || Array.isArray(annotation)) {
-            return false;
-          }
-          const potentialAnnotation = annotation as Record<string, unknown>;
-          return potentialAnnotation.type === "grounding" && "data" in potentialAnnotation;
-        });
-
-        if (groundingAnnotation) {
-          grounding = (groundingAnnotation as unknown as { data: GroundingMetadata }).data;
-        }
-      } catch {
-        return null;
-      }
+      const completeData = getMessageCompleteData(message.annotations);
+      const grounding = completeData?.grounding as GroundingMetadata | undefined;
 
       // Only render if we have actual grounding data with content
       if (
