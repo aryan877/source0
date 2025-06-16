@@ -210,6 +210,14 @@ export async function POST(req: Request): Promise<Response> {
               }
 
               dataStream.writeMessageAnnotation({
+                type: "model_metadata",
+                data: {
+                  modelUsed: model,
+                  modelProvider: modelConfig.provider,
+                },
+              });
+
+              dataStream.writeMessageAnnotation({
                 type: "message_saved",
                 data: { databaseId: messageId, sessionId: finalSessionId },
               });

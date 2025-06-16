@@ -2,7 +2,7 @@
 
 import { type UseChatHelpers } from "@ai-sdk/react";
 import { type Message as UIMessage } from "ai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export type DataPart = { type: "append-message"; message: string };
 
@@ -12,6 +12,7 @@ export interface Props {
   experimental_resume: UseChatHelpers["experimental_resume"];
   data: UseChatHelpers["data"];
   setMessages: UseChatHelpers["setMessages"];
+  messagesLoading: boolean;
 }
 
 export function useAutoResume({
@@ -20,18 +21,27 @@ export function useAutoResume({
   experimental_resume,
   data,
   setMessages,
+  messagesLoading,
 }: Props) {
+  const resumeAttempted = useRef(false);
+
   useEffect(() => {
-    if (!autoResume) return;
+    if (!autoResume || messagesLoading || resumeAttempted.current) {
+      return;
+    }
 
     const mostRecentMessage = initialMessages.at(-1);
 
     if (mostRecentMessage?.role === "user") {
+      console.log("Attempting to resume chat stream...");
       experimental_resume();
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Mark as attempted once we have checked, to avoid re-triggering
+    if (initialMessages.length > 0) {
+      resumeAttempted.current = true;
+    }
+  }, [autoResume, initialMessages, experimental_resume, messagesLoading]);
 
   useEffect(() => {
     if (!data || data.length === 0) return;

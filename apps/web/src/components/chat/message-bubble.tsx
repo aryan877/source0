@@ -405,16 +405,20 @@ const MessageBubble = memo(
           <div className="flex w-full items-center justify-between pl-1 pr-2">
             <div className="flex items-center gap-2">
               {actionButtons}
-              {!isLoading && modelMetadata && showActions && !isUser && (
-                <Tooltip
-                  content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
-                  placement="top"
-                >
-                  <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
-                    <span>{modelMetadata.modelUsed}</span>
-                  </div>
-                </Tooltip>
-              )}
+              <div
+                className={`transition-opacity duration-200 ${showActions && !isLoading ? "opacity-100" : "opacity-0"}`}
+              >
+                {modelMetadata && !isUser && (
+                  <Tooltip
+                    content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
+                    placement="top"
+                  >
+                    <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
+                      <span>{modelMetadata.modelUsed}</span>
+                    </div>
+                  </Tooltip>
+                )}
+              </div>
             </div>
           </div>
         </div>

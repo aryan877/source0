@@ -34,10 +34,12 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   } = useChatMessages(chatId);
   const { updateSessionInCache } = useChatSessions();
 
-  const messagesToUse = chatId !== "new" ? queryMessages : [];
+  const messagesToUse = useMemo(() => {
+    return chatId !== "new" ? queryMessages : [];
+  }, [chatId, queryMessages]);
 
   const { messagesContainerRef, messagesEndRef, showScrollToBottom, scrollToBottom } =
-    useScrollManagement(messagesToUse.length);
+    useScrollManagement();
 
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
     useChatHandlers(chatId, updateState);
@@ -242,13 +244,28 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     },
   });
 
+  // Sync messages from DB to useChat state when loaded
+  useEffect(() => {
+    if (status === "ready" && messagesToUse.length > 0 && messages.length === 0) {
+      setMessages(messagesToUse);
+    }
+  }, [messagesToUse, messages, status, setMessages]);
+
   useAutoResume({
     autoResume: chatId !== "new",
     initialMessages: messagesToUse,
     experimental_resume,
     data,
     setMessages,
+    messagesLoading: isLoadingMessages,
   });
+
+  useEffect(() => {
+    if (chatId !== "new" && !isLoadingMessages) {
+      // Small delay to allow messages to render before scrolling
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [chatId, isLoadingMessages, scrollToBottom]);
 
   // Handle pending first message from sessionStorage for new sessions
   useEffect(() => {
@@ -429,6 +446,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
           // Redirect immediately to the new session
           router.push(`/chat/${newSession.id}`);
+          setTimeout(() => scrollToBottom(), 100);
           return;
         } catch (error) {
           console.error("Failed to create new session:", error);
@@ -438,6 +456,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       }
 
       append(messageToAppend, chatRequestOptions);
+      setTimeout(() => scrollToBottom(), 100);
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
@@ -456,6 +475,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       router,
       user,
       updateSessionInCache,
+      scrollToBottom,
     ]
   );
 

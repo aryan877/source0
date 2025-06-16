@@ -1,9 +1,8 @@
-import { useChatScroll } from "@/hooks/use-chat-scroll";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export const useScrollManagement = (messagesLength: number) => {
+export const useScrollManagement = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useChatScroll(messagesLength);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const handleScroll = useCallback(() => {
@@ -32,7 +31,7 @@ export const useScrollManagement = (messagesLength: number) => {
       behavior: "smooth",
       block: "end",
     });
-  }, [messagesEndRef]);
+  }, []);
 
   return {
     messagesContainerRef,
