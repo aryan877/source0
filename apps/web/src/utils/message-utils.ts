@@ -129,10 +129,30 @@ function getGroundingMetadata(providerMetadata: ProviderMetadata | undefined): J
  */
 function convertPartsForDb(message: Message, existingParts: MessagePart[] = []): MessagePart[] {
   const parts: MessagePart[] = [...existingParts];
+
+  // Get text content from message.content
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
 
-  // Add text part if it exists and is not already present
-  if (textContent && !parts.some((p) => p.type === "text")) {
+  // Check if we have text parts in message.parts
+  const textParts =
+    message.parts?.filter((part) => part.type === "text" && "text" in part && part.text) || [];
+
+  // Priority logic: prefer message.parts text over message.content to avoid duplication
+  // This is because AI SDK often puts the full content in both places for messages with code blocks
+  if (textParts.length > 0) {
+    // Use parts from message.parts, but only if not already present
+    for (const part of textParts) {
+      if (
+        part.type === "text" &&
+        "text" in part &&
+        part.text &&
+        !parts.some((p) => p.type === "text" && p.text === part.text)
+      ) {
+        parts.push({ type: "text", text: part.text });
+      }
+    }
+  } else if (textContent && !parts.some((p) => p.type === "text")) {
+    // Fallback to message.content if no text parts exist and no existing text parts
     parts.push({ type: "text", text: textContent });
   }
 

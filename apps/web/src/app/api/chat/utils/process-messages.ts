@@ -167,18 +167,32 @@ async function processAssistantMessage(
 ): Promise<CoreMessage | null> {
   const coreParts: AssistantContentPart[] = [];
 
+  // Get text content from message.content
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
-  if (textContent) coreParts.push({ type: "text", text: textContent });
 
+  // Check if we have text parts in message.parts
   const messageParts = message.parts;
+  const textParts =
+    messageParts?.filter((part) => part.type === "text" && "text" in part && part.text) || [];
 
+  // Priority logic: prefer message.parts text over message.content to avoid duplication
+  // This is because AI SDK often puts the full content in both places for messages with code blocks
+  if (textParts.length > 0) {
+    // Use parts from message.parts
+    for (const part of textParts) {
+      if (part.type === "text" && "text" in part && part.text) {
+        coreParts.push({ type: "text", text: part.text });
+      }
+    }
+  } else if (textContent) {
+    // Fallback to message.content if no text parts exist
+    coreParts.push({ type: "text", text: textContent });
+  }
+
+  // Process non-text parts
   if (messageParts?.length) {
     for (const part of messageParts) {
-      if (part.type === "text" && "text" in part) {
-        if (!coreParts.some((p) => p.type === "text" && p.text === part.text)) {
-          coreParts.push({ type: "text", text: part.text });
-        }
-      } else if (part.type === "file") {
+      if (part.type === "file") {
         const filePart = part as unknown as CustomFileUIPart;
         if (filePart.url && filePart.mimeType) {
           if (shouldSkipImageFromAssistant(modelConfig, filePart.mimeType)) {

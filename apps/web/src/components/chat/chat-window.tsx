@@ -12,11 +12,11 @@ import {
   deleteFromPoint,
   getLatestStreamIdWithStatus,
   markStreamAsCancelled,
-  MessagePart,
   saveAssistantMessage,
 } from "@/services";
 import { createSession, type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
+import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
@@ -226,53 +226,23 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     if (lastAssistantMessage && chatId !== "new" && user) {
       console.log("Saving partial message due to user stop:", lastAssistantMessage);
 
-      // Convert message content and parts to database format
-      const parts: MessagePart[] = [];
+      // Get the model config to extract the proper provider
+      const modelConfig = getModelById(selectedModel);
+      const modelProvider = modelConfig?.provider || "Unknown";
 
-      // Add text content if available
-      const textContent =
-        typeof lastAssistantMessage.content === "string" ? lastAssistantMessage.content.trim() : "";
-      if (textContent) {
-        parts.push({ type: "text", text: textContent });
-      }
-
-      // Add parts from message.parts if available
-      if (lastAssistantMessage.parts?.length) {
-        for (const part of lastAssistantMessage.parts) {
-          if (
-            part.type === "text" &&
-            "text" in part &&
-            part.text &&
-            !parts.some((p) => p.type === "text" && p.text === part.text)
-          ) {
-            parts.push({ type: "text", text: part.text });
-          } else if (part.type === "file" && "url" in part) {
-            const filePart = part as unknown as {
-              url: string;
-              mimeType: string;
-              filename?: string;
-              path?: string;
-            };
-            parts.push({
-              type: "file",
-              file: {
-                name: filePart.filename || "file",
-                path: filePart.path || "",
-                url: filePart.url,
-                size: 0,
-                mimeType: filePart.mimeType,
-              },
-            });
-          }
-        }
-      }
+      // Use the helper function to properly convert message parts
+      const preparedMessage = prepareMessageForDb({
+        message: lastAssistantMessage,
+        sessionId: chatId,
+        userId: user.id,
+        model: selectedModel,
+        modelProvider,
+        reasoningLevel: state.reasoningLevel,
+        searchEnabled: state.searchEnabled,
+      });
 
       // Save the partial message if we have content (fire-and-forget)
-      if (parts.length > 0) {
-        // Get the model config to extract the proper provider
-        const modelConfig = getModelById(selectedModel);
-        const modelProvider = modelConfig?.provider || "Unknown";
-
+      if (preparedMessage.parts.length > 0) {
         saveAssistantMessage(
           lastAssistantMessage,
           chatId,
@@ -280,7 +250,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           selectedModel,
           modelProvider,
           { reasoningLevel: state.reasoningLevel, searchEnabled: state.searchEnabled },
-          { fireAndForget: true, existingParts: parts }
+          { fireAndForget: true, existingParts: preparedMessage.parts }
         );
       }
     }
