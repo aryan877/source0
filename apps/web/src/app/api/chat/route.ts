@@ -20,7 +20,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { handleImageGenerationRequest } from "./utils/image-generation";
-import { processMessages } from "./utils/messages";
 import {
   buildProviderOptions,
   buildSystemMessage,
@@ -28,6 +27,7 @@ import {
   getModelById,
   getModelMapping,
 } from "./utils/models";
+import { processMessages } from "./utils/process-messages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
