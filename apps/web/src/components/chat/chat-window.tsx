@@ -306,6 +306,19 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     }
   }, [messages, stop, chatId, updateState, setMessages, append, invalidateMessages]);
 
+  // Sync messages from DB to useChat state when loaded or invalidated
+  useEffect(() => {
+    // Only sync when the chat is idle and not loading from DB
+    if (status === "ready" && !isLoadingMessages) {
+      const areDifferent =
+        messages.length !== messagesToUse.length ||
+        messages.some((m, i) => m.id !== messagesToUse[i]?.id);
+      if (areDifferent) {
+        setMessages(messagesToUse);
+      }
+    }
+  }, [messagesToUse, setMessages, status, isLoadingMessages, messages]);
+
   useAutoResume({
     autoResume: chatId !== "new",
     initialMessages: messagesToUse,
