@@ -163,29 +163,23 @@ async function processAssistantMessage(
   const assistantCoreParts: (TextPart | FilePart | ToolCallPart)[] = [];
   const toolCoreMessages: CoreMessage[] = [];
 
-  // Get text content from message.content
-  const textContent = typeof message.content === "string" ? message.content.trim() : "";
+  const messageParts = message.parts ?? [];
 
-  // Check if we have text parts in message.parts
-  const messageParts = message.parts;
-  const textParts =
-    messageParts?.filter((part) => part.type === "text" && "text" in part && part.text) || [];
-
-  // Priority logic: prefer message.parts text over message.content to avoid duplication
-  if (textParts.length > 0) {
-    for (const part of textParts) {
-      if (part.type === "text" && "text" in part && part.text) {
-        assistantCoreParts.push({ type: "text", text: part.text });
-      }
-    }
-  } else if (textContent) {
-    assistantCoreParts.push({ type: "text", text: textContent });
+  // If parts are empty, fallback to message.content
+  if (messageParts.length === 0 && typeof message.content === "string" && message.content.trim()) {
+    assistantCoreParts.push({ type: "text", text: message.content.trim() });
   }
 
-  // Process non-text parts
-  if (messageParts?.length) {
-    for (const part of messageParts) {
-      if (part.type === "file") {
+  // Iterate through parts in their original order
+  for (const part of messageParts) {
+    switch (part.type) {
+      case "text":
+        if ("text" in part && part.text) {
+          assistantCoreParts.push({ type: "text", text: part.text });
+        }
+        break;
+
+      case "file": {
         const filePart = part as unknown as CustomFileUIPart;
         if (filePart.url && filePart.mimeType) {
           if (shouldSkipImageFromAssistant(modelConfig, filePart.mimeType)) {
@@ -199,44 +193,53 @@ async function processAssistantMessage(
           );
           if (corePart) assistantCoreParts.push(corePart as AssistantContentPart);
         }
-      } else if (part.type === "tool-invocation" && "toolInvocation" in part) {
-        // Define a specific type for our expected tool invocation structure to avoid 'any'
-        type ToolInvocationWithMessage = {
-          toolInvocation: {
-            toolCallId: string;
-            toolName: string;
-            args: Record<string, unknown>;
-            result?: unknown;
+        break;
+      }
+
+      case "tool-invocation":
+        if ("toolInvocation" in part) {
+          type ToolInvocationWithMessage = {
+            toolInvocation: {
+              toolCallId: string;
+              toolName: string;
+              args: Record<string, unknown>;
+              result?: unknown;
+            };
           };
-        };
 
-        const { toolInvocation } = part as unknown as ToolInvocationWithMessage;
-        const { toolCallId, toolName, args, result } = toolInvocation;
+          const { toolInvocation } = part as ToolInvocationWithMessage;
+          const { toolCallId, toolName, args, result } = toolInvocation;
 
-        if (toolCallId && toolName) {
-          // 1. Add the tool_call to the assistant's message parts
-          assistantCoreParts.push({
-            type: "tool-call",
-            toolCallId,
-            toolName,
-            args,
-          });
-
-          // 2. Create a separate 'tool' message for the result
-          if (result !== undefined) {
-            toolCoreMessages.push({
-              role: "tool",
-              content: [
-                {
-                  toolCallId,
-                  toolName,
-                  result,
-                },
-              ] as ToolContentPart[],
+          if (toolCallId && toolName) {
+            // 1. Add the tool_call to the assistant's message parts
+            assistantCoreParts.push({
+              type: "tool-call",
+              toolCallId,
+              toolName,
+              args,
             });
+
+            // 2. Create a separate 'tool' message for the result
+            if (result !== undefined) {
+              toolCoreMessages.push({
+                role: "tool",
+                content: [
+                  {
+                    type: "tool-result",
+                    toolCallId,
+                    toolName,
+                    result,
+                  },
+                ] as ToolContentPart[],
+              });
+            }
           }
         }
-      }
+        break;
+
+      default:
+        // Other part types can be handled here if needed
+        break;
     }
   }
 
