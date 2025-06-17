@@ -24,6 +24,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "
 import { v4 as uuidv4 } from "uuid";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
+import { SamplePrompts } from "./sample-prompts";
 
 interface ChatWindowProps {
   chatId: string;
@@ -605,6 +606,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     [handleFormSubmit]
   );
 
+  const handlePromptSelect = useCallback(
+    (prompt: string) => {
+      setInput(prompt);
+      setTimeout(() => chatInputRef.current?.focus(), 0);
+    },
+    [setInput]
+  );
+
   const canSubmit = useMemo(
     () => (input.trim().length > 0 || state.attachedFiles.length > 0) && !isLoading,
     [input, state.attachedFiles.length, isLoading]
@@ -612,21 +621,35 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const chatInputRef = useRef<ChatInputRef | null>(null);
 
+  // Show sample prompts when there are no messages and no input
+  const showSamplePrompts =
+    messages.length === 0 && !input.trim() && state.attachedFiles.length === 0;
+
   return (
     <div className="flex h-full flex-col">
-      <MessagesList
-        messages={messages}
-        isLoading={isLoading}
-        isLoadingMessages={isLoadingMessages}
-        chatId={chatId}
-        onBranchChat={handleBranchChat}
-        onRetryMessage={handleRetryMessage}
-        messagesContainerRef={messagesContainerRef}
-        error={error}
-        uiError={state.uiError}
-        onDismissUiError={() => updateState({ uiError: null })}
-        onRetry={handleRetryFailedRequest}
-      />
+      {showSamplePrompts ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <SamplePrompts
+            onPromptSelect={handlePromptSelect}
+            className=""
+            userName={user?.user_metadata?.full_name || user?.email?.split("@")[0] || "there"}
+          />
+        </div>
+      ) : (
+        <MessagesList
+          messages={messages}
+          isLoading={isLoading}
+          isLoadingMessages={isLoadingMessages}
+          chatId={chatId}
+          onBranchChat={handleBranchChat}
+          onRetryMessage={handleRetryMessage}
+          messagesContainerRef={messagesContainerRef}
+          error={error}
+          uiError={state.uiError}
+          onDismissUiError={() => updateState({ uiError: null })}
+          onRetry={handleRetryFailedRequest}
+        />
+      )}
 
       <ChatInput
         input={input}
@@ -649,6 +672,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         onScrollToBottom={() => scrollToBottom("smooth")}
         onStop={handleStop}
         onClearUiError={() => updateState({ uiError: null })}
+        onPromptSelect={handlePromptSelect}
         ref={chatInputRef}
       />
     </div>

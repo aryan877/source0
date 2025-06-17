@@ -31,6 +31,7 @@ interface ChatInputProps {
   onScrollToBottom: () => void;
   onStop: () => void;
   onClearUiError: () => void;
+  onPromptSelect?: (prompt: string) => void;
 }
 
 export interface ChatInputRef {
@@ -61,6 +62,7 @@ export const ChatInput = memo(
         onScrollToBottom,
         onStop,
         onClearUiError,
+        onPromptSelect,
       },
       ref
     ) => {
