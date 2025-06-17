@@ -1,6 +1,8 @@
 "use client";
 
 import { type GroundingMetadata } from "@/types/provider-metadata";
+import { handleToolInvocation } from "@/types/tools";
+import type { TavilySearchResult } from "@/types/web-search";
 import {
   ArrowPathIcon,
   ArrowTurnRightUpIcon,
@@ -8,7 +10,6 @@ import {
   ClipboardDocumentIcon,
   CpuChipIcon,
   UserIcon,
-  WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
 import type { JSONValue, Message } from "ai";
@@ -18,6 +19,7 @@ import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
+import { WebSearchDisplay } from "./web-search-display";
 
 /**
  * Custom type definition for file parts in our message system.
@@ -69,6 +71,31 @@ interface MessageBubbleProps {
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string) => void;
   isLoading?: boolean;
+}
+
+/**
+ * Extract citations from web search tool invocations in the message
+ */
+function getCitationsFromMessage(message: Message): TavilySearchResult[] {
+  if (!message.parts) return [];
+
+  const citations: TavilySearchResult[] = [];
+
+  for (const part of message.parts) {
+    if (part.type === "tool-invocation" && part.toolInvocation.toolName === "webSearch") {
+      const searchData = handleToolInvocation(part.toolInvocation, "webSearch");
+      if (searchData) {
+        // Add all search results as numbered citations
+        searchData.searchResults.forEach((result) => {
+          if (!result.error && result.results) {
+            citations.push(...result.results);
+          }
+        });
+      }
+    }
+  }
+
+  return citations;
 }
 
 const MessageBubble = memo(
@@ -130,7 +157,7 @@ const MessageBubble = memo(
           case "text":
             return (
               <div key={index}>
-                <MessageContent content={part.text} />
+                <MessageContent content={part.text} citations={getCitationsFromMessage(message)} />
               </div>
             );
 
@@ -151,81 +178,29 @@ const MessageBubble = memo(
           }
 
           case "tool-invocation": {
-            // Handle tool invocations with expandable section
+            // Handle tool invocations - only show specific tool displays
             const toolInvocation = part.toolInvocation;
             const toolName = toolInvocation.toolName || "Unknown Tool";
-            const isComplete = toolInvocation.state === "result";
 
-            return (
-              <ExpandableSection
-                key={index}
-                title={`${toolName} ${isComplete ? "✓" : "..."}`}
-                icon={<WrenchScrewdriverIcon className="h-4 w-4" />}
-                variant="tool"
-              >
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-                      <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-                      Tool Call
-                    </h4>
-                    <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                      <code className="font-mono text-sm font-medium">{toolName}</code>
-                    </div>
-                  </div>
+            if (toolName === "webSearch") {
+              if (toolInvocation.state === "result") {
+                const searchData = handleToolInvocation(toolInvocation, "webSearch");
+                return (
+                  <WebSearchDisplay key={index} state={toolInvocation.state} data={searchData} />
+                );
+              } else {
+                return (
+                  <WebSearchDisplay
+                    key={index}
+                    state={toolInvocation.state}
+                    args={toolInvocation.args}
+                  />
+                );
+              }
+            }
 
-                  {toolInvocation.args && (
-                    <div>
-                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-                        Arguments
-                      </h4>
-                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                          {JSON.stringify(toolInvocation.args, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-
-                  {isComplete && "result" in toolInvocation && (
-                    <div>
-                      <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-                        <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-                        Result
-                      </h4>
-                      <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                          {typeof toolInvocation.result === "string"
-                            ? toolInvocation.result
-                            : JSON.stringify(toolInvocation.result, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 border-t border-divider/20 pt-2">
-                    <span
-                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ${
-                        isComplete
-                          ? "bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400"
-                          : "bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400"
-                      }`}
-                    >
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full ${isComplete ? "bg-success-500" : "bg-warning-500"}`}
-                      ></div>
-                      {isComplete ? "Completed" : "In Progress"}
-                    </span>
-                    {toolInvocation.step && (
-                      <span className="text-xs font-medium text-foreground/60">
-                        Step {toolInvocation.step}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </ExpandableSection>
-            );
+            // No fallback - only show supported tool displays
+            return null;
           }
 
           case "reasoning":
@@ -238,7 +213,10 @@ const MessageBubble = memo(
                 defaultExpanded={false}
                 isLoading={isReasoningStreaming}
               >
-                <MessageContent content={part.reasoning} />
+                <MessageContent
+                  content={part.reasoning}
+                  citations={getCitationsFromMessage(message)}
+                />
               </ExpandableSection>
             );
 
@@ -295,7 +273,7 @@ const MessageBubble = memo(
             return null;
         }
       });
-    }, [message.parts, isReasoningStreaming]);
+    }, [isReasoningStreaming, message]);
 
     const renderGroundingMetadata = useMemo(() => {
       const completeData = getMessageCompleteData(message.annotations);
@@ -398,7 +376,11 @@ const MessageBubble = memo(
             isUser ? "ml-auto max-w-[85%] items-end" : "w-full items-start"
           }`}
         >
-          <div className={`${isUser ? "rounded-2xl bg-content2 px-5 py-4" : "w-full px-1"}`}>
+          <div
+            className={`flex flex-col gap-4 ${
+              isUser ? "rounded-2xl bg-content2 px-5 py-4" : "w-full px-1"
+            }`}
+          >
             {renderMessageParts}
             {!isUser && renderGroundingMetadata}
           </div>

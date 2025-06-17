@@ -12,3 +12,4 @@ export { ModelSelector } from "./model-selector";
 export { ScrollToBottomButton } from "./scroll-to-bottom-button";
 export { SecureFileDisplay } from "./secure-file-display";
 export { ShareButton } from "./share-button";
+export { WebSearchDisplay } from "./web-search-display";

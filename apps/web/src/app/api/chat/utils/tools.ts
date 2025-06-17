@@ -1,7 +1,7 @@
 import { type ModelCapability } from "@/config/models";
 import { tool } from "ai";
 import { z } from "zod";
-import { generateSearchQueries, performWebSearch } from "./web-search";
+import { createWebSearchToolData, generateSearchQueries, performWebSearch } from "./web-search";
 
 /**
  * Web search tool that allows the AI to search the internet for current information.
@@ -16,7 +16,19 @@ export const webSearchTool = tool({
 - Recent developments in any field
 - Real-time information
 
-The tool will automatically generate appropriate search queries based on the user's question.`,
+CRITICAL: When using search results in your response, you MUST include inline citations using square brackets with numbers like [1], [2], [3].
+
+Citation Rules:
+1. Place citations [1], [2] etc. immediately after the sentence or phrase that uses information from that source
+2. Use the exact citation number that corresponds to the search result order
+3. Multiple citations can be grouped like [1,2] or [1, 2, 3]
+4. Every factual claim from search results MUST have a citation
+5. Do not make up citation numbers - only use numbers that correspond to actual search results
+
+Example format:
+"The event occurred on June 15th [1] and resulted in significant policy changes [2, 3]. According to recent reports [1], the impact was substantial."
+
+The search results will be numbered sequentially starting from [1] for you to reference.`,
 
   parameters: z.object({
     query: z.string().describe("The search query or question to search for"),
@@ -42,62 +54,57 @@ The tool will automatically generate appropriate search queries based on the use
   }),
 
   execute: async ({ query, options = {} }) => {
-    try {
-      console.log(`AI requesting web search for: "${query}"`);
+    console.log(`AI requesting web search for: "${query}"`);
 
-      // Generate intelligent search queries from the user's question
-      const queries = generateSearchQueries(query);
-      console.log(`Generated queries: ${queries.join(", ")}`);
+    // Generate intelligent search queries from the user's question
+    const queries = generateSearchQueries(query);
+    console.log(`Generated queries: ${queries.join(", ")}`);
 
-      // Perform the search
-      const searchResults = await performWebSearch({
-        queries,
-        options: {
-          topic: options.topic || "general",
-          search_depth: "advanced",
-          max_results: options.max_results || 5,
-          include_answer: true,
-          include_images: false,
-          ...(options.time_range && { time_range: options.time_range }),
-        },
-      });
+    // Perform the search
+    const searchResults = await performWebSearch({
+      queries,
+      options: {
+        topic: options.topic || "general",
+        search_depth: "advanced",
+        max_results: options.max_results || 5,
+        include_answer: true,
+        include_images: false,
+        ...(options.time_range && { time_range: options.time_range }),
+      },
+    });
 
-      // Format results for the AI
-      let formattedResults = `Web Search Results for: "${query}"\n\n`;
+    // Create structured data for UI and build formatted sources for the model
+    const toolData = createWebSearchToolData(query, queries, searchResults);
 
-      searchResults.forEach((result, index) => {
-        if (result.error) {
-          formattedResults += `Query ${index + 1}: "${result.query}" - ERROR: ${result.error}\n\n`;
-          return;
+    // Create a formatted response for the AI model with numbered sources
+    const formattedSources = [];
+    let sourceNumber = 1;
+
+    for (const result of searchResults) {
+      if (!result.error && result.results) {
+        for (const source of result.results) {
+          formattedSources.push(
+            `[${sourceNumber}] ${source.title}\n${source.content}\nSource: ${source.url}`
+          );
+          sourceNumber++;
         }
-
-        formattedResults += `Query ${index + 1}: "${result.query}"\n`;
-
-        if (result.answer) {
-          formattedResults += `AI Summary: ${result.answer}\n\n`;
-        }
-
-        if (result.results.length > 0) {
-          formattedResults += "Sources:\n";
-          result.results.forEach((source, idx) => {
-            formattedResults += `${idx + 1}. ${source.title}\n`;
-            formattedResults += `   URL: ${source.url}\n`;
-            if (source.published_date) {
-              formattedResults += `   Date: ${source.published_date}\n`;
-            }
-            formattedResults += `   Content: ${source.content.substring(0, 300)}...\n\n`;
-          });
-        }
-
-        formattedResults += "---\n\n";
-      });
-
-      console.log(`Web search completed successfully for: "${query}"`);
-      return formattedResults;
-    } catch (error) {
-      console.error("Web search tool error:", error);
-      return `Web search failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      }
     }
+
+    const formattedResponse = {
+      query: query,
+      sources: formattedSources,
+      instruction:
+        "Use the numbered sources above in your response. Cite them using the format [1], [2], etc. immediately after statements that reference those sources.",
+    };
+
+    console.log(`Web search completed for: "${query}" with ${formattedSources.length} sources`);
+
+    // Return both the formatted response for the AI and the tool data for the UI
+    return JSON.stringify({
+      ...toolData,
+      formatted_response: formattedResponse,
+    });
   },
 });
 

@@ -1,49 +1,10 @@
-interface TavilySearchResult {
-  title: string;
-  url: string;
-  content: string;
-  score: number;
-  published_date?: string;
-  raw_content?: string;
-}
-
-interface TavilyImage {
-  url: string;
-  description?: string;
-}
-
-interface TavilyResponse {
-  query: string;
-  answer?: string;
-  images?: TavilyImage[];
-  results: TavilySearchResult[];
-  response_time: number;
-}
-
-interface WebSearchOptions {
-  topic?: "general" | "news";
-  search_depth?: "basic" | "advanced";
-  max_results?: number;
-  time_range?: "day" | "week" | "month" | "year" | "d" | "w" | "m" | "y";
-  include_answer?: boolean;
-  include_images?: boolean;
-  include_raw_content?: boolean;
-  country?: string;
-}
-
-interface WebSearchResult {
-  query: string;
-  answer?: string;
-  results: TavilySearchResult[];
-  images?: TavilyImage[];
-  response_time: number;
-  error?: string;
-}
-
-interface WebSearchRequest {
-  queries: string[];
-  options?: WebSearchOptions;
-}
+import type { WebSearchToolData } from "@/types/tools";
+import type {
+  TavilyResponse,
+  WebSearchOptions,
+  WebSearchRequest,
+  WebSearchResult,
+} from "@/types/web-search";
 
 /**
  * Generates intelligent search queries from a user's message.
@@ -190,43 +151,31 @@ export async function performWebSearch(request: WebSearchRequest): Promise<WebSe
 }
 
 /**
- * Formats web search results for display in the chat.
+ * Creates structured web search data for UI display
  */
-export function formatSearchResultsForDisplay(searchResults: WebSearchResult[]): string {
-  if (!searchResults.length) return "";
+export function createWebSearchToolData(
+  originalQuery: string,
+  generatedQueries: string[],
+  searchResults: WebSearchResult[]
+): WebSearchToolData {
+  const errors: string[] = [];
+  let totalResults = 0;
 
-  let formatted = "🔍 **Web Search Results:**\n\n";
-
-  searchResults.forEach((result, index) => {
+  searchResults.forEach((result) => {
     if (result.error) {
-      formatted += `**Query ${index + 1}:** ${result.query}\n❌ Error: ${result.error}\n\n`;
-      return;
+      errors.push(`${result.query}: ${result.error}`);
+    } else {
+      totalResults += result.results.length;
     }
-
-    formatted += `**Query ${index + 1}:** ${result.query}\n`;
-
-    if (result.answer) {
-      formatted += `💡 **Summary:** ${result.answer}\n\n`;
-    }
-
-    if (result.results.length > 0) {
-      formatted += `📰 **Sources:**\n`;
-      result.results.forEach((source, idx) => {
-        formatted += `${idx + 1}. **${source.title}**\n`;
-        formatted += `   🔗 ${source.url}\n`;
-        if (source.published_date) {
-          formatted += `   📅 ${source.published_date}\n`;
-        }
-        formatted += `   ${source.content.substring(0, 200)}...\n\n`;
-      });
-    }
-
-    if (result.images && result.images.length > 0) {
-      formatted += `🖼️ **Images:** ${result.images.length} found\n\n`;
-    }
-
-    formatted += "---\n\n";
   });
 
-  return formatted;
+  return {
+    toolName: "webSearch",
+    originalQuery,
+    generatedQueries,
+    searchResults,
+    totalResults,
+    hasErrors: errors.length > 0,
+    errors,
+  };
 }
