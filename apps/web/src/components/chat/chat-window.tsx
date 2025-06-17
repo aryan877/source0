@@ -9,12 +9,13 @@ import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  createSession,
   deleteFromPoint,
   getLatestStreamIdWithStatus,
   markStreamAsCancelled,
   saveAssistantMessage,
 } from "@/services";
-import { createSession, type ChatSession } from "@/services/chat-sessions";
+import { type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
@@ -345,6 +346,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       append(message, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
+      setTimeout(() => chatInputRef.current?.focus(), 0);
     } catch (error) {
       console.error("Failed to process pending message:", error);
       sessionStorage.removeItem("pendingFirstMessage");

@@ -279,202 +279,95 @@ export function convertPartsForDb(
   message: Message,
   existingParts: MessagePart[] = []
 ): MessagePart[] {
-  /*
-   * STEP 1: INPUT - AI SDK Message Structure
-   * ========================================
-   * Starting with an AI SDK Message like:
-   * {
-   *   id: "msg_456",
-   *   role: "user",
-   *   content: "Can you analyze this document?",
-   *   parts: [
-   *     { type: "text", text: "Can you analyze this document?" },
-   *     {
-   *       type: "file",
-   *       url: "blob:http://localhost:3000/123-456-789",
-   *       mimeType: "application/pdf",
-   *       filename: "report.pdf",
-   *       path: "uploads/user789/report.pdf",
-   *       size: 245760
-   *     }
-   *   ]
-   * }
-   */
+  const dbParts: MessagePart[] = [...existingParts];
+  const existingText = new Set(existingParts.filter((p) => p.type === "text").map((p) => p.text));
+  const existingFileUrls = new Set(
+    existingParts.map((p) => p.file?.url).filter((url): url is string => !!url)
+  );
+  const existingToolCallIds = new Set(
+    existingParts.map((p) => p.toolInvocation?.toolCallId as string).filter(Boolean)
+  );
+  const existingReasoning = new Set(
+    existingParts.filter((p) => p.type === "reasoning").map((p) => p.reasoning)
+  );
 
-  const parts: MessagePart[] = [...existingParts];
-
-  /*
-   * STEP 2: PRESERVE EXISTING PARTS
-   * ===============================
-   * Start with existing parts to avoid duplicates during streaming updates:
-   *
-   * existingParts: [
-   *   { type: "text", text: "Hello" }  // from previous partial save
-   * ]
-   *
-   * parts: [
-   *   { type: "text", text: "Hello" }  // preserved
-   * ]
-   */
-
-  // Get text content from message.content
-  const textContent = typeof message.content === "string" ? message.content.trim() : "";
-
-  // Check if we have text parts in message.parts
-  const textParts =
-    message.parts?.filter((part) => part.type === "text" && "text" in part && part.text) || [];
-
-  /*
-   * STEP 3: TEXT CONTENT EXTRACTION & DEDUPLICATION
-   * ===============================================
-   * AI SDK often duplicates text in both message.content and message.parts.
-   * We prioritize message.parts to avoid duplication:
-   *
-   * INPUT:
-   * message.content: "Can you analyze this document?"
-   * message.parts: [
-   *   { type: "text", text: "Can you analyze this document?" },
-   *   { type: "file", ... }
-   * ]
-   *
-   * LOGIC: Use parts text, ignore message.content to avoid duplicate
-   */
-
-  // Priority logic: prefer message.parts text over message.content to avoid duplication
-  // This is because AI SDK often puts the full content in both places for messages with code blocks
-  if (textParts.length > 0) {
-    // Use parts from message.parts, but only if not already present
-    for (const part of textParts) {
-      if (
-        part.type === "text" &&
-        "text" in part &&
-        part.text &&
-        !parts.some((p) => p.type === "text" && p.text === part.text)
-      ) {
-        parts.push({ type: "text", text: part.text });
-      }
+  if (!message.parts || message.parts.length === 0) {
+    const textContent = typeof message.content === "string" ? message.content.trim() : "";
+    if (textContent && !existingText.has(textContent)) {
+      dbParts.push({ type: "text", text: textContent });
     }
-  } else if (textContent && !parts.some((p) => p.type === "text")) {
-    // Fallback to message.content if no text parts exist and no existing text parts
-    parts.push({ type: "text", text: textContent });
+    return dbParts;
   }
 
-  /*
-   * STEP 4: TEXT PARTS TRANSFORMATION
-   * =================================
-   * After deduplication logic:
-   *
-   * parts: [
-   *   { type: "text", text: "Can you analyze this document?" }  // added from message.parts
-   * ]
-   */
-
-  // Process and add file parts, avoiding duplicates
-  if (message.parts?.length) {
-    for (const part of message.parts) {
-      if (part.type === "file" && "url" in part) {
-        const filePart = part as unknown as {
-          url: string;
-          mimeType: string;
-          filename?: string;
-          path?: string;
-          size?: number;
-        };
-        if (!parts.some((p) => p.file?.url === filePart.url)) {
-          parts.push({
-            type: "file",
-            file: {
-              name: filePart.filename || "file",
-              path: filePart.path || "",
-              url: filePart.url,
-              size: filePart.size ?? 0,
-              mimeType: filePart.mimeType,
-            },
-          });
+  for (const part of message.parts) {
+    switch (part.type) {
+      case "text": {
+        if ("text" in part && part.text && !existingText.has(part.text)) {
+          dbParts.push({ type: "text", text: part.text });
+          existingText.add(part.text);
         }
-      } else if (part.type === "tool-invocation" && "toolInvocation" in part) {
-        const toolPart = part as unknown as { toolInvocation: Record<string, unknown> };
-        const toolCallId = toolPart.toolInvocation.toolCallId as string;
-        // Avoid duplicates
-        if (
-          toolCallId &&
-          !parts.some((p) => (p.toolInvocation?.toolCallId as string) === toolCallId)
-        ) {
-          parts.push({
-            type: "tool-invocation",
-            toolInvocation: toolPart.toolInvocation,
-          });
+        break;
+      }
+      case "file": {
+        if ("url" in part) {
+          const filePart = part as unknown as {
+            url: string;
+            mimeType: string;
+            filename?: string;
+            path?: string;
+            size?: number;
+          };
+          if (!existingFileUrls.has(filePart.url)) {
+            dbParts.push({
+              type: "file",
+              file: {
+                name: filePart.filename || "file",
+                path: filePart.path || "",
+                url: filePart.url,
+                size: filePart.size ?? 0,
+                mimeType: filePart.mimeType,
+              },
+            });
+            existingFileUrls.add(filePart.url);
+          }
         }
-      } else if (part.type === "reasoning" && "reasoning" in part) {
-        const reasoningPart = part as unknown as {
-          reasoning: string;
-          details: Array<{ type: "text"; text: string }>;
-        };
-        if (!parts.some((p) => p.type === "reasoning" && p.reasoning === reasoningPart.reasoning)) {
-          parts.push({
-            type: "reasoning",
-            reasoning: reasoningPart.reasoning,
-            details: reasoningPart.details,
-          });
+        break;
+      }
+      case "tool-invocation": {
+        if ("toolInvocation" in part) {
+          const toolPart = part as unknown as { toolInvocation: Record<string, unknown> };
+          const toolCallId = toolPart.toolInvocation.toolCallId as string;
+          if (toolCallId && !existingToolCallIds.has(toolCallId)) {
+            dbParts.push({
+              type: "tool-invocation",
+              toolInvocation: toolPart.toolInvocation,
+            });
+            existingToolCallIds.add(toolCallId);
+          }
         }
+        break;
+      }
+      case "reasoning": {
+        if ("reasoning" in part) {
+          const reasoningPart = part as unknown as {
+            reasoning: string;
+            details: Array<{ type: "text"; text: string }>;
+          };
+          if (reasoningPart.reasoning && !existingReasoning.has(reasoningPart.reasoning)) {
+            dbParts.push({
+              type: "reasoning",
+              reasoning: reasoningPart.reasoning,
+              details: reasoningPart.details,
+            });
+            existingReasoning.add(reasoningPart.reasoning);
+          }
+        }
+        break;
       }
     }
   }
 
-  /*
-   * STEP 5: FILE PARTS TRANSFORMATION & DEDUPLICATION
-   * =================================================
-   * Transform AI SDK file format → Database file format:
-   *
-   * FROM (AI SDK format):
-   * {
-   *   type: "file",
-   *   url: "blob:http://localhost:3000/123-456-789",
-   *   mimeType: "application/pdf",
-   *   filename: "report.pdf",
-   *   path: "uploads/user789/report.pdf",
-   *   size: 245760
-   * }
-   *
-   * TO (Database format):
-   * {
-   *   type: "file",
-   *   file: {
-   *     name: "report.pdf",
-   *     path: "uploads/user789/report.pdf",
-   *     url: "blob:http://localhost:3000/123-456-789",
-   *     size: 245760,
-   *     mimeType: "application/pdf"
-   *   }
-   * }
-   */
-
-  return parts;
-
-  /*
-   * FINAL OUTPUT: Database MessagePart[]
-   * ====================================
-   * [
-   *   {
-   *     type: "text",
-   *     text: "Can you analyze this document?"
-   *   },
-   *   {
-   *     type: "file",
-   *     file: {
-   *       name: "report.pdf",
-   *       path: "uploads/user789/report.pdf",
-   *       url: "blob:http://localhost:3000/123-456-789",
-   *       size: 245760,
-   *       mimeType: "application/pdf"
-   *     }
-   *   }
-   * ]
-   *
-   * This format will be stored in the database's `parts` JSONB column:
-   * INSERT INTO chat_messages (parts, ...) VALUES ($1, ...)
-   * WHERE $1 = '[{"type":"text","text":"..."},{"type":"file","file":{...}}]'
-   */
+  return dbParts;
 }
 
 /**

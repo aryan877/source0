@@ -131,12 +131,19 @@ const useSidebarChatHandlers = (
   const handleDeleteChat = useCallback(
     (chatId: string) => {
       deleteSession(chatId);
-      if (selectedChatId === chatId && chats.length > 1) {
-        const remainingChats = chats.filter((c) => c.id !== chatId);
-        onSelectChat(remainingChats[0]?.id || "new");
+      if (selectedChatId === chatId) {
+        if (chats.length <= 1) {
+          router.push("/");
+          if (windowObj && windowObj.innerWidth < 1024) {
+            onClose();
+          }
+        } else {
+          const remainingChats = chats.filter((c) => c.id !== chatId);
+          onSelectChat(remainingChats[0]?.id || "new");
+        }
       }
     },
-    [deleteSession, selectedChatId, chats, onSelectChat]
+    [deleteSession, selectedChatId, chats, onSelectChat, router, windowObj, onClose]
   );
 
   return {
