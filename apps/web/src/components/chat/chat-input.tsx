@@ -7,7 +7,6 @@ import { forwardRef, memo, useImperativeHandle, useRef } from "react";
 import { FileAttachment } from "./file-attachment";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
-import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 import { type AttachedFileWithUrl } from "./utils/file-utils";
 
 interface ChatInputProps {
@@ -19,7 +18,6 @@ interface ChatInputProps {
   selectedModel: string;
   reasoningLevel: ReasoningLevel;
   searchEnabled: boolean;
-  showScrollToBottom: boolean;
   chatId: string;
   onSubmit: (e: React.FormEvent) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
@@ -28,7 +26,6 @@ interface ChatInputProps {
   onSearchToggle: (enabled: boolean) => void;
   onFileAttach: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveFile: (index: number) => void;
-  onScrollToBottom: () => void;
   onStop: () => void;
   onClearUiError: () => void;
   onPromptSelect?: (prompt: string) => void;
@@ -50,7 +47,6 @@ export const ChatInput = memo(
         selectedModel,
         reasoningLevel,
         searchEnabled,
-        showScrollToBottom,
         chatId,
         onSubmit,
         onKeyDown,
@@ -59,10 +55,8 @@ export const ChatInput = memo(
         onSearchToggle,
         onFileAttach,
         onRemoveFile,
-        onScrollToBottom,
         onStop,
         onClearUiError,
-        onPromptSelect,
       },
       ref
     ) => {
@@ -77,11 +71,6 @@ export const ChatInput = memo(
       return (
         <div className="px-4" suppressHydrationWarning>
           <div className="relative mx-auto max-w-3xl">
-            <ScrollToBottomButton
-              showScrollToBottom={showScrollToBottom}
-              onScrollToBottom={onScrollToBottom}
-            />
-
             {attachedFiles.length > 0 && (
               <div className="rounded-t-2xl border-l border-r border-t border-default-200 bg-content2 p-4">
                 <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />

@@ -7,7 +7,6 @@ import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
-import { useScrollManagement } from "@/hooks/use-scroll-management";
 import { useAuth } from "@/hooks/useAuth";
 import {
   createSession,
@@ -48,6 +47,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
   const router = useRouter();
+  const justSubmittedMessageId = useRef<string | null>(null);
 
   const {
     messages: queryMessages,
@@ -60,8 +60,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     return chatId !== "new" ? queryMessages : [];
   }, [chatId, queryMessages]);
 
-  const { messagesContainerRef, showScrollToBottom, isAtBottomRef, scrollToBottom, handleScroll } =
-    useScrollManagement();
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
     useChatHandlers(
@@ -137,6 +136,16 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           usage,
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Reset bottom padding to normal when AI finishes responding
+      if (messagesContainerRef.current) {
+        const messagesContainer = messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
+        if (messagesContainer) {
+          const messagesContainerElement = messagesContainer as HTMLElement;
+          const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
+          messagesContainerElement.style.paddingBottom = originalPadding;
+        }
       }
 
       // Handle the new comprehensive message_complete annotation
@@ -220,6 +229,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
     },
   });
+
+  const handleDismissUiError = useCallback(() => {
+    updateState({ uiError: null });
+  }, [updateState]);
 
   /**
    * Handles stopping the current streaming chat response.
@@ -326,23 +339,51 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     chatId: chatId !== "new" ? chatId : undefined,
   });
 
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      container.addEventListener("scroll", handleScroll, { passive: true });
-      return () => container.removeEventListener("scroll", handleScroll);
-    }
-  }, [messagesContainerRef, handleScroll]);
-
+  // Scroll user message to top when a new user message is added
   useLayoutEffect(() => {
-    if (messagesContainerRef.current) {
-      // If the user was at the bottom before the new message, scroll to the new bottom.
-      // Otherwise, do nothing, preserving their scroll position.
-      if (isAtBottomRef.current) {
-        scrollToBottom("instant");
-      }
+    if (!justSubmittedMessageId.current || messages.length === 0) return;
+
+    const messageElement = document.querySelector(
+      `[data-message-id="${justSubmittedMessageId.current}"]`
+    ) as HTMLElement;
+
+    const container = messagesContainerRef.current;
+    if (!messageElement || !container) {
+      justSubmittedMessageId.current = null;
+      return;
     }
-  }, [messages, messagesContainerRef, isAtBottomRef, scrollToBottom]);
+
+    const messagesContainer = container.querySelector(".mx-auto.max-w-3xl") as HTMLElement;
+    if (!messagesContainer) {
+      justSubmittedMessageId.current = null;
+      return;
+    }
+
+    // Calculate and apply padding synchronously
+    const containerHeight = container.clientHeight;
+    const neededPadding = Math.max(containerHeight - 100, 200);
+    messagesContainer.style.paddingBottom = `${neededPadding}px`;
+    messagesContainer.dataset.originalPadding = "2rem";
+
+    // Use requestAnimationFrame for smooth scroll after layout
+    requestAnimationFrame(() => {
+      const messageOffsetTop = messageElement.offsetTop;
+      const targetScrollTop = messageOffsetTop - 80;
+
+      container.scrollTo({
+        top: targetScrollTop,
+        behavior: "smooth",
+      });
+
+      console.log("Scrolled user message to top:", {
+        messageId: justSubmittedMessageId.current,
+        messageOffsetTop,
+        targetScrollTop,
+      });
+    });
+
+    justSubmittedMessageId.current = null;
+  }, [messages]);
 
   // Handle pending first message from sessionStorage for new sessions
   useEffect(() => {
@@ -565,10 +606,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }));
 
       const messageToAppend = {
+        id: uuidv4(),
         role: "user" as const,
         content: input.trim(),
         parts: [...textPart, ...fileParts] as Message["parts"],
       } as Message;
+
+      // Store the message ID for scroll tracking
+      justSubmittedMessageId.current = messageToAppend.id;
 
       const chatRequestOptions =
         attachments.length > 0
@@ -582,23 +627,16 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         return;
       }
 
+      // Set the message ID for height tracking
+      justSubmittedMessageId.current = messageToAppend.id;
+
       append(messageToAppend, chatRequestOptions);
-      // Force scroll to bottom after user submits a message
-      setTimeout(() => scrollToBottom("smooth"), 100);
+
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
     },
-    [
-      append,
-      state.attachedFiles,
-      input,
-      setInput,
-      updateState,
-      chatId,
-      handleCreateNewSession,
-      scrollToBottom,
-    ]
+    [append, state.attachedFiles, input, setInput, updateState, chatId, handleCreateNewSession]
   );
 
   const handleKeyDown = useCallback(
@@ -681,7 +719,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           messagesContainerRef={messagesContainerRef}
           error={error}
           uiError={state.uiError}
-          onDismissUiError={() => updateState({ uiError: null })}
+          onDismissUiError={handleDismissUiError}
           onRetry={handleRetryFailedRequest}
         />
       )}
@@ -697,7 +735,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           selectedModel={selectedModel}
           reasoningLevel={reasoningLevel}
           searchEnabled={searchEnabled}
-          showScrollToBottom={showScrollToBottom}
           chatId={chatId}
           onSubmit={handleFormSubmit}
           onKeyDown={handleKeyDown}
@@ -706,7 +743,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           onSearchToggle={setSearchEnabled}
           onFileAttach={handleFileAttach}
           onRemoveFile={handleRemoveFile}
-          onScrollToBottom={() => scrollToBottom("smooth")}
           onStop={handleStop}
           onClearUiError={() => updateState({ uiError: null })}
           onPromptSelect={handlePromptSelect}

@@ -2,7 +2,7 @@
 
 import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
-import { memo, useRef } from "react";
+import { memo } from "react";
 import { MessageBubble } from "..";
 import { ErrorDisplay } from "./error-display";
 
@@ -85,21 +85,24 @@ export const MessagesList = memo(
     onDismissUiError,
     onRetry,
   }: MessagesListProps) => {
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-
     return (
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-4">
+        <div
+          className="mx-auto max-w-3xl space-y-6 px-4 py-8"
+          style={{
+            paddingBottom: "2rem", // Space for the chat input and some buffer
+          }}
+        >
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
           ) : (
-            messages.map((message) => (
-              <div key={message.id} className="w-full max-w-full">
+            messages.map((message, index) => (
+              <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
                 <MessageBubble
                   message={message}
                   onRetry={onRetryMessage}
                   onBranch={onBranchChat}
-                  isLoading={isLoading}
+                  isLoading={isLoading && index === messages.length - 1}
                 />
               </div>
             ))
@@ -113,8 +116,6 @@ export const MessagesList = memo(
             onDismissUiError={onDismissUiError}
             onRetry={onRetry}
           />
-
-          <div ref={messagesEndRef} className="h-1" />
         </div>
       </div>
     );

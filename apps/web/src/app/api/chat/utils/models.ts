@@ -112,7 +112,7 @@ export const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean):
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
-    "Use markdown code blocks with language specifiers: ```python code ```",
+    "When providing code examples, use markdown code blocks with appropriate language specifiers: ```python code ```",
   ];
 
   return parts.filter(Boolean).join(" ");

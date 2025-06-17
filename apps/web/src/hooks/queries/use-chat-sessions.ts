@@ -51,13 +51,8 @@ export function useChatSessions(searchTerm = "") {
       return;
     }
 
-    if (searchTerm) {
-      invalidateSessions();
-      return;
-    }
-
-    queryClient.setQueryData(
-      chatSessionsKeys.byUser(targetUserId),
+    queryClient.setQueriesData(
+      { queryKey: chatSessionsKeys.byUser(targetUserId), exact: false },
       (oldData: ChatSession[] | undefined): ChatSession[] => {
         const sessionWithDate = {
           ...updatedSession,
@@ -72,13 +67,16 @@ export function useChatSessions(searchTerm = "") {
         let newData: ChatSession[];
 
         if (existingIndex !== -1) {
+          // Update existing session
           newData = oldData.map((session, index) =>
             index === existingIndex ? { ...session, ...sessionWithDate } : session
           );
         } else {
+          // Add new session
           newData = [sessionWithDate, ...oldData];
         }
 
+        // Sort by updated_at descending
         return newData.sort((a, b) => {
           const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
           const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
