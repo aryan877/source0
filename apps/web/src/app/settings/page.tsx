@@ -99,14 +99,14 @@ export default function SettingsPage() {
     if (selectedFiles.size === files.length) {
       setSelectedFiles(new Set());
     } else {
-      setSelectedFiles(new Set(files.map((f: { id: string }) => f.id)));
+      setSelectedFiles(new Set(files.map((f) => f.id)));
     }
   };
 
   const handleDeleteSelected = async () => {
-    const filesToDelete = files.filter((f: { id: string }) => selectedFiles.has(f.id));
-    const paths = filesToDelete.map((f: { path: string }) => f.path);
-    const ids = filesToDelete.map((f: { id: string }) => f.id);
+    const filesToDelete = files.filter((f) => selectedFiles.has(f.id));
+    const paths = filesToDelete.map((f) => f.path);
+    const ids = filesToDelete.map((f) => f.id);
 
     try {
       await deleteMultipleFiles(ids, paths);
@@ -409,7 +409,7 @@ export default function SettingsPage() {
                       {selectedFiles.size > 0 ? `${selectedFiles.size} selected` : "Select All"}
                     </span>
                   </div>
-                  {files.map((file: any) => (
+                  {files.map((file) => (
                     <div
                       key={file.id}
                       className={`rounded-xl border p-4 transition-colors ${
