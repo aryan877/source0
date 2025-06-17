@@ -11,7 +11,7 @@ export type DBChatMessage = Tables<"chat_messages">;
 
 // Specific type for the 'parts' JSONB column, for strong typing in app code
 export interface MessagePart {
-  type: "text" | "file" | "tool-invocation" | "tool-result";
+  type: "text" | "file" | "tool-invocation" | "tool-result" | "reasoning";
   text?: string;
   file?: {
     name: string;
@@ -22,6 +22,8 @@ export interface MessagePart {
   };
   toolInvocation?: Record<string, unknown>;
   toolResult?: Record<string, unknown>;
+  reasoning?: string;
+  details?: Array<{ type: "text"; text: string }>;
 }
 
 // App-level ChatMessage type with strongly-typed 'parts' and 'role'

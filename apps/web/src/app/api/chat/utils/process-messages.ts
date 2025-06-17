@@ -15,6 +15,7 @@ import {
 interface ClientAttachment extends Attachment {
   path?: string;
   size?: number;
+  filename?: string;
 }
 
 interface CustomFileUIPart {
@@ -25,8 +26,18 @@ interface CustomFileUIPart {
   path?: string;
 }
 
+interface CustomReasoningUIPart {
+  type: "reasoning";
+  reasoning: string;
+  details?: Array<{ type: "text"; text: string }>;
+}
+
 type UserContentPart = TextPart | ImagePart | FilePart;
-type AssistantContentPart = TextPart | FilePart | ToolCallPart; // Assistants might have other parts like tool calls
+type AssistantContentPart =
+  | TextPart
+  | FilePart
+  | ToolCallPart
+  | { type: "reasoning"; text: string };
 type ToolContentPart = ToolResultPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
@@ -160,7 +171,7 @@ async function processAssistantMessage(
   message: Message,
   modelConfig: ModelConfig
 ): Promise<CoreMessage[]> {
-  const assistantCoreParts: (TextPart | FilePart | ToolCallPart)[] = [];
+  const assistantCoreParts: AssistantContentPart[] = [];
   const toolCoreMessages: CoreMessage[] = [];
 
   const messageParts = message.parts ?? [];
@@ -236,6 +247,17 @@ async function processAssistantMessage(
           }
         }
         break;
+
+      case "reasoning": {
+        const reasoningPart = part as unknown as CustomReasoningUIPart;
+        if (reasoningPart.reasoning) {
+          assistantCoreParts.push({
+            type: "reasoning",
+            text: reasoningPart.reasoning,
+          });
+        }
+        break;
+      }
 
       default:
         // Other part types can be handled here if needed

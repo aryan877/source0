@@ -64,6 +64,13 @@ export function convertToAiMessages(dbMessages: ChatMessage[]): Message[] {
             toolInvocation: part.toolInvocation,
           };
         }
+        if (part.type === "reasoning" && part.reasoning) {
+          return {
+            type: "reasoning",
+            reasoning: part.reasoning,
+            details: part.details,
+          };
+        }
         return null;
       })
       .filter(Boolean);
@@ -396,6 +403,18 @@ export function convertPartsForDb(
           parts.push({
             type: "tool-invocation",
             toolInvocation: toolPart.toolInvocation,
+          });
+        }
+      } else if (part.type === "reasoning" && "reasoning" in part) {
+        const reasoningPart = part as unknown as {
+          reasoning: string;
+          details: Array<{ type: "text"; text: string }>;
+        };
+        if (!parts.some((p) => p.type === "reasoning" && p.reasoning === reasoningPart.reasoning)) {
+          parts.push({
+            type: "reasoning",
+            reasoning: reasoningPart.reasoning,
+            details: reasoningPart.details,
           });
         }
       }

@@ -186,7 +186,24 @@ export async function POST(req: Request): Promise<Response> {
             tools: getToolsForModel(searchEnabled, modelConfig),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onFinish: async ({ text, providerMetadata, finishReason, response }) => {
+            onFinish: async ({
+              text,
+              providerMetadata,
+              finishReason,
+              response,
+              reasoning,
+              reasoningDetails,
+              usage,
+            }) => {
+              console.log("onFinish", {
+                text,
+                providerMetadata,
+                finishReason,
+                response,
+                reasoning,
+                reasoningDetails,
+                usage,
+              });
               // Check if stream was cancelled before saving message
               try {
                 const streamStatus = await serverGetLatestStreamIdWithStatus(
@@ -203,10 +220,6 @@ export async function POST(req: Request): Promise<Response> {
               }
 
               const messageId = uuidv4();
-              console.log("finishReason", finishReason);
-              console.log(`Stream ${streamId} finished successfully`);
-
-              console.log("response.messages", JSON.stringify(response.messages, null, 2));
 
               // Process response.messages to construct proper assistant message format
               let messageSaved = false;
@@ -256,6 +269,18 @@ export async function POST(req: Request): Promise<Response> {
                             toolInvocation,
                           });
                           stepCount++;
+                        } else if (contentPart.type === "reasoning") {
+                          const { text } = contentPart;
+                          parts.push({
+                            type: "reasoning",
+                            reasoning: text,
+                            details: [
+                              {
+                                type: "text",
+                                text: String(text),
+                              },
+                            ],
+                          });
                         }
                       }
                     }
@@ -315,7 +340,6 @@ export async function POST(req: Request): Promise<Response> {
               // Handle title generation for first message
               let generatedTitle: string | null = null;
               if (isFirstMessage && userMessageToSave) {
-                console.log("Generating title for first message");
                 try {
                   const firstUserMessage =
                     typeof userMessageToSave.content === "string"
@@ -323,9 +347,6 @@ export async function POST(req: Request): Promise<Response> {
                       : userMessageToSave.parts?.find((p) => p.type === "text")?.text || "";
 
                   generatedTitle = await generateTitleOnly(firstUserMessage);
-                  console.log(
-                    `Title generated for session: ${finalSessionId} - "${generatedTitle}"`
-                  );
 
                   // Update the title in the database using server-side client
                   const { error: titleError } = await supabase
