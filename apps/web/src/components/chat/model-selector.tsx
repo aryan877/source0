@@ -7,23 +7,15 @@ import {
   type ModelCapability,
   type ModelConfig,
 } from "@/config/models";
+import { useModelFiltering } from "@/hooks/use-model-filtering";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
-import {
-  filterModelsByCapabilities,
-  filterModelsByProvider,
-  getAvailableCapabilities,
-  getAvailableProviders,
-} from "@/utils/favorites";
+import { getAvailableCapabilities, getAvailableProviders } from "@/utils/favorites";
 import {
   AdjustmentsHorizontalIcon,
   ArrowLeftIcon,
   ChevronDownIcon,
-  CpuChipIcon,
-  DocumentIcon,
-  EyeIcon,
   InformationCircleIcon,
   MagnifyingGlassIcon,
-  PhotoIcon,
   StarIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -43,6 +35,7 @@ import {
 } from "@heroui/react";
 import { Pin, PinOff } from "lucide-react";
 import React, { useCallback, useEffect, useMemo } from "react";
+import { CapabilityIcon } from "./capability-icons";
 import { ProviderIcon } from "./provider-section";
 
 interface ModelSelectorProps {
@@ -50,18 +43,6 @@ interface ModelSelectorProps {
   onValueChange?: (value: string) => void;
   chatId: string;
 }
-
-const CapabilityIcon = React.memo(({ capability }: { capability: ModelCapability }) => {
-  const iconMap = {
-    image: <EyeIcon className="h-4 w-4 text-blue-500" />,
-    pdf: <DocumentIcon className="h-4 w-4 text-red-500" />,
-    search: <MagnifyingGlassIcon className="h-4 w-4 text-green-500" />,
-    reasoning: <CpuChipIcon className="h-4 w-4 text-purple-500" />,
-    "image-generation": <PhotoIcon className="h-4 w-4 text-orange-500" />,
-  };
-  return iconMap[capability] || null;
-});
-CapabilityIcon.displayName = "CapabilityIcon";
 
 const ModelAvatar = React.memo(({ model }: { model: ModelConfig }) => {
   return (
@@ -264,43 +245,6 @@ const CompactFilters = ({
   );
 };
 
-// Model filtering hook
-function useModelFiltering(
-  searchQuery: string,
-  selectedCapabilities: ModelCapability[],
-  selectedProvider: ModelConfig["provider"] | null,
-  favorites: string[]
-) {
-  return useMemo(() => {
-    let models = [...MODELS];
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      models = models.filter((model) => {
-        const searchText = `${model.name} ${model.provider} ${model.description}`.toLowerCase();
-        return searchText.includes(query);
-      });
-    }
-
-    if (selectedCapabilities.length > 0) {
-      models = filterModelsByCapabilities(models, selectedCapabilities);
-    }
-
-    if (selectedProvider) {
-      models = filterModelsByProvider(models, selectedProvider);
-    }
-
-    return models.sort((a, b) => {
-      const aIsFav = favorites.includes(a.id);
-      const bIsFav = favorites.includes(b.id);
-
-      if (aIsFav && !bIsFav) return -1;
-      if (!aIsFav && bIsFav) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [searchQuery, selectedCapabilities, selectedProvider, favorites]);
-}
-
 export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorProps) => {
   const {
     isOpen,
@@ -310,6 +254,7 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
     selectedProvider,
     favorites,
     hasHydrated,
+    enabledModels,
     setIsOpen,
     setViewMode,
     setSearchQuery,
@@ -334,7 +279,13 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
   const currentSelectedModel = value ?? getSelectedModel(chatId);
   const selectedModel = getModelById(currentSelectedModel);
 
+  const availableModels = useMemo(
+    () => MODELS.filter((m) => enabledModels.includes(m.id)),
+    [enabledModels]
+  );
+
   const filteredModels = useModelFiltering(
+    availableModels,
     searchQuery,
     selectedCapabilities,
     selectedProvider,

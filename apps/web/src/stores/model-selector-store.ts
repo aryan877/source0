@@ -1,6 +1,7 @@
 import {
   DEFAULT_FAVORITES,
   DEFAULT_MODEL,
+  MODELS,
   type ModelCapability,
   type ModelConfig,
   type ReasoningLevel,
@@ -21,6 +22,9 @@ interface ModelSelectorState {
   // Favorites State
   favorites: string[];
 
+  // Enabled Models State
+  enabledModels: string[];
+
   // Selected Model State (per chat)
   selectedModels: Record<string, string>;
   selectedReasoningLevels: Record<string, ReasoningLevel>;
@@ -38,6 +42,7 @@ interface ModelSelectorState {
   setSelectedProvider: (provider: ModelConfig["provider"] | null) => void;
   setFavorites: (favorites: string[]) => void;
   toggleFavorite: (modelId: string) => void;
+  toggleModelEnabled: (modelId: string) => void;
   setSelectedModel: (chatId: string, modelId: string) => void;
   getSelectedModel: (chatId: string) => string;
   setSelectedReasoningLevel: (chatId: string, level: ReasoningLevel) => void;
@@ -61,6 +66,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedCapabilities: [],
       selectedProvider: null,
       favorites: [],
+      enabledModels: [],
       selectedModels: {},
       selectedReasoningLevels: {},
       selectedSearchEnabled: {},
@@ -101,6 +107,14 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           ? favorites.filter((id) => id !== modelId)
           : [...favorites, modelId];
         set({ favorites: newFavorites });
+      },
+
+      toggleModelEnabled: (modelId) => {
+        const { enabledModels } = get();
+        const newEnabledModels = enabledModels.includes(modelId)
+          ? enabledModels.filter((id) => id !== modelId)
+          : [...enabledModels, modelId];
+        set({ enabledModels: newEnabledModels });
       },
 
       setSelectedModel: (chatId, modelId) => {
@@ -209,14 +223,19 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       name: "model-selector-storage",
       partialize: (state) => ({
         favorites: state.favorites,
+        enabledModels: state.enabledModels,
         selectedModels: state.selectedModels,
         selectedReasoningLevels: state.selectedReasoningLevels,
         selectedSearchEnabled: state.selectedSearchEnabled,
       }), // Persist both favorites and selected models per chat
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
-        if (state && state.favorites.length === 0) {
+        if (state && (!state.favorites || state.favorites.length === 0)) {
           state.favorites = [...DEFAULT_FAVORITES];
+        }
+        // Initialize with all models enabled if none are set
+        if (state && (!state.enabledModels || state.enabledModels.length === 0)) {
+          state.enabledModels = MODELS.map((m) => m.id);
         }
         // Initialize selectedModels if it doesn't exist
         if (state && !state.selectedModels) {

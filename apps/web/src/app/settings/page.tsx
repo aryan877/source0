@@ -1,73 +1,35 @@
 "use client";
 
+import { CapabilityIcon } from "@/components/chat/capability-icons";
+import { ProviderIcon } from "@/components/chat/provider-section";
+import { CAPABILITY_LABELS, ModelCapability, MODELS, type ModelConfig } from "@/config/models";
+import { useModelFiltering } from "@/hooks/use-model-filtering";
+import { useUserFiles } from "@/hooks/use-user-files";
+import { useModelSelectorStore } from "@/stores/model-selector-store";
+import { getAvailableCapabilities, getAvailableProviders } from "@/utils/favorites";
+import { ArrowLeftIcon, ArrowPathIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/solid";
 import {
-  ArrowLeftIcon,
-  BoltIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  LockClosedIcon,
-  TrashIcon,
-} from "@heroicons/react/24/outline";
-import {
+  Alert,
   Button,
   Card,
   CardBody,
+  Checkbox,
   Chip,
   Divider,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
   Input,
+  Spinner,
   Switch,
   Tab,
   Tabs,
   Textarea,
 } from "@heroui/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-interface AttachedFile {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  chatTitle: string;
-  uploadDate: string;
-}
-
-const mockAttachments: AttachedFile[] = [
-  {
-    id: "1",
-    name: "design-mockup.png",
-    type: "image/png",
-    size: 2457600,
-    chatTitle: "UI Design Discussion",
-    uploadDate: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "requirements.pdf",
-    type: "application/pdf",
-    size: 1048576,
-    chatTitle: "Project Planning",
-    uploadDate: "2024-01-14",
-  },
-  {
-    id: "3",
-    name: "code-snippet.txt",
-    type: "text/plain",
-    size: 5120,
-    chatTitle: "React Best Practices",
-    uploadDate: "2024-01-13",
-  },
-];
-
-const models = [
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", isFree: true, enabled: true },
-  { id: "gpt-4.5", name: "GPT-4.5", isFree: false, enabled: true },
-  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", isFree: false, enabled: true },
-  { id: "claude-4-opus", name: "Claude 4 Opus", isFree: false, enabled: false },
-  { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", isFree: false, enabled: true },
-  { id: "deepseek-chat", name: "DeepSeek Chat", isFree: false, enabled: false },
-  { id: "deepseek-v2", name: "DeepSeek V2", isFree: false, enabled: true },
-];
+import { useMemo, useState } from "react";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -79,12 +41,35 @@ export default function SettingsPage() {
   const [showStats, setShowStats] = useState(false);
   const [hidePersonalInfo, setHidePersonalInfo] = useState(false);
   const [disableBreaks, setDisableBreaks] = useState(false);
-  const [attachments, setAttachments] = useState<AttachedFile[]>(mockAttachments);
-  const [apiKeys, setApiKeys] = useState<Record<string, { value: string; visible: boolean }>>({
-    "gpt-4.5": { value: "", visible: false },
-    "claude-4-opus": { value: "", visible: false },
-    "deepseek-chat": { value: "", visible: false },
-  });
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
+  // State for filtering models
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCapabilities, setSelectedCapabilities] = useState<ModelCapability[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<ModelConfig["provider"] | null>(null);
+  const { enabledModels, toggleModelEnabled } = useModelSelectorStore();
+
+  const filteredModels = useModelFiltering(
+    MODELS,
+    searchQuery,
+    selectedCapabilities,
+    selectedProvider
+  );
+
+  const availableCapabilities = useMemo(() => getAvailableCapabilities(MODELS), []);
+  const availableProviders = useMemo(() => getAvailableProviders(MODELS), []);
+
+  // Use the custom hook for file management
+  const {
+    files,
+    loading: loadingFiles,
+    error: filesError,
+    deleting,
+    deleteFile,
+    deleteMultipleFiles,
+    clearError,
+    refreshFiles,
+  } = useUserFiles();
 
   const handleBack = () => {
     router.push("/");
@@ -98,34 +83,53 @@ export default function SettingsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const toggleApiKeyVisibility = (modelId: string) => {
-    setApiKeys((prev) => ({
-      ...prev,
-      [modelId]: {
-        value: prev[modelId]?.value || "",
-        visible: !prev[modelId]?.visible,
-      },
-    }));
+  const handleToggleFileSelection = (fileId: string) => {
+    setSelectedFiles((prev) => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(fileId)) {
+        newSelection.delete(fileId);
+      } else {
+        newSelection.add(fileId);
+      }
+      return newSelection;
+    });
   };
 
-  const updateApiKey = (modelId: string, value: string) => {
-    setApiKeys((prev) => ({
-      ...prev,
-      [modelId]: {
-        value,
-        visible: prev[modelId]?.visible || false,
-      },
-    }));
+  const handleToggleSelectAll = () => {
+    if (selectedFiles.size === files.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(files.map((f: { id: string }) => f.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    const filesToDelete = files.filter((f: { id: string }) => selectedFiles.has(f.id));
+    const paths = filesToDelete.map((f: { path: string }) => f.path);
+    const ids = filesToDelete.map((f: { id: string }) => f.id);
+
+    try {
+      await deleteMultipleFiles(ids, paths);
+      setSelectedFiles(new Set());
+    } catch (error) {
+      // Error is already handled by the hook
+      console.error("Failed to delete selected files:", error);
+    }
+  };
+
+  const clearFilters = () => {
+    setSelectedCapabilities([]);
+    setSelectedProvider(null);
   };
 
   return (
-    <div className="bg-background flex h-full flex-col">
+    <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-divider bg-content1 flex items-center gap-4 border-b p-6">
+      <div className="flex items-center gap-4 border-b border-divider bg-content1 p-6">
         <Button variant="light" isIconOnly onPress={handleBack}>
           <ArrowLeftIcon className="h-5 w-5" />
         </Button>
-        <h1 className="text-foreground text-2xl font-bold">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
       </div>
 
       {/* Content */}
@@ -134,18 +138,24 @@ export default function SettingsPage() {
           <Tabs
             defaultSelectedKey="customization"
             className="w-full"
+            variant="underlined"
+            color="primary"
+            size="lg"
+            radius="lg"
             classNames={{
               base: "w-full",
-              tabList: "w-full",
-              panel: "pt-6",
-              tabContent: "group-data-[selected=true]:text-primary",
+              tabList: "gap-6 w-full relative rounded-none p-0 border-b border-divider",
+              cursor: "w-full bg-primary",
+              tab: "max-w-fit px-0 h-12",
+              tabContent: "group-data-[selected=true]:text-primary font-medium text-base",
+              panel: "pt-8",
             }}
           >
             <Tab key="customization" title="Customization">
-              <h3 className="text-foreground mb-6 text-xl font-bold">Personal Settings</h3>
+              <h3 className="mb-6 text-xl font-bold text-foreground">Personal Settings</h3>
               <div className="space-y-6">
                 <div>
-                  <label className="text-foreground mb-3 block text-sm font-semibold">
+                  <label className="mb-3 block text-sm font-semibold text-foreground">
                     Assistant Name
                   </label>
                   <Input
@@ -154,13 +164,13 @@ export default function SettingsPage() {
                     placeholder="What should this app call you?"
                     variant="bordered"
                   />
-                  <p className="text-default-600 mt-2 text-sm">
+                  <p className="mt-2 text-sm text-default-600">
                     This is how the assistant will address you in conversations.
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-foreground mb-3 block text-sm font-semibold">
+                  <label className="mb-3 block text-sm font-semibold text-foreground">
                     Your Traits & Preferences
                   </label>
                   <Textarea
@@ -170,16 +180,16 @@ export default function SettingsPage() {
                     minRows={4}
                     variant="bordered"
                   />
-                  <p className="text-default-600 mt-2 text-sm">
+                  <p className="mt-2 text-sm text-default-600">
                     Help the AI understand how to communicate with you effectively.
                   </p>
                 </div>
               </div>
 
-              <h3 className="text-foreground mb-6 mt-12 text-xl font-bold">Appearance</h3>
+              <h3 className="mb-6 mt-12 text-xl font-bold text-foreground">Appearance</h3>
               <div className="space-y-6">
                 <div>
-                  <label className="text-foreground mb-4 block text-sm font-semibold">Theme</label>
+                  <label className="mb-4 block text-sm font-semibold text-foreground">Theme</label>
                   <div className="flex gap-3">
                     {["light", "dark", "system"].map((themeOption) => (
                       <Button
@@ -195,10 +205,10 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="border-divider flex items-center justify-between rounded-xl border p-4">
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
                   <div>
-                    <label className="text-foreground text-sm font-semibold">Advanced Stats</label>
-                    <p className="text-default-600 mt-1 text-sm">
+                    <label className="text-sm font-semibold text-foreground">Advanced Stats</label>
+                    <p className="mt-1 text-sm text-default-600">
                       Show tokens per second, latency, and other metrics
                     </p>
                   </div>
@@ -209,99 +219,223 @@ export default function SettingsPage() {
 
             <Tab key="models" title="Models">
               <div>
-                <h3 className="text-foreground mb-2 text-xl font-bold">Available Models</h3>
-                <p className="text-default-600 mb-6 text-sm">
-                  Enable or disable specific models and configure API keys
+                <h3 className="mb-2 text-xl font-bold text-foreground">Manage Models</h3>
+                <p className="mb-4 text-sm text-default-600">
+                  Enabled models will appear in the model selector during a chat.
                 </p>
+                <Input
+                  placeholder="Search models by name, provider, or description..."
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                  startContent={<MagnifyingGlassIcon className="h-5 w-5" />}
+                  isClearable
+                  onClear={() => setSearchQuery("")}
+                  className="mb-6"
+                />
+                <div className="mb-6 flex flex-wrap items-center gap-3">
+                  <Dropdown closeOnSelect={false}>
+                    <DropdownTrigger>
+                      <Button
+                        variant="flat"
+                        endContent={<ChevronDownIcon className="h-4 w-4" />}
+                        size="sm"
+                      >
+                        Capabilities
+                        {selectedCapabilities.length > 0 && ` (${selectedCapabilities.length})`}
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                      selectionMode="multiple"
+                      selectedKeys={selectedCapabilities}
+                      onSelectionChange={(keys) =>
+                        setSelectedCapabilities(Array.from(keys) as ModelCapability[])
+                      }
+                      closeOnSelect={false}
+                    >
+                      {availableCapabilities.map((capability) => (
+                        <DropdownItem key={capability} textValue={CAPABILITY_LABELS[capability]}>
+                          <div className="flex items-center gap-2">
+                            <CapabilityIcon capability={capability} />
+                            {CAPABILITY_LABELS[capability]}
+                          </div>
+                        </DropdownItem>
+                      ))}
+                    </DropdownMenu>
+                  </Dropdown>
+
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button
+                        variant="flat"
+                        endContent={<ChevronDownIcon className="h-4 w-4" />}
+                        size="sm"
+                      >
+                        {selectedProvider || "Provider"}
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                      selectionMode="single"
+                      selectedKeys={selectedProvider ? [selectedProvider] : []}
+                      onSelectionChange={(keys) =>
+                        setSelectedProvider(Array.from(keys)[0] as ModelConfig["provider"] | null)
+                      }
+                    >
+                      {availableProviders.map((provider) => (
+                        <DropdownItem key={provider}>{provider}</DropdownItem>
+                      ))}
+                    </DropdownMenu>
+                  </Dropdown>
+
+                  {(selectedCapabilities.length > 0 || selectedProvider) && (
+                    <Button variant="light" color="danger" size="sm" onPress={clearFilters}>
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-4">
-                {models.map((model) => (
-                  <Card key={model.id} className="border-divider border">
-                    <CardBody className="p-6">
-                      <div className="mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-content2 rounded-xl p-3">
-                            {model.isFree ? (
-                              <BoltIcon className="text-success h-6 w-6" />
-                            ) : (
-                              <LockClosedIcon className="text-default-400 h-6 w-6" />
+                {filteredModels.map((model: ModelConfig) => (
+                  <Card key={model.id} className="border border-divider">
+                    <CardBody className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-1 items-start gap-4">
+                          <div className="mt-1 flex-shrink-0">
+                            <ProviderIcon provider={model.provider} />
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="font-semibold text-foreground">{model.name}</span>
+                            <span className="text-sm text-default-500">{model.description}</span>
+                            {model.capabilities.length > 0 && (
+                              <div className="mt-2 flex flex-wrap items-center gap-3">
+                                {model.capabilities.map((capability) => (
+                                  <Chip
+                                    key={capability}
+                                    size="sm"
+                                    variant="flat"
+                                    startContent={<CapabilityIcon capability={capability} />}
+                                    classNames={{ content: "text-xs" }}
+                                  >
+                                    {CAPABILITY_LABELS[capability]}
+                                  </Chip>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-foreground font-semibold">{model.name}</span>
-                              {model.isFree && (
-                                <Chip color="success" variant="flat" size="sm">
-                                  Free
-                                </Chip>
-                              )}
-                            </div>
-                          </div>
                         </div>
-                        <Switch isSelected={model.enabled} />
+                        <div className="ml-4 flex-shrink-0">
+                          <Switch
+                            isSelected={enabledModels.includes(model.id)}
+                            onValueChange={() => toggleModelEnabled(model.id)}
+                            aria-label={`Enable or disable ${model.name}`}
+                          />
+                        </div>
                       </div>
-
-                      {!model.isFree && (
-                        <div className="space-y-3">
-                          <label className="text-foreground text-sm font-semibold">API Key</label>
-                          <div className="flex gap-3">
-                            <Input
-                              type={apiKeys[model.id]?.visible ? "text" : "password"}
-                              value={apiKeys[model.id]?.value || ""}
-                              onChange={(e) => updateApiKey(model.id, e.target.value)}
-                              placeholder="Enter API key..."
-                              className="flex-1"
-                              variant="bordered"
-                            />
-                            <Button
-                              variant="bordered"
-                              isIconOnly
-                              onPress={() => toggleApiKeyVisibility(model.id)}
-                            >
-                              {apiKeys[model.id]?.visible ? (
-                                <EyeSlashIcon className="h-5 w-5" />
-                              ) : (
-                                <EyeIcon className="h-5 w-5" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
                     </CardBody>
                   </Card>
                 ))}
+                {filteredModels.length === 0 && (
+                  <div className="py-16 text-center">
+                    <p className="font-medium text-default-500">
+                      No models match your search or filters.
+                    </p>
+                  </div>
+                )}
               </div>
             </Tab>
 
             <Tab key="attachments" title="Attachments">
               <div>
-                <h3 className="text-foreground mb-2 text-xl font-bold">Uploaded Attachments</h3>
-                <p className="text-default-600 mb-6 text-sm">
+                <h3 className="mb-2 text-xl font-bold text-foreground">Uploaded Attachments</h3>
+                <p className="mb-6 text-sm text-default-600">
                   Manage all files you&apos;ve uploaded across chats
                 </p>
               </div>
-              {attachments.length === 0 ? (
+
+              {filesError && (
+                <Alert color="danger" className="mb-6">
+                  <div className="flex items-center justify-between">
+                    <span>{filesError}</span>
+                    <Button variant="light" color="danger" size="sm" onPress={clearError}>
+                      Dismiss
+                    </Button>
+                  </div>
+                </Alert>
+              )}
+
+              {selectedFiles.size > 0 && (
+                <div className="mb-4 flex items-center justify-between rounded-lg border border-divider bg-content2 p-4">
+                  <span className="text-sm font-medium text-foreground">
+                    {selectedFiles.size} file(s) selected
+                  </span>
+                  <Button
+                    color="danger"
+                    variant="flat"
+                    size="sm"
+                    startContent={<TrashIcon className="h-4 w-4" />}
+                    onPress={handleDeleteSelected}
+                  >
+                    Delete Selected
+                  </Button>
+                </div>
+              )}
+
+              {loadingFiles ? (
+                <div className="flex justify-center py-16">
+                  <Spinner label="Loading attachments..." />
+                </div>
+              ) : files.length === 0 ? (
                 <div className="py-16 text-center">
                   <div className="mb-4 text-6xl">📎</div>
-                  <p className="text-default-500 font-medium">No attachments found</p>
+                  <p className="font-medium text-default-500">No attachments found</p>
+                  <Button
+                    variant="light"
+                    color="primary"
+                    onPress={refreshFiles}
+                    startContent={<ArrowPathIcon className="h-4 w-4" />}
+                    className="mt-4"
+                  >
+                    Refresh
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {attachments.map((file, index) => (
-                    <div key={file.id}>
-                      <div className="bg-content1 border-divider flex items-center justify-between rounded-xl border p-4">
+                  <div className="flex items-center border-b border-divider pb-2">
+                    <Checkbox
+                      isSelected={selectedFiles.size > 0 && selectedFiles.size === files.length}
+                      isIndeterminate={selectedFiles.size > 0 && selectedFiles.size < files.length}
+                      onValueChange={handleToggleSelectAll}
+                    />
+                    <span className="ml-4 text-sm font-semibold text-foreground">
+                      {selectedFiles.size > 0 ? `${selectedFiles.size} selected` : "Select All"}
+                    </span>
+                  </div>
+                  {files.map((file: any) => (
+                    <div
+                      key={file.id}
+                      className={`rounded-xl border p-4 transition-colors ${
+                        selectedFiles.has(file.id)
+                          ? "border-primary bg-primary/10"
+                          : "border-divider bg-content1"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="bg-content2 flex h-12 w-12 items-center justify-center rounded-xl text-xl">
-                            {file.type.startsWith("image/") ? "🖼️" : "📄"}
+                          <Checkbox
+                            isSelected={selectedFiles.has(file.id)}
+                            onValueChange={() => handleToggleFileSelection(file.id)}
+                          />
+
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-content2 text-xl">
+                            {file.contentType.startsWith("image/") ? "🖼️" : "📄"}
                           </div>
                           <div>
-                            <p className="text-foreground font-semibold">{file.name}</p>
-                            <div className="text-default-600 flex items-center gap-2 text-sm">
+                            <p className="font-semibold text-foreground">{file.name}</p>
+                            <div className="flex items-center gap-2 text-sm text-default-600">
                               <span className="font-medium">{formatFileSize(file.size)}</span>
                               <span>•</span>
-                              <span>{file.chatTitle}</span>
+                              <span>{file.chatFolder}</span>
                               <span>•</span>
-                              <span>{file.uploadDate}</span>
+                              <span>{new Date(file.uploadDate).toLocaleDateString()}</span>
                             </div>
                           </div>
                         </div>
@@ -309,14 +443,17 @@ export default function SettingsPage() {
                           variant="light"
                           isIconOnly
                           color="danger"
-                          onPress={() =>
-                            setAttachments((prev) => prev.filter((a) => a.id !== file.id))
-                          }
+                          onPress={() => deleteFile(file.id, file.path)}
+                          isLoading={deleting.has(file.id)}
+                          isDisabled={deleting.has(file.id)}
                         >
-                          <TrashIcon className="h-5 w-5" />
+                          {deleting.has(file.id) ? (
+                            <Spinner size="sm" color="danger" />
+                          ) : (
+                            <TrashIcon className="h-5 w-5" />
+                          )}
                         </Button>
                       </div>
-                      {index < attachments.length - 1 && <Divider className="my-2" />}
                     </div>
                   ))}
                 </div>
@@ -325,16 +462,16 @@ export default function SettingsPage() {
 
             <Tab key="general" title="General">
               <div>
-                <h3 className="text-foreground mb-2 text-xl font-bold">Interface Options</h3>
-                <p className="text-default-600 mb-6 text-sm">Customize how the interface behaves</p>
+                <h3 className="mb-2 text-xl font-bold text-foreground">Interface Options</h3>
+                <p className="mb-6 text-sm text-default-600">Customize how the interface behaves</p>
               </div>
               <div className="space-y-6">
-                <div className="border-divider flex items-center justify-between rounded-xl border p-4">
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
                   <div>
-                    <label className="text-foreground text-sm font-semibold">
+                    <label className="text-sm font-semibold text-foreground">
                       Hide Personal Information
                     </label>
-                    <p className="text-default-600 mt-1 text-sm">
+                    <p className="mt-1 text-sm text-default-600">
                       Hide name and email from the interface
                     </p>
                   </div>
@@ -343,12 +480,12 @@ export default function SettingsPage() {
 
                 <Divider />
 
-                <div className="border-divider flex items-center justify-between rounded-xl border p-4">
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
                   <div>
-                    <label className="text-foreground text-sm font-semibold">
+                    <label className="text-sm font-semibold text-foreground">
                       Disable Horizontal Breaks
                     </label>
-                    <p className="text-default-600 mt-1 text-sm">
+                    <p className="mt-1 text-sm text-default-600">
                       Remove separator lines between messages
                     </p>
                   </div>

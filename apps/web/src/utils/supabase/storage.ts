@@ -276,6 +276,144 @@ export async function createSignedUrl(
 }
 
 /**
+ * List all files for the current user by scanning through chat folders.
+ */
+export async function listUserFiles(): Promise<{
+  files: Array<{
+    id: string;
+    name: string;
+    size: number;
+    contentType: string;
+    url: string;
+    path: string;
+    uploadDate: string;
+    chatFolder: string;
+  }>;
+  error?: string;
+}> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { files: [], error: "User must be authenticated to list files" };
+    }
+
+    // First, get all top-level folders (e.g., "chat-uuid", "chat-temp-timestamp")
+    const { data: topLevelFolders, error: foldersError } = await supabase.storage
+      .from(CHAT_ATTACHMENTS_BUCKET)
+      .list("", { limit: 1000 });
+
+    if (foldersError) {
+      console.error("Error listing top-level storage folders:", foldersError);
+      return { files: [], error: "Failed to list storage folders." };
+    }
+
+    const allFilesPromises = topLevelFolders.map(async (folder) => {
+      if (!folder.name) return [];
+
+      const userFolderPath = `${folder.name}/${user.id}`;
+
+      // For each top-level folder, check for files in the user's specific subfolder
+      const { data: filesInFolder, error: filesError } = await supabase.storage
+        .from(CHAT_ATTACHMENTS_BUCKET)
+        .list(userFolderPath, { limit: 1000 });
+
+      // It's expected that this might fail if the folder doesn't belong to the user.
+      // We can safely ignore "Not Found" errors and continue.
+      if (filesError) {
+        if (!filesError.message.includes("The resource was not found")) {
+          console.warn(`Could not list files in ${userFolderPath}:`, filesError.message);
+        }
+        return [];
+      }
+
+      // If we found files, process them
+      return filesInFolder
+        .filter((file) => file.name && file.name !== ".emptyFolderPlaceholder")
+        .map((file) => {
+          const filePath = `${userFolderPath}/${file.name}`;
+          const { data: publicUrlData } = supabase.storage
+            .from(CHAT_ATTACHMENTS_BUCKET)
+            .getPublicUrl(filePath);
+
+          // Create a user-friendly identifier for the chat folder
+          let chatIdentifier = "Unknown Chat";
+          if (folder.name.startsWith("chat-temp-")) {
+            chatIdentifier = "Temporary Upload";
+          } else if (folder.name.startsWith("chat-")) {
+            const chatId = folder.name.substring(5); // "chat-".length
+            chatIdentifier = `Chat (${chatId.substring(0, 4)}...)`;
+          }
+
+          return {
+            id: file.id || filePath,
+            name: file.name,
+            size: file.metadata?.size || 0,
+            contentType: file.metadata?.mimetype || "application/octet-stream",
+            url: publicUrlData.publicUrl,
+            path: filePath,
+            uploadDate: file.created_at || new Date().toISOString(),
+            chatFolder: chatIdentifier,
+          };
+        });
+    });
+
+    const nestedFiles = await Promise.all(allFilesPromises);
+    const allUserFiles = nestedFiles.flat();
+
+    // Sort all files by date before returning
+    allUserFiles.sort(
+      (a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+    );
+
+    return { files: allUserFiles };
+  } catch (error) {
+    console.error("Critical error in listUserFiles:", error);
+    return {
+      files: [],
+      error: error instanceof Error ? error.message : "An unknown error occurred",
+    };
+  }
+}
+
+/**
+ * Delete multiple files from storage
+ */
+export async function deleteFiles(filePaths: string[]): Promise<{
+  success: boolean;
+  deletedCount: number;
+  errors: string[];
+}> {
+  try {
+    const { error } = await supabase.storage.from(CHAT_ATTACHMENTS_BUCKET).remove(filePaths);
+
+    if (error) {
+      console.error("Delete files error:", error);
+      return {
+        success: false,
+        deletedCount: 0,
+        errors: [error.message],
+      };
+    }
+
+    return {
+      success: true,
+      deletedCount: filePaths.length,
+      errors: [],
+    };
+  } catch (error) {
+    console.error("Delete files error:", error);
+    return {
+      success: false,
+      deletedCount: 0,
+      errors: [error instanceof Error ? error.message : "Unknown error"],
+    };
+  }
+}
+
+/**
  * Check if storage bucket exists.
  * The bucket is created via migrations (see supabase/migrations).
  */
