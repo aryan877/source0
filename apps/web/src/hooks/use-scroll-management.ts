@@ -1,42 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export const useScrollManagement = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const isAtBottomRef = useRef(true);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const threshold = 200;
-    const isScrolledUp =
-      container.scrollHeight - container.scrollTop - container.clientHeight > threshold;
-    setShowScrollToBottom(isScrolledUp);
+    const threshold = 50; // A small threshold for being "at the bottom"
+    const isAtBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+
+    isAtBottomRef.current = isAtBottom;
+
+    // Show the button only if the user has scrolled up a fair amount
+    const hasScrolledUp =
+      container.scrollHeight - container.scrollTop - container.clientHeight > 200;
+    setShowScrollToBottom(hasScrolledUp);
   }, []);
 
-  useEffect(() => {
+  const scrollToBottom = useCallback((behavior: "smooth" | "instant" = "smooth") => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
-
-  const scrollToBottom = useCallback(() => {
-    const element = messagesEndRef.current;
-    if (!element) return;
-
-    element.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
     });
   }, []);
 
   return {
     messagesContainerRef,
-    messagesEndRef,
     showScrollToBottom,
+    isAtBottomRef,
     scrollToBottom,
+    handleScroll,
   };
 };

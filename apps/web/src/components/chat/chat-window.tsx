@@ -20,7 +20,7 @@ import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
@@ -47,7 +47,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     return chatId !== "new" ? queryMessages : [];
   }, [chatId, queryMessages]);
 
-  const { messagesContainerRef, messagesEndRef, showScrollToBottom, scrollToBottom } =
+  const { messagesContainerRef, showScrollToBottom, isAtBottomRef, scrollToBottom, handleScroll } =
     useScrollManagement();
 
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
@@ -314,11 +314,22 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
   });
 
   useEffect(() => {
-    if (chatId !== "new" && !isLoadingMessages) {
-      // Small delay to allow messages to render before scrolling
-      setTimeout(() => scrollToBottom(), 100);
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleScroll, { passive: true });
+      return () => container.removeEventListener("scroll", handleScroll);
     }
-  }, [chatId, isLoadingMessages, scrollToBottom]);
+  }, [messagesContainerRef, handleScroll]);
+
+  useLayoutEffect(() => {
+    if (messagesContainerRef.current) {
+      // If the user was at the bottom before the new message, scroll to the new bottom.
+      // Otherwise, do nothing, preserving their scroll position.
+      if (isAtBottomRef.current) {
+        scrollToBottom("instant");
+      }
+    }
+  }, [messages, messagesContainerRef, isAtBottomRef, scrollToBottom]);
 
   // Handle pending first message from sessionStorage for new sessions
   useEffect(() => {
@@ -443,10 +454,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
-  useEffect(() => {
-    updateState({ showScrollToBottom });
-  }, [showScrollToBottom, updateState]);
-
   /**
    * Creates a new chat session and handles the first message.
    *
@@ -486,7 +493,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         updateSessionInCache(newSession, user.id);
         transferModelSelection("new", newSession.id);
         router.push(`/chat/${newSession.id}`);
-        setTimeout(() => scrollToBottom(), 100);
       } catch (error) {
         console.error("Failed to create new session:", error);
         updateState({ uiError: "Failed to create new chat. Please try again." });
@@ -501,7 +507,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       updateSessionInCache,
       transferModelSelection,
       router,
-      scrollToBottom,
     ]
   );
 
@@ -565,7 +570,8 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       }
 
       append(messageToAppend, chatRequestOptions);
-      setTimeout(() => scrollToBottom(), 100);
+      // Force scroll to bottom after user submits a message
+      setTimeout(() => scrollToBottom("smooth"), 100);
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
@@ -609,7 +615,6 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         onBranchChat={handleBranchChat}
         onRetryMessage={handleRetryMessage}
         messagesContainerRef={messagesContainerRef}
-        messagesEndRef={messagesEndRef}
         error={error}
         uiError={state.uiError}
         onDismissUiError={() => updateState({ uiError: null })}
@@ -625,7 +630,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         selectedModel={selectedModel}
         reasoningLevel={reasoningLevel}
         searchEnabled={state.searchEnabled}
-        showScrollToBottom={state.showScrollToBottom}
+        showScrollToBottom={showScrollToBottom}
         chatId={chatId}
         onSubmit={handleFormSubmit}
         onKeyDown={handleKeyDown}
@@ -634,7 +639,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         onSearchToggle={(enabled) => updateState({ searchEnabled: enabled })}
         onFileAttach={handleFileAttach}
         onRemoveFile={handleRemoveFile}
-        onScrollToBottom={scrollToBottom}
+        onScrollToBottom={() => scrollToBottom("smooth")}
         onStop={handleStop}
         onClearUiError={() => updateState({ uiError: null })}
         ref={chatInputRef}

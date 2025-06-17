@@ -2,7 +2,7 @@
 
 import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { MessageBubble } from "..";
 import { ErrorDisplay } from "./error-display";
 
@@ -65,7 +65,6 @@ interface MessagesListProps {
   onBranchChat: (messageId: string) => void;
   onRetryMessage: (messageId: string) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   error?: Error;
   uiError?: string | null;
   onDismissUiError: () => void;
@@ -81,42 +80,45 @@ export const MessagesList = memo(
     onBranchChat,
     onRetryMessage,
     messagesContainerRef,
-    messagesEndRef,
     error,
     uiError,
     onDismissUiError,
     onRetry,
-  }: MessagesListProps) => (
-    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-4">
-        {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
-          <LoadingMessages />
-        ) : (
-          messages.map((message) => (
-            <div key={message.id} className="w-full max-w-full">
-              <MessageBubble
-                message={message}
-                onRetry={onRetryMessage}
-                onBranch={onBranchChat}
-                isLoading={isLoading}
-              />
-            </div>
-          ))
-        )}
+  }: MessagesListProps) => {
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-        {isLoading && <StreamingIndicator />}
+    return (
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-4">
+          {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
+            <LoadingMessages />
+          ) : (
+            messages.map((message) => (
+              <div key={message.id} className="w-full max-w-full">
+                <MessageBubble
+                  message={message}
+                  onRetry={onRetryMessage}
+                  onBranch={onBranchChat}
+                  isLoading={isLoading}
+                />
+              </div>
+            ))
+          )}
 
-        <ErrorDisplay
-          error={error}
-          uiError={uiError}
-          onDismissUiError={onDismissUiError}
-          onRetry={onRetry}
-        />
+          {isLoading && <StreamingIndicator />}
 
-        <div ref={messagesEndRef} className="h-1" />
+          <ErrorDisplay
+            error={error}
+            uiError={uiError}
+            onDismissUiError={onDismissUiError}
+            onRetry={onRetry}
+          />
+
+          <div ref={messagesEndRef} className="h-1" />
+        </div>
       </div>
-    </div>
-  )
+    );
+  }
 );
 
 MessagesList.displayName = "MessagesList";
