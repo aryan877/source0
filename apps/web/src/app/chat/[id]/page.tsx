@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
 export default async function ChatPage({ params }: ChatPageProps) {
   const { id } = await params;
 
-  return <ChatWindow chatId={id} />;
+  return <ChatWindow key={id} chatId={id} />;
 }

@@ -38,6 +38,7 @@ const STREAMING_SCROLL_DEBOUNCE = 100; // ms, for scroll debounce during streami
 interface ChatWindowProps {
   chatId: string;
   isSharedView?: boolean;
+  key?: string;
 }
 
 const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {

@@ -7,34 +7,17 @@ import React, { memo, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import type { PluggableList } from "unified";
 import { CodeBlock } from "./code-block";
 
 interface MessageContentProps {
   content: string;
   citations?: TavilySearchResult[];
 }
-
-/**
- * Extract text content from React children safely
- */
-const extractTextContent = (node: React.ReactNode): string => {
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(extractTextContent).join("");
-  if (
-    React.isValidElement(node) &&
-    node.props &&
-    typeof node.props === "object" &&
-    "children" in node.props
-  ) {
-    return extractTextContent((node.props as { children: React.ReactNode }).children);
-  }
-  return "";
-};
 
 /**
  * Citation component using HeroUI
@@ -88,178 +71,203 @@ const CitationPill = memo(
 CitationPill.displayName = "CitationPill";
 
 /**
- * Custom component to handle citations within markdown
+ * A recursive renderer that processes citations in text nodes while preserving nested React components.
  */
-const CitationRenderer = memo(
+const RecursiveCitationRenderer = memo(
   ({ children, citations }: { children: React.ReactNode; citations?: TavilySearchResult[] }) => {
     if (!citations || citations.length === 0) {
       return <>{children}</>;
     }
 
-    // Extract text content safely from React children
-    const textContent = extractTextContent(children);
-
-    // If it's not a string or is empty, return as-is
-    if (typeof textContent !== "string" || !textContent.trim()) {
-      return <>{children}</>;
-    }
-
-    // Parse citations in the text and replace with components
     const citationRegex = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
 
-    while ((match = citationRegex.exec(textContent)) !== null) {
-      // Add text before citation
-      if (match.index > lastIndex) {
-        parts.push(textContent.slice(lastIndex, match.index));
+    const isCodeContext = (node: React.ReactNode): boolean => {
+      if (React.isValidElement(node)) {
+        const element = node as React.ReactElement<{
+          className?: string;
+          children?: React.ReactNode;
+        }>;
+        // Check if this is a code element or has code-related classes
+        const isCode =
+          element.type === "code" ||
+          element.type === "pre" ||
+          (typeof element.props.className === "string" &&
+            element.props.className.includes("language-"));
+
+        return isCode;
+      }
+      return false;
+    };
+
+    const processNode = (
+      node: React.ReactNode,
+      skipCitations = false,
+      depth = 0
+    ): React.ReactNode => {
+      if (typeof node === "string") {
+        // Skip citation processing if we're in a code context
+        if (skipCitations) {
+          return node;
+        }
+
+        if (!citationRegex.test(node)) {
+          return node;
+        }
+        const parts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
+        citationRegex.lastIndex = 0;
+
+        while ((match = citationRegex.exec(node)) !== null) {
+          if (match.index > lastIndex) {
+            parts.push(node.slice(lastIndex, match.index));
+          }
+
+          const citationNumbers = match[1];
+          if (!citationNumbers) {
+            parts.push(match[0]);
+            lastIndex = match.index + match[0].length;
+            continue;
+          }
+
+          const numbers = citationNumbers
+            .split(",")
+            .map((n: string) => parseInt(n.trim(), 10))
+            .filter((n: number) => !isNaN(n) && n > 0 && n <= citations.length);
+
+          if (numbers.length > 0) {
+            parts.push(
+              <span
+                key={`${match.index}-${numbers.join()}`}
+                className="inline-flex items-center gap-1"
+              >
+                {numbers.map((num) => {
+                  const citation = citations[num - 1];
+                  if (!citation) return null;
+                  return <CitationPill key={num} number={num} citation={citation} />;
+                })}
+              </span>
+            );
+          } else {
+            parts.push(match[0]);
+          }
+
+          lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < node.length) {
+          parts.push(node.slice(lastIndex));
+        }
+
+        return parts;
       }
 
-      // Parse citation numbers
-      const citationNumbers = match[1];
-      if (!citationNumbers) continue;
-
-      const numbers = citationNumbers
-        .split(",")
-        .map((n: string) => parseInt(n.trim(), 10))
-        .filter((n: number) => !isNaN(n) && n > 0 && n <= citations.length);
-
-      if (numbers.length > 0) {
-        // Add citation pills
-        parts.push(
-          <span key={match.index} className="inline-flex items-center gap-1">
-            {numbers.map((num) => {
-              const citation = citations[num - 1];
-              if (!citation) return null;
-              return <CitationPill key={num} number={num} citation={citation} />;
-            })}
-          </span>
-        );
-      } else {
-        // If citation numbers are invalid, keep original text
-        parts.push(match[0]);
+      if (Array.isArray(node)) {
+        return node.map((child, i) => (
+          <React.Fragment key={i}>{processNode(child, skipCitations, depth + 1)}</React.Fragment>
+        ));
       }
 
-      lastIndex = match.index + match[0].length;
-    }
+      if (React.isValidElement(node)) {
+        const element = node as React.ReactElement<{
+          children?: React.ReactNode;
+          className?: string;
+        }>;
 
-    // Add remaining text
-    if (lastIndex < textContent.length) {
-      parts.push(textContent.slice(lastIndex));
-    }
+        const isCodeElement = ["a", "pre", "code"].includes(element.type as string);
+        const isCodeCtx = isCodeContext(element);
 
-    return <>{parts}</>;
+        // Skip processing for code-related elements completely
+        if (isCodeElement || isCodeCtx) {
+          return element;
+        }
+
+        // Only process if the element has children
+        if (element.props.children !== undefined) {
+          return React.cloneElement(element, {
+            ...element.props,
+            children: processNode(element.props.children, skipCitations, depth + 1),
+          });
+        }
+      }
+
+      return node;
+    };
+
+    const result = processNode(children);
+    return <>{result}</>;
   }
 );
 
-CitationRenderer.displayName = "CitationRenderer";
+RecursiveCitationRenderer.displayName = "RecursiveCitationRenderer";
+
+const remarkPlugins = [remarkGfm, remarkMath, remarkBreaks];
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.code || []), ["className", /^language-./]],
+    span: [
+      ...(defaultSchema.attributes?.span || []),
+      ["className", /^(hljs-|shiki|line)/],
+      "style",
+    ],
+    div: [...(defaultSchema.attributes?.div || []), "className"],
+    pre: [...(defaultSchema.attributes?.pre || []), "className"],
+  },
+};
+
+const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   const components: Components = useMemo(
     () => ({
-      // Handle text-containing elements with citation processing
-      p: ({ children }) => (
-        <p>
-          <CitationRenderer citations={citations}>{children}</CitationRenderer>
-        </p>
-      ),
-      li: ({ children }) => (
-        <li>
-          <CitationRenderer citations={citations}>{children}</CitationRenderer>
-        </li>
-      ),
-      span: ({ children }) => (
-        <span>
-          <CitationRenderer citations={citations}>{children}</CitationRenderer>
-        </span>
-      ),
-      strong: ({ children }) => (
-        <strong>
-          <CitationRenderer citations={citations}>{children}</CitationRenderer>
-        </strong>
-      ),
-      em: ({ children }) => (
-        <em>
-          <CitationRenderer citations={citations}>{children}</CitationRenderer>
-        </em>
-      ),
-      // Code block handling
+      p: ({ children }) => {
+        return (
+          <p>
+            <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
+          </p>
+        );
+      },
+      li: ({ children }) => {
+        return (
+          <li>
+            <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
+          </li>
+        );
+      },
       code: ({ className, children, ...props }) => {
-        const match = /language-(\w+)/.exec(className || "");
-        const isInline = !match;
+        const isInline = !className?.startsWith("language-");
 
         if (isInline) {
+          // Inline code should never be processed for citations
           return (
             <code className={className} {...props}>
-              <CitationRenderer citations={citations}>{children}</CitationRenderer>
+              {children}
             </code>
           );
         }
 
-        return <CodeBlock className={className}>{extractTextContent(children)}</CodeBlock>;
+        // Block code should also be protected from citation processing
+        return (
+          <CodeBlock className={className || ""}>{String(children).replace(/\n$/, "")}</CodeBlock>
+        );
+      },
+      // Also protect pre elements explicitly
+      pre: ({ children, ...props }) => {
+        return <pre {...props}>{children}</pre>;
       },
     }),
-    [citations]
-  );
-
-  const sanitizeSchema = useMemo(
-    () => ({
-      tagNames: [
-        // Basic HTML tags
-        "p",
-        "br",
-        "strong",
-        "em",
-        "u",
-        "s",
-        "del",
-        "ins",
-        "sub",
-        "sup",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "ul",
-        "ol",
-        "li",
-        "dl",
-        "dt",
-        "dd",
-        "blockquote",
-        "pre",
-        "code",
-        "hr",
-        "table",
-        "thead",
-        "tbody",
-        "tr",
-        "th",
-        "td",
-        "a",
-        "img",
-        // Allow span for citations
-        "span",
-      ],
-      attributes: {
-        "*": ["className", "style"],
-        a: ["href", "target", "rel"],
-        img: ["src", "alt", "width", "height"],
-        code: ["className"],
-        span: ["className"],
-      },
-    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
         components={components}
       >
         {content}

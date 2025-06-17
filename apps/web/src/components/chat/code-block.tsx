@@ -28,8 +28,6 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
 
   // Check if the language is supported by checking against the bundled languages.
   const isLanguageSupported = useMemo(() => {
-    // The 'any' cast is a temporary workaround for a potential type mismatch
-    // in older shiki versions but ensures broad compatibility.
     return (Object.keys(bundledLanguages) as string[]).includes(language);
   }, [language]);
 
