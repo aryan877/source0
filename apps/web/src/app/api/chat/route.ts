@@ -186,7 +186,7 @@ export async function POST(req: Request): Promise<Response> {
             tools: getToolsForModel(searchEnabled, modelConfig),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onFinish: async ({ text, providerMetadata, finishReason }) => {
+            onFinish: async ({ text, providerMetadata, finishReason, response }) => {
               // Check if stream was cancelled before saving message
               try {
                 const streamStatus = await serverGetLatestStreamIdWithStatus(
@@ -206,14 +206,91 @@ export async function POST(req: Request): Promise<Response> {
               console.log("finishReason", finishReason);
               console.log(`Stream ${streamId} finished successfully`);
 
-              // The `saveAssistantMessageServer` and its helper `prepareMessageForDb`
-              // handle metadata processing internally.
+              console.log("response.messages", JSON.stringify(response.messages, null, 2));
+
+              // Process response.messages to construct proper assistant message format
               let messageSaved = false;
-              if (text) {
+
+              if (response.messages.length > 0) {
+                try {
+                  // Build the comprehensive assistant message from response.messages inline
+                  const parts: Message["parts"] = [];
+                  let fullContent = "";
+                  let stepCount = 0;
+
+                  for (const message of response.messages) {
+                    if (message.role === "assistant" && Array.isArray(message.content)) {
+                      for (const contentPart of message.content) {
+                        if (contentPart.type === "text") {
+                          parts.push({ type: "text", text: String(contentPart.text) });
+                          fullContent += String(contentPart.text);
+                        } else if (contentPart.type === "tool-call") {
+                          // Find tool result for this tool call by looking in tool messages
+                          let toolResult = "";
+                          for (const toolMessage of response.messages) {
+                            if (toolMessage.role === "tool" && Array.isArray(toolMessage.content)) {
+                              for (const toolPart of toolMessage.content) {
+                                if (
+                                  toolPart.type === "tool-result" &&
+                                  toolPart.toolCallId === contentPart.toolCallId
+                                ) {
+                                  toolResult = String(toolPart.result);
+                                  break;
+                                }
+                              }
+                            }
+                            if (toolResult) break;
+                          }
+
+                          const toolInvocation = {
+                            state: "result" as const,
+                            step: stepCount,
+                            toolCallId: contentPart.toolCallId,
+                            toolName: contentPart.toolName,
+                            args: contentPart.args,
+                            result: toolResult,
+                          };
+
+                          parts.push({
+                            type: "tool-invocation",
+                            toolInvocation,
+                          });
+                          stepCount++;
+                        }
+                      }
+                    }
+                  }
+
+                  const assistantMessage: Message = {
+                    id: messageId,
+                    role: "assistant" as const,
+                    content: fullContent,
+                    parts,
+                  };
+
+                  await saveAssistantMessageServer(
+                    supabase,
+                    assistantMessage,
+                    finalSessionId,
+                    user.id,
+                    model,
+                    modelConfig.provider,
+                    { reasoningLevel, searchEnabled },
+                    providerMetadata
+                  );
+
+                  messageSaved = true;
+                  console.log("Message saved successfully with ID:", messageId);
+                } catch (error) {
+                  console.error("Failed to save assistant message:", error);
+                }
+              } else if (text) {
+                // Fallback to simple text message if no response.messages
                 try {
                   const assistantMessage: Message = {
                     id: messageId,
                     role: "assistant",
+                    parts: [{ type: "text", text }],
                     content: text,
                   };
 

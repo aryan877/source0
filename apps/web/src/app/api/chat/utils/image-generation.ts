@@ -114,7 +114,7 @@ export async function handleImageGenerationRequest(
         {
           type: "file",
           mimeType: "image/png",
-          // @ts-expect-error - TODO: fix this
+          // @ts-expect-error - Additional fields supported by our database schema but not in AI SDK Message type
           url: publicUrl,
           filename: "generated-image.png",
           path: filePath,

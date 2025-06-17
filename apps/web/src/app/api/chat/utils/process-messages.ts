@@ -1,13 +1,15 @@
-import { type ModelConfig, PROVIDER_MAPPING } from "@/config/models";
+import { PROVIDER_MAPPING, type ModelConfig } from "@/config/models";
 import { type MessagePart } from "@/services";
 import { convertPartsForDb } from "@/utils/message-utils";
 import {
+  ToolResultPart,
   type Attachment,
   type CoreMessage,
   type FilePart,
   type ImagePart,
   type Message,
   type TextPart,
+  type ToolCallPart,
 } from "ai";
 
 interface ClientAttachment extends Attachment {
@@ -24,7 +26,8 @@ interface CustomFileUIPart {
 }
 
 type UserContentPart = TextPart | ImagePart | FilePart;
-type AssistantContentPart = TextPart | FilePart; // Assistants might have other parts like tool calls
+type AssistantContentPart = TextPart | FilePart | ToolCallPart; // Assistants might have other parts like tool calls
+type ToolContentPart = ToolResultPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
 const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<keyof typeof PROVIDER_MAPPING>([
@@ -156,8 +159,9 @@ async function processUserMessage(
 async function processAssistantMessage(
   message: Message,
   modelConfig: ModelConfig
-): Promise<CoreMessage | null> {
-  const coreParts: AssistantContentPart[] = [];
+): Promise<CoreMessage[]> {
+  const assistantCoreParts: (TextPart | FilePart | ToolCallPart)[] = [];
+  const toolCoreMessages: CoreMessage[] = [];
 
   // Get text content from message.content
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
@@ -168,17 +172,14 @@ async function processAssistantMessage(
     messageParts?.filter((part) => part.type === "text" && "text" in part && part.text) || [];
 
   // Priority logic: prefer message.parts text over message.content to avoid duplication
-  // This is because AI SDK often puts the full content in both places for messages with code blocks
   if (textParts.length > 0) {
-    // Use parts from message.parts
     for (const part of textParts) {
       if (part.type === "text" && "text" in part && part.text) {
-        coreParts.push({ type: "text", text: part.text });
+        assistantCoreParts.push({ type: "text", text: part.text });
       }
     }
   } else if (textContent) {
-    // Fallback to message.content if no text parts exist
-    coreParts.push({ type: "text", text: textContent });
+    assistantCoreParts.push({ type: "text", text: textContent });
   }
 
   // Process non-text parts
@@ -196,18 +197,64 @@ async function processAssistantMessage(
             modelConfig,
             true
           );
-          if (corePart) coreParts.push(corePart as AssistantContentPart);
+          if (corePart) assistantCoreParts.push(corePart as AssistantContentPart);
+        }
+      } else if (part.type === "tool-invocation" && "toolInvocation" in part) {
+        // Define a specific type for our expected tool invocation structure to avoid 'any'
+        type ToolInvocationWithMessage = {
+          toolInvocation: {
+            toolCallId: string;
+            toolName: string;
+            args: Record<string, unknown>;
+            result?: unknown;
+          };
+        };
+
+        const { toolInvocation } = part as unknown as ToolInvocationWithMessage;
+        const { toolCallId, toolName, args, result } = toolInvocation;
+
+        if (toolCallId && toolName) {
+          // 1. Add the tool_call to the assistant's message parts
+          assistantCoreParts.push({
+            type: "tool-call",
+            toolCallId,
+            toolName,
+            args,
+          });
+
+          // 2. Create a separate 'tool' message for the result
+          if (result !== undefined) {
+            toolCoreMessages.push({
+              role: "tool",
+              content: [
+                {
+                  toolCallId,
+                  toolName,
+                  result,
+                },
+              ] as ToolContentPart[],
+            });
+          }
         }
       }
     }
   }
 
-  if (coreParts.length === 0) return null;
-  const firstPart = coreParts[0];
-  if (coreParts.length === 1 && firstPart?.type === "text") {
-    return { role: "assistant", content: firstPart.text };
+  const allMessages: CoreMessage[] = [];
+  if (assistantCoreParts.length > 0) {
+    const firstPart = assistantCoreParts[0];
+    // Simplify to a string if it's just a single text part
+    if (assistantCoreParts.length === 1 && firstPart?.type === "text") {
+      allMessages.push({ role: "assistant", content: firstPart.text });
+    } else {
+      allMessages.push({ role: "assistant", content: assistantCoreParts });
+    }
   }
-  return { role: "assistant", content: coreParts };
+
+  // Add all the tool result messages after the assistant's message
+  allMessages.push(...toolCoreMessages);
+
+  return allMessages;
 }
 
 export const processMessages = async (
@@ -239,8 +286,10 @@ export const processMessages = async (
         break;
       }
       case "assistant": {
-        const coreMessage = await processAssistantMessage(message, modelConfig);
-        if (coreMessage) coreMessages.push(coreMessage);
+        const coreMessagesFromAssistant = await processAssistantMessage(message, modelConfig);
+        if (coreMessagesFromAssistant.length > 0) {
+          coreMessages.push(...coreMessagesFromAssistant);
+        }
 
         // For providers that need image conversion, create additional user messages for images since they can't read assistant files properly
         const userImageMessage = await createUserImageMessage(message, modelConfig);

@@ -58,6 +58,12 @@ export function convertToAiMessages(dbMessages: ChatMessage[]): Message[] {
             path: file.path,
           };
         }
+        if (part.type === "tool-invocation" && part.toolInvocation) {
+          return {
+            type: "tool-invocation",
+            toolInvocation: part.toolInvocation,
+          };
+        }
         return null;
       })
       .filter(Boolean);
@@ -377,6 +383,19 @@ export function convertPartsForDb(
               size: filePart.size ?? 0,
               mimeType: filePart.mimeType,
             },
+          });
+        }
+      } else if (part.type === "tool-invocation" && "toolInvocation" in part) {
+        const toolPart = part as unknown as { toolInvocation: Record<string, unknown> };
+        const toolCallId = toolPart.toolInvocation.toolCallId as string;
+        // Avoid duplicates
+        if (
+          toolCallId &&
+          !parts.some((p) => (p.toolInvocation?.toolCallId as string) === toolCallId)
+        ) {
+          parts.push({
+            type: "tool-invocation",
+            toolInvocation: toolPart.toolInvocation,
           });
         }
       }
