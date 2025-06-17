@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
 import Image from "next/image";
 import { memo, useCallback, useState } from "react";
@@ -14,6 +14,7 @@ interface SecureFileDisplayProps {
 
 const SecureFileDisplay = memo(({ url, mimeType, fileName, isImage }: SecureFileDisplayProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleDownload = useCallback(async () => {
     if (!url || !fileName) return;
@@ -35,6 +36,30 @@ const SecureFileDisplay = memo(({ url, mimeType, fileName, isImage }: SecureFile
     }
   }, [url, fileName]);
 
+  const handleImageError = useCallback(() => {
+    setImageError(true);
+  }, []);
+
+  // If it's an image but URL is missing or image failed to load, show image placeholder
+  if (isImage && mimeType.startsWith("image/") && (!url || imageError)) {
+    return (
+      <div className="mb-3 max-w-sm overflow-hidden rounded-lg border border-divider bg-content1">
+        <div className="flex h-32 w-full items-center justify-center bg-content2">
+          <div className="flex flex-col items-center gap-2 text-default-400">
+            <PhotoIcon className="h-8 w-8" />
+            <span className="text-xs">Image unavailable</span>
+          </div>
+        </div>
+        {fileName && (
+          <div className="px-3 py-2">
+            <span className="text-xs text-default-600">{fileName}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Generic file unavailable state for non-images
   if (!url) {
     return (
       <div className="mb-3 rounded-lg border border-danger/30 bg-danger/5 p-2">
@@ -66,6 +91,7 @@ const SecureFileDisplay = memo(({ url, mimeType, fileName, isImage }: SecureFile
               height={200}
               className="h-auto w-full object-cover"
               unoptimized
+              onError={handleImageError}
             />
           </div>
           {fileName && (
@@ -95,6 +121,7 @@ const SecureFileDisplay = memo(({ url, mimeType, fileName, isImage }: SecureFile
                   height={600}
                   className="max-h-[70vh] w-auto object-contain"
                   unoptimized
+                  onError={handleImageError}
                 />
               </div>
             </ModalBody>
