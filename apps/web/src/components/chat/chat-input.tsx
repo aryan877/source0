@@ -3,7 +3,7 @@
 import { type ReasoningLevel } from "@/config/models";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
-import { forwardRef, memo, useImperativeHandle, useRef } from "react";
+import { forwardRef, memo, useCallback, useImperativeHandle, useRef } from "react";
 import { FileAttachment } from "./file-attachment";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
@@ -68,6 +68,14 @@ export const ChatInput = memo(
         },
       }));
 
+      const handleValueChange = useCallback(
+        (value: string) => {
+          setInput(value);
+          onClearUiError();
+        },
+        [setInput, onClearUiError]
+      );
+
       return (
         <div className="px-4" suppressHydrationWarning>
           <div className="relative mx-auto max-w-3xl">
@@ -86,10 +94,7 @@ export const ChatInput = memo(
                 <Textarea
                   ref={textareaRef}
                   value={input}
-                  onValueChange={(value) => {
-                    setInput(value);
-                    onClearUiError();
-                  }}
+                  onValueChange={handleValueChange}
                   placeholder="Type your message here..."
                   variant="flat"
                   minRows={1}

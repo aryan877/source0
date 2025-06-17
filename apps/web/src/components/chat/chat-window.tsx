@@ -29,6 +29,12 @@ import { MessagesList } from "./messages-list";
 import { SamplePrompts } from "./sample-prompts";
 import { ShareButton } from "./share-button";
 
+const SCROLL_TOP_MARGIN = 80; // Extra margin when scrolling user message to top
+const SCROLL_TO_BOTTOM_THRESHOLD = 100; // In pixels from bottom to trigger auto-scroll
+const USER_SCROLLED_THRESHOLD = 30; // In pixels from bottom to detect user has scrolled up
+const SCROLL_ANIMATION_DURATION = 500; // ms, for smooth scroll
+const STREAMING_SCROLL_DEBOUNCE = 100; // ms, for scroll debounce during streaming
+
 interface ChatWindowProps {
   chatId: string;
   isSharedView?: boolean;
@@ -48,6 +54,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { user } = useAuth();
   const router = useRouter();
   const justSubmittedMessageId = useRef<string | null>(null);
+  const isInitialLoad = useRef(true);
+  const userScrolled = useRef(false);
+  const programmaticScroll = useRef(false);
 
   const {
     messages: queryMessages,
@@ -339,51 +348,117 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     chatId: chatId !== "new" ? chatId : undefined,
   });
 
-  // Scroll user message to top when a new user message is added
+  // SCENARIO 1: A new user message was just submitted.
+  // Scroll this message to the top to keep it in view.
   useLayoutEffect(() => {
-    if (!justSubmittedMessageId.current || messages.length === 0) return;
-
-    const messageElement = document.querySelector(
-      `[data-message-id="${justSubmittedMessageId.current}"]`
-    ) as HTMLElement;
+    if (!justSubmittedMessageId.current) return;
 
     const container = messagesContainerRef.current;
-    if (!messageElement || !container) {
-      justSubmittedMessageId.current = null;
-      return;
-    }
+    if (!container) return;
 
     const messagesContainer = container.querySelector(".mx-auto.max-w-3xl") as HTMLElement;
-    if (!messagesContainer) {
-      justSubmittedMessageId.current = null;
-      return;
+    const messageElement = document.querySelector(
+      `[data-message-id="${justSubmittedMessageId.current}"]`
+    );
+
+    if (messagesContainer && messageElement instanceof HTMLElement) {
+      // Calculate and apply padding to ensure the message can scroll to the top
+      const containerHeight = container.clientHeight;
+      const neededPadding = Math.max(containerHeight - 100, 200);
+      if (!messagesContainer.dataset.originalPadding) {
+        messagesContainer.dataset.originalPadding =
+          getComputedStyle(messagesContainer).paddingBottom;
+      }
+      messagesContainer.style.paddingBottom = `${neededPadding}px`;
+
+      // Use requestAnimationFrame for smooth scroll after layout changes
+      requestAnimationFrame(() => {
+        programmaticScroll.current = true;
+        const messageOffsetTop = messageElement.offsetTop;
+        const targetScrollTop = messageOffsetTop - SCROLL_TOP_MARGIN;
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: "smooth",
+        });
+
+        // After the animation, allow user scroll to be detected again
+        setTimeout(() => {
+          programmaticScroll.current = false;
+        }, SCROLL_ANIMATION_DURATION);
+      });
     }
 
-    // Calculate and apply padding synchronously
-    const containerHeight = container.clientHeight;
-    const neededPadding = Math.max(containerHeight - 100, 200);
-    messagesContainer.style.paddingBottom = `${neededPadding}px`;
-    messagesContainer.dataset.originalPadding = "2rem";
-
-    // Use requestAnimationFrame for smooth scroll after layout
-    requestAnimationFrame(() => {
-      const messageOffsetTop = messageElement.offsetTop;
-      const targetScrollTop = messageOffsetTop - 80;
-
-      container.scrollTo({
-        top: targetScrollTop,
-        behavior: "smooth",
-      });
-
-      console.log("Scrolled user message to top:", {
-        messageId: justSubmittedMessageId.current,
-        messageOffsetTop,
-        targetScrollTop,
-      });
-    });
-
+    // This logic has run, so we clear the ID to prevent it from re-running
     justSubmittedMessageId.current = null;
+    userScrolled.current = false; // Reset user scroll on new message
   }, [messages]);
+
+  // SCENARIO 2: Initial load or new AI messages.
+  // We auto-scroll to the bottom, but only if the user hasn't scrolled up.
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    // Don't auto-scroll if a user message was just submitted and is scrolling to top
+    if (justSubmittedMessageId.current) return;
+
+    const isScrolledNearBottom =
+      container.scrollHeight - container.clientHeight <=
+      container.scrollTop + SCROLL_TO_BOTTOM_THRESHOLD;
+
+    if (
+      (isInitialLoad.current && messages.length > 0) ||
+      (isScrolledNearBottom && !userScrolled.current)
+    ) {
+      programmaticScroll.current = true;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: status === "streaming" ? "auto" : "smooth",
+      });
+
+      const timeout =
+        status === "streaming" ? STREAMING_SCROLL_DEBOUNCE : SCROLL_ANIMATION_DURATION;
+      setTimeout(() => {
+        programmaticScroll.current = false;
+      }, timeout);
+    }
+
+    // After the first render with messages, it's no longer the initial load.
+    if (isInitialLoad.current && messages.length > 0) {
+      isInitialLoad.current = false;
+    }
+  }, [messages, status]);
+
+  // Handle scroll events to detect if the user has manually scrolled up
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (programmaticScroll.current) return;
+
+      // We consider the user to have scrolled up if they are more than a
+      // small threshold away from the bottom.
+      const isNearBottom =
+        container.scrollHeight - container.clientHeight <=
+        container.scrollTop + USER_SCROLLED_THRESHOLD;
+
+      if (isNearBottom) {
+        // User is at the bottom, so we can re-enable auto-scroll.
+        if (userScrolled.current) {
+          userScrolled.current = false;
+        }
+      } else {
+        // User has scrolled up. Disable auto-scroll.
+        if (!userScrolled.current) {
+          userScrolled.current = true;
+        }
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Handle pending first message from sessionStorage for new sessions
   useEffect(() => {
@@ -629,6 +704,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       // Set the message ID for height tracking
       justSubmittedMessageId.current = messageToAppend.id;
+      userScrolled.current = false;
 
       append(messageToAppend, chatRequestOptions);
 
@@ -744,7 +820,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           onFileAttach={handleFileAttach}
           onRemoveFile={handleRemoveFile}
           onStop={handleStop}
-          onClearUiError={() => updateState({ uiError: null })}
+          onClearUiError={handleDismissUiError}
           onPromptSelect={handlePromptSelect}
           ref={chatInputRef}
         />

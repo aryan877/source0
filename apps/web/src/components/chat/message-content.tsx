@@ -156,8 +156,8 @@ const CitationRenderer = memo(
 CitationRenderer.displayName = "CitationRenderer";
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
-  const components: Components = useMemo(() => {
-    return {
+  const components: Components = useMemo(
+    () => ({
       // Handle text-containing elements with citation processing
       p: ({ children }) => (
         <p>
@@ -199,8 +199,9 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
 
         return <CodeBlock className={className}>{extractTextContent(children)}</CodeBlock>;
       },
-    };
-  }, [citations]);
+    }),
+    [citations]
+  );
 
   const sanitizeSchema = useMemo(
     () => ({

@@ -2,7 +2,7 @@
 
 import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { MessageBubble } from "..";
 import { ErrorDisplay } from "./error-display";
 
@@ -85,14 +85,15 @@ export const MessagesList = memo(
     onDismissUiError,
     onRetry,
   }: MessagesListProps) => {
+    const containerStyle = useMemo(
+      () => ({
+        paddingBottom: "2rem", // Space for the chat input and some buffer
+      }),
+      []
+    );
     return (
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div
-          className="mx-auto max-w-3xl space-y-6 px-4 py-8"
-          style={{
-            paddingBottom: "2rem", // Space for the chat input and some buffer
-          }}
-        >
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" style={containerStyle}>
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
           ) : (
