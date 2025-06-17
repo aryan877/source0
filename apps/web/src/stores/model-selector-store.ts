@@ -24,6 +24,7 @@ interface ModelSelectorState {
   // Selected Model State (per chat)
   selectedModels: Record<string, string>;
   selectedReasoningLevels: Record<string, ReasoningLevel>;
+  selectedSearchEnabled: Record<string, boolean>;
 
   // Hydration State
   hasHydrated: boolean;
@@ -41,6 +42,8 @@ interface ModelSelectorState {
   getSelectedModel: (chatId: string) => string;
   setSelectedReasoningLevel: (chatId: string, level: ReasoningLevel) => void;
   getSelectedReasoningLevel: (chatId: string) => ReasoningLevel;
+  setSelectedSearchEnabled: (chatId: string, enabled: boolean) => void;
+  getSelectedSearchEnabled: (chatId: string) => boolean;
   transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
@@ -60,6 +63,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       favorites: [],
       selectedModels: {},
       selectedReasoningLevels: {},
+      selectedSearchEnabled: {},
       hasHydrated: false,
 
       // Actions
@@ -129,13 +133,31 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         return selectedReasoningLevels[chatId] || "medium";
       },
 
+      setSelectedSearchEnabled: (chatId, enabled) => {
+        const { selectedSearchEnabled } = get();
+        set({
+          selectedSearchEnabled: {
+            ...selectedSearchEnabled,
+            [chatId]: enabled,
+          },
+        });
+      },
+
+      getSelectedSearchEnabled: (chatId) => {
+        const { selectedSearchEnabled } = get();
+        // Default to true for new chats, false otherwise (or based on model capabilities)
+        return selectedSearchEnabled[chatId] ?? false;
+      },
+
       transferModelSelection: (fromChatId, toChatId) => {
-        const { selectedModels, selectedReasoningLevels } = get();
+        const { selectedModels, selectedReasoningLevels, selectedSearchEnabled } = get();
         const modelToTransfer = selectedModels[fromChatId];
         const reasoningLevelToTransfer = selectedReasoningLevels[fromChatId];
+        const searchEnabledToTransfer = selectedSearchEnabled[fromChatId];
 
         const newSelectedModels = { ...selectedModels };
         const newSelectedReasoningLevels = { ...selectedReasoningLevels };
+        const newSelectedSearchEnabled = { ...selectedSearchEnabled };
 
         if (modelToTransfer) {
           newSelectedModels[toChatId] = modelToTransfer;
@@ -143,10 +165,14 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         if (reasoningLevelToTransfer) {
           newSelectedReasoningLevels[toChatId] = reasoningLevelToTransfer;
         }
+        if (searchEnabledToTransfer !== undefined) {
+          newSelectedSearchEnabled[toChatId] = searchEnabledToTransfer;
+        }
 
         set({
           selectedModels: newSelectedModels,
           selectedReasoningLevels: newSelectedReasoningLevels,
+          selectedSearchEnabled: newSelectedSearchEnabled,
         });
       },
 
@@ -185,6 +211,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         favorites: state.favorites,
         selectedModels: state.selectedModels,
         selectedReasoningLevels: state.selectedReasoningLevels,
+        selectedSearchEnabled: state.selectedSearchEnabled,
       }), // Persist both favorites and selected models per chat
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
@@ -198,6 +225,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         // Initialize selectedReasoningLevels if it doesn't exist
         if (state && !state.selectedReasoningLevels) {
           state.selectedReasoningLevels = {};
+        }
+        // Initialize selectedSearchEnabled if it doesn't exist
+        if (state && !state.selectedSearchEnabled) {
+          state.selectedSearchEnabled = {};
         }
         // Mark as hydrated after rehydration
         if (state) {

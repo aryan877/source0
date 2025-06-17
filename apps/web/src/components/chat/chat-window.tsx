@@ -30,8 +30,15 @@ interface ChatWindowProps {
 }
 
 const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
-  const { state, updateState, selectedModel, reasoningLevel, setReasoningLevel } =
-    useChatState(chatId);
+  const {
+    state,
+    updateState,
+    selectedModel,
+    reasoningLevel,
+    setReasoningLevel,
+    searchEnabled,
+    setSearchEnabled,
+  } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
   const router = useRouter();
@@ -82,7 +89,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     body: {
       model: selectedModel,
       reasoningLevel: reasoningLevel,
-      searchEnabled: state.searchEnabled,
+      searchEnabled: searchEnabled,
       id: chatId === "new" ? undefined : chatId,
       isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
     },
@@ -91,7 +98,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         chatId,
         selectedModel: selectedModel,
         reasoningLevel: reasoningLevel,
-        searchEnabled: state.searchEnabled,
+        searchEnabled: searchEnabled,
         messageCount: messages.length,
         status,
         input: input?.substring(0, 100),
@@ -241,7 +248,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         model: selectedModel,
         modelProvider,
         reasoningLevel: reasoningLevel,
-        searchEnabled: state.searchEnabled,
+        searchEnabled: searchEnabled,
       });
 
       // Save the partial message if we have content (fire-and-forget)
@@ -252,7 +259,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           user.id,
           selectedModel,
           modelProvider,
-          { reasoningLevel: reasoningLevel, searchEnabled: state.searchEnabled },
+          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
           { fireAndForget: true, existingParts: preparedMessage.parts }
         );
       }
@@ -271,7 +278,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           console.error("Error marking stream as cancelled:", error);
         });
     }
-  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, state.searchEnabled]);
+  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
 
   /**
    * Retries the last failed chat request.
@@ -350,7 +357,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         setReasoningLevel(reasoningLevel);
       }
       if (searchEnabled !== undefined) {
-        updateState({ searchEnabled });
+        setSearchEnabled(searchEnabled);
       }
 
       // Submit the pending message with the isFirstMessage flag
@@ -362,7 +369,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       console.error("Failed to process pending message:", error);
       sessionStorage.removeItem("pendingFirstMessage");
     }
-  }, [chatId, append, setInput, updateState, setReasoningLevel]);
+  }, [chatId, append, setInput, updateState, setReasoningLevel, setSearchEnabled]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -485,7 +492,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
           },
           selectedModel,
           reasoningLevel: reasoningLevel,
-          searchEnabled: state.searchEnabled,
+          searchEnabled: searchEnabled,
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
@@ -503,7 +510,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       updateState,
       selectedModel,
       reasoningLevel,
-      state.searchEnabled,
+      searchEnabled,
       updateSessionInCache,
       transferModelSelection,
       router,
@@ -629,14 +636,14 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         attachedFiles={state.attachedFiles}
         selectedModel={selectedModel}
         reasoningLevel={reasoningLevel}
-        searchEnabled={state.searchEnabled}
+        searchEnabled={searchEnabled}
         showScrollToBottom={showScrollToBottom}
         chatId={chatId}
         onSubmit={handleFormSubmit}
         onKeyDown={handleKeyDown}
         onModelChange={handleModelChange}
         onReasoningLevelChange={setReasoningLevel}
-        onSearchToggle={(enabled) => updateState({ searchEnabled: enabled })}
+        onSearchToggle={setSearchEnabled}
         onFileAttach={handleFileAttach}
         onRemoveFile={handleRemoveFile}
         onScrollToBottom={() => scrollToBottom("smooth")}

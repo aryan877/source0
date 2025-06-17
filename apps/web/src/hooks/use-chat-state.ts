@@ -4,22 +4,26 @@ import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useCallback, useState } from "react";
 
 export interface ChatState {
-  searchEnabled: boolean;
   attachedFiles: AttachedFileWithUrl[];
   showScrollToBottom: boolean;
   uiError: string | null;
 }
 
 export const useChatState = (chatId: string) => {
-  const [state, setState] = useState<ChatState>({
-    searchEnabled: false,
+  const [state, setState] = useState<Omit<ChatState, "searchEnabled">>({
     attachedFiles: [],
     showScrollToBottom: false,
     uiError: null,
   });
 
   const updateState = useCallback(
-    (updates: Partial<ChatState> | ((prevState: ChatState) => Partial<ChatState>)) => {
+    (
+      updates:
+        | Partial<Omit<ChatState, "searchEnabled">>
+        | ((
+            prevState: Omit<ChatState, "searchEnabled">
+          ) => Partial<Omit<ChatState, "searchEnabled">>)
+    ) => {
       setState((prev) => {
         const newUpdates = typeof updates === "function" ? updates(prev) : updates;
         return { ...prev, ...newUpdates };
@@ -36,7 +40,11 @@ export const useChatState = (chatId: string) => {
     useCallback((state) => state.getSelectedReasoningLevel(chatId), [chatId])
   );
 
-  const { setSelectedReasoningLevel } = useModelSelectorStore();
+  const searchEnabled = useModelSelectorStore(
+    useCallback((state) => state.getSelectedSearchEnabled(chatId), [chatId])
+  );
+
+  const { setSelectedReasoningLevel, setSelectedSearchEnabled } = useModelSelectorStore();
 
   const setReasoningLevel = useCallback(
     (level: ReasoningLevel) => {
@@ -45,5 +53,20 @@ export const useChatState = (chatId: string) => {
     [chatId, setSelectedReasoningLevel]
   );
 
-  return { state, updateState, selectedModel, reasoningLevel, setReasoningLevel };
+  const setSearchEnabled = useCallback(
+    (enabled: boolean) => {
+      setSelectedSearchEnabled(chatId, enabled);
+    },
+    [chatId, setSelectedSearchEnabled]
+  );
+
+  return {
+    state,
+    updateState,
+    selectedModel,
+    reasoningLevel,
+    setReasoningLevel,
+    searchEnabled,
+    setSearchEnabled,
+  };
 };
