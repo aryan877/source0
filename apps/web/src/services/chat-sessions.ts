@@ -188,25 +188,6 @@ export async function makePrivate(sessionId: string): Promise<void> {
 }
 
 /**
- * Get session by share slug
- */
-export async function getSessionByShareSlug(shareSlug: string): Promise<ChatSession | null> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_sessions")
-    .select("*")
-    .eq("share_slug", shareSlug)
-    .eq("is_public", true)
-    .single();
-
-  if (error) {
-    console.error(`Error fetching session by share slug ${shareSlug}:`, error);
-    return null;
-  }
-  return data;
-}
-
-/**
  * Get public sessions
  */
 export async function getPublicSessions(limit = 50): Promise<ChatSession[]> {

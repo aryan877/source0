@@ -9,4 +9,5 @@ export const chatSessionsKeys = {
   byUser: (userId: string) => [...chatSessionsKeys.all, "user", userId] as const,
   search: (userId: string, searchTerm: string) =>
     [...chatSessionsKeys.byUser(userId), "search", searchTerm] as const,
+  byId: (sessionId: string) => [...chatSessionsKeys.all, "session", sessionId] as const,
 };

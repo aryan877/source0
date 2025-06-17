@@ -2,6 +2,7 @@
 
 import { getModelById } from "@/config/models";
 import { useChatMessages } from "@/hooks/queries/use-chat-messages";
+import { useChatSession } from "@/hooks/queries/use-chat-session";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
@@ -19,18 +20,22 @@ import { type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
+import { Chip } from "@heroui/react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
 import { SamplePrompts } from "./sample-prompts";
+import { ShareButton } from "./share-button";
 
 interface ChatWindowProps {
   chatId: string;
+  isSharedView?: boolean;
 }
 
-const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
+const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const {
     state,
     updateState,
@@ -621,12 +626,42 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
 
   const chatInputRef = useRef<ChatInputRef | null>(null);
 
+  // Get session data for the share button using React Query
+  const { data: sessionData } = useChatSession(chatId);
+
   // Show sample prompts when there are no messages and no input
   const showSamplePrompts =
     messages.length === 0 && !input.trim() && state.attachedFiles.length === 0;
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header with share button */}
+      {chatId !== "new" && sessionData && (
+        <div className="flex items-center justify-between bg-background/60 px-4 py-3 backdrop-blur-sm">
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              {isSharedView && (
+                <Chip
+                  size="sm"
+                  variant="flat"
+                  color="primary"
+                  startContent={
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                    </svg>
+                  }
+                >
+                  Shared
+                </Chip>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isSharedView && <ShareButton session={sessionData} />}
+          </div>
+        </div>
+      )}
+
       {showSamplePrompts ? (
         <div className="flex flex-1 items-center justify-center p-8">
           <SamplePrompts
@@ -651,30 +686,48 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         />
       )}
 
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        isLoading={isLoading}
-        canSubmit={canSubmit}
-        attachedFiles={state.attachedFiles}
-        selectedModel={selectedModel}
-        reasoningLevel={reasoningLevel}
-        searchEnabled={searchEnabled}
-        showScrollToBottom={showScrollToBottom}
-        chatId={chatId}
-        onSubmit={handleFormSubmit}
-        onKeyDown={handleKeyDown}
-        onModelChange={handleModelChange}
-        onReasoningLevelChange={setReasoningLevel}
-        onSearchToggle={setSearchEnabled}
-        onFileAttach={handleFileAttach}
-        onRemoveFile={handleRemoveFile}
-        onScrollToBottom={() => scrollToBottom("smooth")}
-        onStop={handleStop}
-        onClearUiError={() => updateState({ uiError: null })}
-        onPromptSelect={handlePromptSelect}
-        ref={chatInputRef}
-      />
+      {/* Only show chat input for non-shared views */}
+      {!isSharedView && (
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          isLoading={isLoading}
+          canSubmit={canSubmit}
+          attachedFiles={state.attachedFiles}
+          selectedModel={selectedModel}
+          reasoningLevel={reasoningLevel}
+          searchEnabled={searchEnabled}
+          showScrollToBottom={showScrollToBottom}
+          chatId={chatId}
+          onSubmit={handleFormSubmit}
+          onKeyDown={handleKeyDown}
+          onModelChange={handleModelChange}
+          onReasoningLevelChange={setReasoningLevel}
+          onSearchToggle={setSearchEnabled}
+          onFileAttach={handleFileAttach}
+          onRemoveFile={handleRemoveFile}
+          onScrollToBottom={() => scrollToBottom("smooth")}
+          onStop={handleStop}
+          onClearUiError={() => updateState({ uiError: null })}
+          onPromptSelect={handlePromptSelect}
+          ref={chatInputRef}
+        />
+      )}
+
+      {/* Alternative footer for shared views */}
+      {isSharedView && (
+        <div className="border-t border-divider bg-content1/50 px-4 py-4">
+          <div className="flex items-center justify-center gap-4 text-sm text-default-600">
+            <span>Want to start your own conversation?</span>
+            <Link
+              href="/chat/new"
+              className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Start New Chat
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

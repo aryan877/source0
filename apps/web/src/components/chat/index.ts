@@ -11,3 +11,4 @@ export { ModelControls } from "./model-controls";
 export { ModelSelector } from "./model-selector";
 export { ScrollToBottomButton } from "./scroll-to-bottom-button";
 export { SecureFileDisplay } from "./secure-file-display";
+export { ShareButton } from "./share-button";
