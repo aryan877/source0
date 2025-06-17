@@ -67,7 +67,7 @@ const SAMPLE_PROMPTS: SamplePrompt[] = [
   {
     id: "strawberry-rs",
     text: 'How many Rs are in the word "strawberry"?',
-    icon: <LightBulbIcon className="h-4 w-4" />,
+    icon: <BookOpenIcon className="h-4 w-4" />,
     category: "explore",
   },
   {
