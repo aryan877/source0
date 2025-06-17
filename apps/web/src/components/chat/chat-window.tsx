@@ -49,7 +49,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
     isLoading: isLoadingMessages,
     invalidateMessages,
   } = useChatMessages(chatId);
-  const { updateSessionInCache } = useChatSessions();
+  const { updateSessionInCache, invalidateSessions } = useChatSessions();
 
   const messagesToUse = useMemo(() => {
     return chatId !== "new" ? queryMessages : [];
@@ -498,7 +498,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
         const newSession = await createSession(user.id, "New Chat");
-        updateSessionInCache(newSession, user.id);
+        invalidateSessions();
         transferModelSelection("new", newSession.id);
         router.push(`/chat/${newSession.id}`);
       } catch (error) {
@@ -512,7 +512,7 @@ const ChatWindow = memo(({ chatId }: ChatWindowProps) => {
       selectedModel,
       reasoningLevel,
       searchEnabled,
-      updateSessionInCache,
+      invalidateSessions,
       transferModelSelection,
       router,
     ]

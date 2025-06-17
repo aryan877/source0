@@ -294,3 +294,19 @@ export async function updateSessionMetadata(sessionId: string, metadata: Json): 
     throw new Error(`Failed to update session metadata: ${error.message}`);
   }
 }
+
+/**
+ * Search user sessions by title
+ */
+export async function searchUserSessions(searchTerm: string): Promise<ChatSession[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("search_user_sessions", {
+    p_search_term: searchTerm,
+  });
+
+  if (error) {
+    console.error("Error searching chat sessions:", error);
+    return [];
+  }
+  return data;
+}

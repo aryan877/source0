@@ -7,4 +7,6 @@ export const chatMessagesKeys = {
 export const chatSessionsKeys = {
   all: ["chat-sessions"] as const,
   byUser: (userId: string) => [...chatSessionsKeys.all, "user", userId] as const,
+  search: (userId: string, searchTerm: string) =>
+    [...chatSessionsKeys.byUser(userId), "search", searchTerm] as const,
 };

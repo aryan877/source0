@@ -33,6 +33,7 @@ import { User } from "@supabase/supabase-js";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useState } from "react";
+import { useDebounce } from "use-debounce";
 
 // ========================================
 // TYPES & INTERFACES
@@ -85,6 +86,8 @@ const useSidebarState = () => {
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const windowObj = useWindow();
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
 
   // Prevent hydration mismatch by only rendering theme switcher after mount
   useEffect(() => {
@@ -108,6 +111,9 @@ const useSidebarState = () => {
     mounted,
     currentTheme,
     toggleTheme,
+    searchQuery,
+    setSearchQuery,
+    debouncedSearchQuery,
   };
 };
 
@@ -186,17 +192,27 @@ const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
 
 SidebarHeader.displayName = "SidebarHeader";
 
-const SearchBar = memo(() => (
-  <div className="border-b border-divider p-3">
-    <div className="relative">
-      <input
-        type="text"
-        placeholder="Search your threads..."
-        className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-      />
+const SearchBar = memo(
+  ({
+    searchQuery,
+    setSearchQuery,
+  }: {
+    searchQuery: string;
+    setSearchQuery: (query: string) => void;
+  }) => (
+    <div className="border-b border-divider p-3">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search your threads..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+      </div>
     </div>
-  </div>
-));
+  )
+);
 
 SearchBar.displayName = "SearchBar";
 
@@ -525,6 +541,9 @@ export const Sidebar = memo(
       mounted,
       currentTheme,
       toggleTheme,
+      searchQuery,
+      setSearchQuery,
+      debouncedSearchQuery,
     } = useSidebarState();
 
     // Use React Query for chat sessions
@@ -535,7 +554,7 @@ export const Sidebar = memo(
       deleteSession,
       isDeletingSession,
       invalidateSessions,
-    } = useChatSessions();
+    } = useChatSessions(debouncedSearchQuery);
 
     const { handleNewChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
@@ -563,7 +582,7 @@ export const Sidebar = memo(
           }`}
         >
           <SidebarHeader onNewChat={handleNewChat} />
-          <SearchBar />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
           <ChatList
             chats={chats}
             selectedChatId={selectedChatId}

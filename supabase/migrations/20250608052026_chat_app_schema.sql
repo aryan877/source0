@@ -1,4 +1,9 @@
 -- ================================================================================
+-- Extensions
+-- ================================================================================
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
+-- ================================================================================
 -- Chat Application Schema
 -- Version 1.0
 -- ================================================================================
@@ -169,6 +174,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_model_config_gin
 -- Indexes for `chat_stream_ids`
 CREATE INDEX IF NOT EXISTS idx_chat_stream_ids_chat 
     ON chat_stream_ids(chat_id);
+
+-- Index for text search on titles
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_title_trgm ON chat_sessions USING gin (title gin_trgm_ops);
 
 -- ================================================================================
 -- Supabase Storage Configuration
@@ -555,6 +563,35 @@ BEGIN
     END LOOP;
     
     RETURN slug;
+END;
+$$;
+
+--
+-- Function: search_user_sessions(p_search_term text)
+-- Description: Searches for chat sessions belonging to the current user based on a search term.
+-- The search is performed case-insensitively on the session title.
+--
+CREATE OR REPLACE FUNCTION search_user_sessions(p_search_term text)
+RETURNS SETOF chat_sessions
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+AS $$
+BEGIN
+    IF p_search_term IS NULL OR p_search_term = '' THEN
+        RETURN QUERY
+        SELECT cs.*
+        FROM chat_sessions cs
+        WHERE cs.user_id = auth.uid()
+        ORDER BY cs.updated_at DESC;
+    ELSE
+        RETURN QUERY
+        SELECT cs.*
+        FROM chat_sessions cs
+        WHERE cs.user_id = auth.uid()
+          AND cs.title ILIKE '%' || p_search_term || '%'
+        ORDER BY cs.updated_at DESC;
+    END IF;
 END;
 $$;
 

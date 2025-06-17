@@ -107,8 +107,10 @@ export const ChatInput = memo(
                   maxRows={8}
                   classNames={{
                     base: "w-full",
-                    inputWrapper: "!bg-transparent border-0 p-0 shadow-none",
-                    input: "text-sm resize-none",
+                    inputWrapper:
+                      "!bg-transparent border-0 p-0 shadow-none focus-within:ring-0 focus:ring-0 focus-visible:ring-0 group-data-[focus-visible=true]:ring-0 group-data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 !outline-none",
+                    input:
+                      "text-sm resize-none focus:outline-none border-transparent focus:border-transparent focus:ring-0 !outline-none",
                   }}
                   onKeyDown={onKeyDown}
                 />
