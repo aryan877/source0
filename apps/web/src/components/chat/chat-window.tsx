@@ -56,6 +56,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const router = useRouter();
   const justSubmittedMessageId = useRef<string | null>(null);
   const isInitialLoad = useRef(true);
+  const userScrolled = useRef(false);
+  const programmaticScroll = useRef(false);
 
   const {
     messages: queryMessages,
@@ -237,23 +239,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     },
   });
 
-  // Use the custom scroll-to-bottom hook after useChat
-  const {
-    showScrollToBottom,
-    userScrolled,
-    handleScrollToBottom: scrollToBottom,
-    setupScrollListener,
-    checkScrollPosition,
-    setUserScrolled,
-    setProgrammaticScroll,
-  } = useScrollToBottom();
-
-  const handleScrollToBottom = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      scrollToBottom(container);
-    }
-  }, [scrollToBottom]);
+  const { showScrollToBottom, scrollToBottom } = useScrollToBottom({
+    containerRef: messagesContainerRef,
+    messagesLength: messages.length,
+  });
 
   const handleDismissUiError = useCallback(() => {
     updateState({ uiError: null });
@@ -376,25 +365,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingMessages]);
 
-  // Setup scroll listener when container is available
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    return setupScrollListener(container);
-  }, [setupScrollListener]);
-
-  // Check scroll position after DOM updates using layoutEffect
-  useLayoutEffect(() => {
-    if (isLoadingMessages) return;
-
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    // Check scroll position after layout is complete
-    checkScrollPosition(container);
-  }, [isLoadingMessages, messages.length, checkScrollPosition]);
-
   // SCENARIO 1: A new user message was just submitted.
   // Scroll this message to the top to keep it in view.
   useLayoutEffect(() => {
@@ -420,7 +390,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       // Use requestAnimationFrame for smooth scroll after layout changes
       requestAnimationFrame(() => {
-        setProgrammaticScroll(true);
+        programmaticScroll.current = true;
         const messageOffsetTop = messageElement.offsetTop;
         const targetScrollTop = messageOffsetTop - SCROLL_TOP_MARGIN;
         container.scrollTo({
@@ -430,15 +400,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         // After the animation, allow user scroll to be detected again
         setTimeout(() => {
-          setProgrammaticScroll(false);
+          programmaticScroll.current = false;
         }, SCROLL_ANIMATION_DURATION);
       });
     }
 
     // This logic has run, so we clear the ID to prevent it from re-running
     justSubmittedMessageId.current = null;
-    setUserScrolled(false); // Reset user scroll on new message
-  }, [messages, setProgrammaticScroll, setUserScrolled]);
+    userScrolled.current = false; // Reset user scroll on new message
+  }, [messages]);
 
   // SCENARIO 2: Initial load or new AI messages.
   // We auto-scroll to the bottom, but only if the user hasn't scrolled up.
@@ -453,17 +423,20 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       container.scrollHeight - container.clientHeight <=
       container.scrollTop + SCROLL_TO_BOTTOM_THRESHOLD;
 
-    if ((isInitialLoad.current && messages.length > 0) || (isScrolledNearBottom && !userScrolled)) {
-      setProgrammaticScroll(true);
+    if (
+      (isInitialLoad.current && messages.length > 0) ||
+      (isScrolledNearBottom && !userScrolled.current)
+    ) {
+      programmaticScroll.current = true;
       container.scrollTo({
         top: container.scrollHeight,
-        behavior: status === "streaming" ? "auto" : "smooth",
+        behavior: status === "streaming" ? "auto" : "instant",
       });
 
       const timeout =
         status === "streaming" ? STREAMING_SCROLL_DEBOUNCE : SCROLL_ANIMATION_DURATION;
       setTimeout(() => {
-        setProgrammaticScroll(false);
+        programmaticScroll.current = false;
       }, timeout);
     }
 
@@ -471,7 +444,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     if (isInitialLoad.current && messages.length > 0) {
       isInitialLoad.current = false;
     }
-  }, [messages, status, userScrolled, setProgrammaticScroll]);
+  }, [messages, status]);
 
   // Handle pending first message from sessionStorage for new sessions
   useEffect(() => {
@@ -656,7 +629,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         // Store the message ID for scroll tracking
         justSubmittedMessageId.current = editedMessage.id;
-        setUserScrolled(false);
+        userScrolled.current = false;
 
         // Re-send the edited message
         append(editedMessage);
@@ -670,7 +643,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append, setUserScrolled]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
   const handleFormSubmit = useCallback(
@@ -771,7 +744,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       // Set the message ID for height tracking
       justSubmittedMessageId.current = messageToAppend.id;
-      setUserScrolled(false);
+      userScrolled.current = false;
 
       append(messageToAppend, chatRequestOptions);
 
@@ -786,7 +759,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setInput,
       updateState,
       chatId,
-      setUserScrolled,
       user,
       selectedModel,
       reasoningLevel,
@@ -907,7 +879,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           onClearUiError={handleDismissUiError}
           onPromptSelect={handlePromptSelect}
           showScrollToBottom={showScrollToBottom}
-          onScrollToBottom={handleScrollToBottom}
+          onScrollToBottom={scrollToBottom}
           ref={chatInputRef}
         />
       )}

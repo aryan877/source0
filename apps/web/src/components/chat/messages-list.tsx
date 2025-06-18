@@ -94,7 +94,11 @@ export const MessagesList = memo(
       []
     );
     return (
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto"
+        data-messages-container="true"
+      >
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" style={containerStyle}>
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
@@ -120,6 +124,8 @@ export const MessagesList = memo(
             onDismissUiError={onDismissUiError}
             onRetry={onRetry}
           />
+
+          <div data-messages-end="true" />
         </div>
       </div>
     );
