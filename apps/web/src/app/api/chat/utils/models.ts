@@ -128,7 +128,7 @@ export const buildSystemMessage = (
   const parts = [
     `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
     assistantName &&
-      `The assistant's name is ${assistantName}. Address yourself by name when appropriate.`,
+      `The assistant's name is ${assistantName}. Use your name very sparingly, only when specifically needed or directly asked.`,
     userTraits && `Here are the traits user wants you to follow: "${userTraits}"`,
     hasWebSearchTool &&
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
