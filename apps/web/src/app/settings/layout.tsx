@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Settings - AlmostT3",
+  title: "Settings - Source0",
   description: "Application settings and preferences",
 };
 
