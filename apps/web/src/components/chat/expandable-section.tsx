@@ -65,13 +65,7 @@ const ExpandableSection = memo(
             {icon}
           </div>
 
-          <span
-            className={`flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/60 ${
-              isLoading
-                ? "relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
-                : ""
-            }`}
-          >
+          <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/60">
             {title}
           </span>
 
@@ -102,13 +96,7 @@ const ExpandableSection = memo(
                   {children}
                 </div>
               ) : (
-                <div
-                  className={`relative overflow-hidden rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50 ${
-                    isLoading
-                      ? "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-foreground/10 before:to-transparent"
-                      : ""
-                  }`}
-                >
+                <div className="relative overflow-hidden rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
                   <div className="leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
                     {children}
                   </div>

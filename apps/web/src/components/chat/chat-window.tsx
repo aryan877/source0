@@ -93,6 +93,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     append,
     setMessages,
     experimental_resume,
+    data,
   } = useChat({
     api: "/api/chat",
     id: chatId === "new" ? undefined : chatId,
@@ -343,27 +344,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, [messages, stop, updateState, append]);
 
-  const { tryResume } = useAutoResume({
+  useAutoResume({
+    autoResume: !isLoadingMessages && chatId !== "new",
     initialMessages: messagesToUse,
     experimental_resume,
+    data,
+    setMessages,
     chatId: chatId !== "new" ? chatId : undefined,
   });
-
-  const hasAttemptedResume = useRef(false);
-
-  // Effect to trigger auto-resume once messages are loaded
-  useEffect(() => {
-    // Conditions to skip resume
-    if (chatId === "new" || isLoadingMessages || hasAttemptedResume.current) {
-      return;
-    }
-
-    // Conditions met, attempt resume
-    console.log("Messages loaded, attempting auto-resume.");
-    tryResume();
-    hasAttemptedResume.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingMessages]);
 
   // SCENARIO 1: A new user message was just submitted.
   // Scroll this message to the top to keep it in view.

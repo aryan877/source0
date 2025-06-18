@@ -3,18 +3,30 @@
 import { getLatestStreamIdWithStatus } from "@/services";
 import { type UseChatHelpers } from "@ai-sdk/react";
 import { type Message as UIMessage } from "ai";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 export type DataPart = { type: "append-message"; message: string };
 
 export interface Props {
+  autoResume: boolean;
   initialMessages: UIMessage[];
   experimental_resume: UseChatHelpers["experimental_resume"];
+  data: UseChatHelpers["data"];
+  setMessages: UseChatHelpers["setMessages"];
   chatId?: string;
 }
-export function useAutoResume({ initialMessages, experimental_resume, chatId }: Props) {
+
+export function useAutoResume({
+  autoResume,
+  initialMessages,
+  experimental_resume,
+  data,
+  setMessages,
+  chatId,
+}: Props) {
   const tryResume = useCallback(() => {
     if (!chatId) {
+      console.log("Auto-resume skipped: no chatId");
       return;
     }
 
@@ -38,8 +50,51 @@ export function useAutoResume({ initialMessages, experimental_resume, chatId }: 
           console.log("Attempting to resume chat stream (fallback)...");
           experimental_resume();
         });
+    } else {
+      console.log("Auto-resume skipped: most recent message is not from user", {
+        mostRecentMessageRole: mostRecentMessage?.role,
+        messagesLength: initialMessages.length,
+      });
     }
   }, [chatId, initialMessages, experimental_resume]);
 
-  return { tryResume };
+  // Auto-execute resume logic once on mount when autoResume is true
+  useEffect(() => {
+    console.log("useAutoResume effect running:", {
+      autoResume,
+      chatId,
+      messagesLength: initialMessages.length,
+      mostRecentMessageRole: initialMessages.at(-1)?.role,
+    });
+
+    if (!autoResume) {
+      console.log("Auto-resume disabled");
+      return;
+    }
+
+    const mostRecentMessage = initialMessages.at(-1);
+
+    if (mostRecentMessage?.role === "user") {
+      console.log("Auto-resume conditions met, attempting resume...");
+      tryResume();
+    } else {
+      console.log("Auto-resume conditions not met - most recent message is not from user");
+    }
+
+    // we intentionally run this once with empty dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMessages]);
+
+  // Handle append-message data parts for resumable streams
+  useEffect(() => {
+    if (!data || data.length === 0) return;
+
+    const dataPart = data[0] as DataPart;
+
+    if (dataPart.type === "append-message") {
+      console.log("Processing append-message data part");
+      const message = JSON.parse(dataPart.message) as UIMessage;
+      setMessages([...initialMessages, message]);
+    }
+  }, [data, initialMessages, setMessages]);
 }
