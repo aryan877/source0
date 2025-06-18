@@ -44,7 +44,6 @@ interface MessageCompleteData {
   grounding?: GroundingMetadata;
 }
 
-// A simplified type guard that checks for the properties we need on a JSONValue object
 function getMessageCompleteData(
   annotations: readonly JSONValue[] | undefined
 ): MessageCompleteData | null {
@@ -135,7 +134,6 @@ const MessageBubble = memo(
       }
     }, [isEditing]);
 
-    // Stable callbacks with proper dependencies
     const handleCopy = useCallback(async () => {
       if (message.content) {
         try {
@@ -305,10 +303,7 @@ const MessageBubble = memo(
                 isLoading={isReasoningStreaming}
                 autoExpand={true}
               >
-                <MessageContent
-                  content={part.reasoning}
-                  citations={getCitationsFromMessage(message)}
-                />
+                <MessageContent content={part.reasoning} citations={[]} />
               </ExpandableSection>
             );
 

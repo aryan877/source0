@@ -128,6 +128,8 @@ export async function POST(req: Request): Promise<Response> {
       isFirstMessage = false,
     } = body;
 
+    console.log("Chat request:", body);
+
     const sessionId = id || uuidv4();
 
     const supabase = await createClient();

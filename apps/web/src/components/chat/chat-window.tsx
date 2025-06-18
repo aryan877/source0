@@ -454,8 +454,13 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     if (!pendingMessageData) return;
 
     try {
-      const { message, chatRequestOptions, reasoningLevel, searchEnabled } =
-        JSON.parse(pendingMessageData);
+      const {
+        message,
+        chatRequestOptions,
+        reasoningLevel,
+        searchEnabled,
+        selectedModel: storedModel,
+      } = JSON.parse(pendingMessageData);
 
       // Clear the pending message
       sessionStorage.removeItem("pendingFirstMessage");
@@ -468,6 +473,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         setSearchEnabled(searchEnabled);
       }
 
+      // Restore the selected model if it was stored
+      if (storedModel && storedModel !== selectedModel) {
+        handleModelChange(storedModel);
+      }
+
       // Submit the pending message with the isFirstMessage flag
       append(message, chatRequestOptions);
       setInput("");
@@ -477,7 +487,16 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       console.error("Failed to process pending message:", error);
       sessionStorage.removeItem("pendingFirstMessage");
     }
-  }, [chatId, append, setInput, updateState, setReasoningLevel, setSearchEnabled]);
+  }, [
+    chatId,
+    append,
+    setInput,
+    updateState,
+    setReasoningLevel,
+    setSearchEnabled,
+    handleModelChange,
+    selectedModel,
+  ]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -651,6 +670,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       e.preventDefault();
       updateState({ uiError: null });
 
+      // Don't allow sending message while AI is responding
+      if (isLoading) {
+        return;
+      }
+
       if (!input.trim() && state.attachedFiles.length === 0) {
         return;
       }
@@ -767,6 +791,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       invalidateSessions,
       transferModelSelection,
       setMessages,
+      isLoading,
     ]
   );
 

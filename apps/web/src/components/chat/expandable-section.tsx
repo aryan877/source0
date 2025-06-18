@@ -55,7 +55,11 @@ const ExpandableSection = memo(
       <div className="my-3">
         <button
           onClick={handleToggle}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-content1/50"
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-content1/50 ${
+            isLoading
+              ? "relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent"
+              : ""
+          }`}
         >
           <div className="flex h-3.5 w-3.5 items-center justify-center text-foreground/50">
             {icon}
@@ -98,7 +102,13 @@ const ExpandableSection = memo(
                   {children}
                 </div>
               ) : (
-                <div className="rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50">
+                <div
+                  className={`relative overflow-hidden rounded-2xl bg-default-100 px-5 py-4 dark:bg-default-50 ${
+                    isLoading
+                      ? "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-foreground/10 before:to-transparent"
+                      : ""
+                  }`}
+                >
                   <div className="leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_.prose]:!text-sm">
                     {children}
                   </div>
