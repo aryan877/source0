@@ -1,8 +1,8 @@
 "use client";
 
 import { type ReasoningLevel } from "@/config/models";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { Button, Textarea } from "@heroui/react";
+import { ArrowRight } from "lucide-react";
 import { forwardRef, memo, useCallback, useImperativeHandle, useRef } from "react";
 import { FileAttachment } from "./file-attachment";
 import { ModelControls } from "./model-controls";
@@ -159,7 +159,7 @@ export const ChatInput = memo(
                         size="sm"
                         className="h-8 w-8"
                       >
-                        <PaperAirplaneIcon className="h-4 w-4" />
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
