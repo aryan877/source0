@@ -122,13 +122,19 @@ export const buildSystemMessage = (
     timeZoneName: "short",
   });
 
+  // Only mention webSearch tool if the model doesn't have native search grounding
+  const hasWebSearchTool = searchEnabled && !config.capabilities.includes("search");
+
   const parts = [
     `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
     assistantName &&
       `The assistant's name is ${assistantName}. Address yourself by name when appropriate.`,
     userTraits && `Here are the traits user wants you to follow: "${userTraits}"`,
-    searchEnabled &&
+    hasWebSearchTool &&
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
+    config.capabilities.includes("search") &&
+      searchEnabled &&
+      "You have native web search capabilities integrated into your responses. You can automatically search for and include current information when needed.",
     memoryEnabled &&
       "You have access to memory tools that allow you to save and retrieve important user information for personalized interactions. Use memorySave when users share personal preferences, information, or important details worth remembering. Use memoryRetrieve when you need context about the user to provide personalized responses. Always show when you're saving or retrieving memories.",
     config.capabilities.includes("image") && "You can analyze images.",
