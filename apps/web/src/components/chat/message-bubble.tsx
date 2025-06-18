@@ -204,22 +204,23 @@ const MessageBubble = memo(
       // If editing, show textarea instead of message content
       if (isEditing && isUser) {
         return (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <textarea
               ref={textareaRef}
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full resize-none rounded-lg border border-divider bg-content1 p-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full resize-none rounded-xl border border-divider/50 bg-content1/80 p-4 text-sm leading-relaxed shadow-sm backdrop-blur-sm transition-all duration-200 focus:border-primary focus:bg-content1 focus:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/10"
               placeholder="Edit your message..."
-              style={{ minHeight: "60px", maxHeight: "300px" }}
+              style={{ minHeight: "80px", maxHeight: "400px" }}
             />
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <Button
                 size="sm"
                 variant="light"
                 onPress={handleCancelEdit}
                 startContent={<XMarkIcon className="h-4 w-4" />}
+                className="transition-all hover:scale-105"
               >
                 Cancel
               </Button>
@@ -228,6 +229,7 @@ const MessageBubble = memo(
                 color="primary"
                 onPress={handleSaveEdit}
                 isDisabled={!editContent.trim() || editContent.trim() === message.content?.trim()}
+                className="transition-all hover:scale-105"
               >
                 Send
               </Button>
@@ -496,12 +498,20 @@ const MessageBubble = memo(
 
         <div
           className={`flex flex-col gap-3 ${
-            isUser ? "ml-auto max-w-[85%] items-end" : "w-full items-start"
+            isEditing && isUser
+              ? "w-full items-end"
+              : isUser
+                ? "ml-auto max-w-[85%] items-end"
+                : "w-full items-start"
           }`}
         >
           <div
             className={`flex flex-col gap-4 ${
-              isUser ? "rounded-2xl bg-content2 px-5 py-4" : "w-full px-1"
+              isEditing && isUser
+                ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
+                : isUser
+                  ? "rounded-2xl bg-content2 px-5 py-4"
+                  : "w-full px-1"
             }`}
           >
             {renderMessageParts}

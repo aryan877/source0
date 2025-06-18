@@ -20,20 +20,19 @@ import { type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
-import { Chip } from "@heroui/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { ChatHeader } from "./chat-header";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
 import { SamplePrompts } from "./sample-prompts";
-import { ShareButton } from "./share-button";
 
-const SCROLL_TOP_MARGIN = 120; // Extra margin when scrolling user message to top
-const SCROLL_TO_BOTTOM_THRESHOLD = 100; // In pixels from bottom to trigger auto-scroll
-const SCROLL_ANIMATION_DURATION = 500; // ms, for smooth scroll
-const STREAMING_SCROLL_DEBOUNCE = 100; // ms, for scroll debounce during streaming
+const SCROLL_TOP_MARGIN = 120;
+const SCROLL_TO_BOTTOM_THRESHOLD = 100;
+const SCROLL_ANIMATION_DURATION = 500;
+const STREAMING_SCROLL_DEBOUNCE = 100;
 
 interface ChatWindowProps {
   chatId: string;
@@ -119,6 +118,40 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         input: input?.substring(0, 100),
         attachedFilesCount: state.attachedFiles.length,
       });
+
+      const errorMessage = error.message || String(error);
+
+      if (
+        errorMessage.includes("CONTEXT_LENGTH_EXCEEDED") ||
+        errorMessage.includes("TOKEN_LIMIT_EXCEEDED") ||
+        errorMessage.includes("REQUEST_TOO_LARGE") ||
+        (errorMessage.includes("context") && errorMessage.includes("length")) ||
+        (errorMessage.includes("token") && errorMessage.includes("limit"))
+      ) {
+        updateState({
+          uiError:
+            "💬 Conversation is too long! Please start a new chat or try a shorter message. You can also try enabling web search to get more concise responses.",
+        });
+        return;
+      }
+
+      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+        updateState({
+          uiError: "⏱️ Rate limit exceeded. Please wait a moment before sending another message.",
+        });
+        return;
+      }
+
+      if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+        updateState({
+          uiError: "🌐 Network error. Please check your connection and try again.",
+        });
+        return;
+      }
+
+      updateState({
+        uiError: "❌ Something went wrong. Please try again or start a new chat.",
+      });
     },
     onResponse: (response) => {
       if (!response.ok) {
@@ -133,6 +166,25 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             url: response.url,
           }
         );
+
+        if (response.status === 413) {
+          updateState({
+            uiError:
+              "📝 Your message is too long. Please try shortening it or breaking it into smaller parts.",
+          });
+        } else if (response.status === 429) {
+          updateState({
+            uiError: "⏱️ Rate limit exceeded. Please wait a moment before sending another message.",
+          });
+        } else if (response.status >= 500) {
+          updateState({
+            uiError: "🔧 Server error. Please try again in a moment.",
+          });
+        } else if (response.status === 401) {
+          updateState({
+            uiError: "🔐 Authentication error. Please refresh the page and try again.",
+          });
+        }
       }
     },
     onFinish: async (message, { usage, finishReason }) => {
@@ -148,7 +200,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         });
       }
 
-      // Reset bottom padding to normal when AI finishes responding
       if (messagesContainerRef.current) {
         const messagesContainer = messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
         if (messagesContainer) {
@@ -158,7 +209,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
 
-      // Handle the new comprehensive message_complete annotation
       const messageCompleteAnnotation = message.annotations?.find(
         (a) =>
           typeof a === "object" &&
@@ -167,7 +217,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           (a as { type?: unknown }).type === "message_complete"
       );
 
-      let hasGrounding = false; // Default value
+      let hasGrounding = false;
 
       if (messageCompleteAnnotation) {
         const data = (messageCompleteAnnotation as { data?: unknown }).data;
@@ -180,7 +230,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             hasGrounding?: boolean;
           };
 
-          hasGrounding = annotationData.hasGrounding ?? false; // Update from annotation
+          hasGrounding = annotationData.hasGrounding ?? false;
 
           console.log("Processing message_complete annotation:", {
             originalId: message.id,
@@ -191,7 +241,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             annotationCount: message.annotations?.length || 0,
           });
 
-          // Update message ID if it was saved successfully
           if (annotationData.messageSaved && annotationData.databaseId) {
             const databaseId = annotationData.databaseId;
             setMessages((currentMessages) =>
@@ -201,7 +250,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             );
           }
 
-          // Handle title update if generated
           if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
             const sessionUpdate: ChatSession = {
               id: chatId,
@@ -225,8 +273,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         });
       }
 
-      // Always invalidate messages to get fresh data
-      // Use longer delay for messages with grounding to ensure all DB operations complete
       if (chatId && chatId !== "new") {
         const delay = hasGrounding ? 200 : 100;
         console.log(
@@ -249,32 +295,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     updateState({ uiError: null });
   }, [updateState]);
 
-  /**
-   * Handles stopping the current streaming chat response.
-   *
-   * This function performs three main operations:
-   * 1. Immediately stops the streaming response
-   * 2. Saves any partial assistant message content to the database
-   * 3. Marks the stream as cancelled to prevent resumption
-   *
-   * All operations after stopping are fire-and-forget to ensure UI responsiveness.
-   */
   const handleStop = useCallback(() => {
-    // Stop the stream first - this is synchronous and immediate
     stop();
 
-    // Process saving and stream cancellation in parallel (fire-and-forget)
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
-    // Save partial message (non-blocking)
     if (lastAssistantMessage && chatId !== "new" && user) {
       console.log("Saving partial message due to user stop:", lastAssistantMessage);
 
-      // Get the model config to extract the proper provider
       const modelConfig = getModelById(selectedModel);
       const modelProvider = modelConfig?.provider || "Unknown";
 
-      // Use the helper function to properly convert message parts
       const preparedMessage = prepareMessageForDb({
         message: lastAssistantMessage,
         sessionId: chatId,
@@ -285,7 +316,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         searchEnabled: searchEnabled,
       });
 
-      // Save the partial message if we have content (fire-and-forget)
       if (preparedMessage.parts.length > 0) {
         saveAssistantMessage(
           lastAssistantMessage,
@@ -299,7 +329,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
     }
 
-    // Cancel stream (fire-and-forget)
     if (chatId && chatId !== "new") {
       getLatestStreamIdWithStatus(chatId)
         .then((latestStream) => {
@@ -314,13 +343,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
 
-  /**
-   * Retries the last failed chat request.
-   *
-   * This function finds the most recent user message and re-sends it.
-   * Used when there's a network error or other failure during message processing.
-   * Only user messages can be retried - assistant messages cannot be regenerated this way.
-   */
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
 
@@ -333,8 +355,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     try {
       updateState({ uiError: null });
       stop();
-
-      // Simply re-send the last user message
       await append(lastUserMessage);
     } catch (error) {
       console.error("Error during request retry:", error);
@@ -353,8 +373,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     chatId: chatId !== "new" ? chatId : undefined,
   });
 
-  // SCENARIO 1: A new user message was just submitted.
-  // Scroll this message to the top to keep it in view.
+  // Scroll handling
   useLayoutEffect(() => {
     if (!justSubmittedMessageId.current) return;
 
@@ -367,7 +386,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     );
 
     if (messagesContainer && messageElement instanceof HTMLElement) {
-      // Calculate and apply padding to ensure the message can scroll to the top
       const containerHeight = container.clientHeight;
       const neededPadding = Math.max(containerHeight - 100, 200);
       if (!messagesContainer.dataset.originalPadding) {
@@ -376,7 +394,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
       messagesContainer.style.paddingBottom = `${neededPadding}px`;
 
-      // Use requestAnimationFrame for smooth scroll after layout changes
       requestAnimationFrame(() => {
         programmaticScroll.current = true;
         const messageOffsetTop = messageElement.offsetTop;
@@ -386,25 +403,20 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           behavior: "smooth",
         });
 
-        // After the animation, allow user scroll to be detected again
         setTimeout(() => {
           programmaticScroll.current = false;
         }, SCROLL_ANIMATION_DURATION);
       });
     }
 
-    // This logic has run, so we clear the ID to prevent it from re-running
     justSubmittedMessageId.current = null;
-    userScrolled.current = false; // Reset user scroll on new message
+    userScrolled.current = false;
   }, [messages]);
 
-  // SCENARIO 2: Initial load or new AI messages.
-  // We auto-scroll to the bottom, but only if the user hasn't scrolled up.
   useLayoutEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    // Don't auto-scroll if a user message was just submitted and is scrolling to top
     if (justSubmittedMessageId.current) return;
 
     const isScrolledNearBottom =
@@ -428,84 +440,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }, timeout);
     }
 
-    // After the first render with messages, it's no longer the initial load.
     if (isInitialLoad.current && messages.length > 0) {
       isInitialLoad.current = false;
     }
   }, [messages, status]);
 
-  // Handle pending first message from sessionStorage for new sessions
-  useEffect(() => {
-    if (chatId === "new") return;
-
-    const pendingMessageData = sessionStorage.getItem("pendingFirstMessage");
-    if (!pendingMessageData) return;
-
-    try {
-      const {
-        message,
-        chatRequestOptions,
-        reasoningLevel,
-        searchEnabled,
-        selectedModel: storedModel,
-      } = JSON.parse(pendingMessageData);
-
-      // Clear the pending message
-      sessionStorage.removeItem("pendingFirstMessage");
-
-      // Restore the state that was saved when creating the session
-      if (reasoningLevel !== undefined) {
-        setReasoningLevel(reasoningLevel);
-      }
-      if (searchEnabled !== undefined) {
-        setSearchEnabled(searchEnabled);
-      }
-
-      // Restore the selected model if it was stored
-      if (storedModel && storedModel !== selectedModel) {
-        handleModelChange(storedModel);
-      }
-
-      // Submit the pending message with the isFirstMessage flag
-      append(message, chatRequestOptions);
-      setInput("");
-      updateState({ attachedFiles: [] });
-      setTimeout(() => chatInputRef.current?.focus(), 0);
-    } catch (error) {
-      console.error("Failed to process pending message:", error);
-      sessionStorage.removeItem("pendingFirstMessage");
-    }
-  }, [
-    chatId,
-    append,
-    setInput,
-    updateState,
-    setReasoningLevel,
-    setSearchEnabled,
-    handleModelChange,
-    selectedModel,
-  ]);
-
-  const isLoading = status === "submitted" || status === "streaming";
-
-  /**
-   * Retries a specific message by its ID.
-   *
-   * This function:
-   * 1. Finds the message to retry in the conversation
-   * 2. If it's a user message, retries that message directly
-   * 3. If it's an assistant message, finds the previous user message and retries that
-   * 4. Deletes the target message and all subsequent messages from the database
-   * 5. Removes them from the local state
-   * 6. Re-sends the user message
-   *
-   * This provides consistent retry behavior regardless of which message is clicked.
-   */
+  // Message actions
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
       try {
         updateState({ uiError: null });
-        stop(); // Stop any ongoing requests first
+        stop();
 
         const clickedMessageIndex = messages.findIndex((m) => m.id === messageId);
         if (clickedMessageIndex === -1) {
@@ -525,11 +470,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         let retryFromIndex: number;
 
         if (clickedMessage.role === "user") {
-          // If clicking on a user message, retry that message
           userMessageToRetry = clickedMessage;
           retryFromIndex = clickedMessageIndex;
         } else {
-          // If clicking on an assistant message, find the previous user message
           let userMessageIndex = -1;
           for (let i = clickedMessageIndex - 1; i >= 0; i--) {
             const msg = messages[i];
@@ -559,9 +502,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           invalidateMessages();
         }
 
-        // Remove the user message and everything after it
         setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
-
         append(userMessageToRetry);
       } catch (error) {
         console.error("Error during message retry:", error);
@@ -576,22 +517,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
-  /**
-   * Edits a specific user message by its ID with new content.
-   *
-   * This function:
-   * 1. Finds the user message to edit in the conversation
-   * 2. Deletes the target message and all subsequent messages from the database
-   * 3. Removes them from the local state
-   * 4. Re-sends the message with the new content
-   *
-   * Only user messages can be edited.
-   */
   const handleEditMessage = useCallback(
     async (messageId: string, newContent: string) => {
       try {
         updateState({ uiError: null });
-        stop(); // Stop any ongoing requests first
+        stop();
 
         const messageIndex = messages.findIndex((m) => m.id === messageId);
         if (messageIndex === -1) {
@@ -617,28 +547,23 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           return;
         }
 
-        // Delete from database if not a new chat
         if (chatId && chatId !== "new") {
           await deleteFromPoint(messageToEdit.id);
           invalidateMessages();
         }
 
-        // Remove the message and everything after it from local state
         setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
 
-        // Create new message with edited content but preserve other properties
         const editedMessage: Message = {
           ...messageToEdit,
-          id: uuidv4(), // Generate new ID for the edited message
+          id: uuidv4(),
           content: newContent,
-          parts: [{ type: "text", text: newContent }], // Update parts with new content
+          parts: [{ type: "text", text: newContent }],
         };
 
-        // Store the message ID for scroll tracking
         justSubmittedMessageId.current = editedMessage.id;
         userScrolled.current = false;
 
-        // Re-send the edited message
         append(editedMessage);
       } catch (error) {
         console.error("Error during message edit:", error);
@@ -653,12 +578,13 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
+  // Form handling
   const handleFormSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       updateState({ uiError: null });
 
-      // Don't allow sending message while AI is responding
+      const isLoading = status === "submitted" || status === "streaming";
       if (isLoading) {
         return;
       }
@@ -706,7 +632,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         parts: [...textPart, ...fileParts] as Message["parts"],
       } as Message;
 
-      // Store the message ID for scroll tracking
       justSubmittedMessageId.current = messageToAppend.id;
 
       const chatRequestOptions =
@@ -723,12 +648,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         const newSessionId = uuidv4();
-        // Optimistically show the new message and navigate
         setMessages([messageToAppend]);
         justSubmittedMessageId.current = messageToAppend.id;
         router.push(`/chat/${newSessionId}`);
 
-        // Store pending message for the new page to pick up
         const messageData = {
           message: messageToAppend,
           chatRequestOptions: { ...chatRequestOptions, isFirstMessage: true },
@@ -738,7 +661,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
-        // In the background, create the session and clean up
         createSession(user.id, "New Chat", undefined, newSessionId)
           .then(() => {
             invalidateSessions();
@@ -746,7 +668,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           })
           .catch((error) => {
             console.error("Failed to create new session in background:", error);
-            // Handle error, maybe show a toast
           });
 
         setInput("");
@@ -754,7 +675,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         return;
       }
 
-      // Set the message ID for height tracking
       justSubmittedMessageId.current = messageToAppend.id;
       userScrolled.current = false;
 
@@ -779,7 +699,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       invalidateSessions,
       transferModelSelection,
       setMessages,
-      isLoading,
+      status,
     ]
   );
 
@@ -792,6 +712,56 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     },
     [handleFormSubmit]
   );
+
+  // Handle pending first message from sessionStorage for new sessions
+  useEffect(() => {
+    if (chatId === "new") return;
+
+    const pendingMessageData = sessionStorage.getItem("pendingFirstMessage");
+    if (!pendingMessageData) return;
+
+    try {
+      const {
+        message,
+        chatRequestOptions,
+        reasoningLevel,
+        searchEnabled,
+        selectedModel: storedModel,
+      } = JSON.parse(pendingMessageData);
+
+      sessionStorage.removeItem("pendingFirstMessage");
+
+      if (reasoningLevel !== undefined) {
+        setReasoningLevel(reasoningLevel);
+      }
+      if (searchEnabled !== undefined) {
+        setSearchEnabled(searchEnabled);
+      }
+
+      if (storedModel && storedModel !== selectedModel) {
+        handleModelChange(storedModel);
+      }
+
+      append(message, chatRequestOptions);
+      setInput("");
+      updateState({ attachedFiles: [] });
+      setTimeout(() => chatInputRef.current?.focus(), 0);
+    } catch (error) {
+      console.error("Failed to process pending message:", error);
+      sessionStorage.removeItem("pendingFirstMessage");
+    }
+  }, [
+    chatId,
+    append,
+    setInput,
+    updateState,
+    setReasoningLevel,
+    setSearchEnabled,
+    handleModelChange,
+    selectedModel,
+  ]);
+
+  const isLoading = status === "submitted" || status === "streaming";
 
   const handlePromptSelect = useCallback(
     (prompt: string) => {
@@ -807,42 +777,18 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   );
 
   const chatInputRef = useRef<ChatInputRef | null>(null);
-
-  // Get session data for the share button using React Query
   const { data: sessionData } = useChatSession(chatId);
 
-  // Show sample prompts when there are no messages and no input
   const showSamplePrompts =
     messages.length === 0 && !input.trim() && state.attachedFiles.length === 0;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header with share button */}
-      {chatId !== "new" && sessionData && (
-        <div className="flex items-center justify-between bg-background/60 px-4 py-3 backdrop-blur-sm">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              {isSharedView && (
-                <Chip
-                  size="sm"
-                  variant="flat"
-                  color="primary"
-                  startContent={
-                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-                    </svg>
-                  }
-                >
-                  Shared
-                </Chip>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isSharedView && <ShareButton session={sessionData} />}
-          </div>
-        </div>
-      )}
+      <ChatHeader
+        chatId={chatId}
+        sessionData={sessionData || undefined}
+        isSharedView={isSharedView}
+      />
 
       {showSamplePrompts ? (
         <div className="flex flex-1 items-center justify-center p-8">
@@ -869,7 +815,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         />
       )}
 
-      {/* Only show chat input for non-shared views */}
       {!isSharedView && (
         <ChatInput
           input={input}
@@ -897,7 +842,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         />
       )}
 
-      {/* Alternative footer for shared views */}
       {isSharedView && (
         <div className="border-t border-divider bg-content1/50 px-4 py-4">
           <div className="flex items-center justify-center gap-4 text-sm text-default-600">
