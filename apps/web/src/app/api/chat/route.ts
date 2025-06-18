@@ -136,8 +136,6 @@ export async function POST(req: Request): Promise<Response> {
       userTraits,
     } = body;
 
-    console.log("Chat request:", { ...body, apiKey: apiKey ? "[REDACTED]" : undefined });
-
     const sessionId = id || uuidv4();
 
     const supabase = await createClient();
@@ -190,8 +188,6 @@ export async function POST(req: Request): Promise<Response> {
 
       const stream = createDataStream({
         execute: async (dataStream) => {
-          console.log(`Starting stream ${streamId} for session ${finalSessionId}`);
-
           const result = streamText({
             model: modelInstance,
             messages: finalMessages,
@@ -199,24 +195,7 @@ export async function POST(req: Request): Promise<Response> {
             tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, modelConfig),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onFinish: async ({
-              text,
-              providerMetadata,
-              finishReason,
-              response,
-              reasoning,
-              reasoningDetails,
-              usage,
-            }) => {
-              console.log("onFinish", {
-                text,
-                providerMetadata,
-                finishReason,
-                response,
-                reasoning,
-                reasoningDetails,
-                usage,
-              });
+            onFinish: async ({ text, providerMetadata, response }) => {
               // Check if stream was cancelled before saving message
               try {
                 const streamStatus = await serverGetLatestStreamIdWithStatus(
@@ -318,7 +297,6 @@ export async function POST(req: Request): Promise<Response> {
                   );
 
                   messageSaved = true;
-                  console.log("Message saved successfully with ID:", messageId);
                 } catch (error) {
                   console.error("Failed to save assistant message:", error);
                 }
@@ -418,12 +396,6 @@ export async function POST(req: Request): Promise<Response> {
                 } as JSONValue,
               };
 
-              console.log(`Sending single comprehensive annotation for message ${messageId}:`, {
-                messageSaved,
-                hasTitle: !!generatedTitle,
-                hasGrounding: !!providerMetadata?.google?.groundingMetadata,
-              });
-
               dataStream.writeMessageAnnotation(annotationData);
             },
             onError: ({ error }) => {
@@ -441,12 +413,6 @@ export async function POST(req: Request): Promise<Response> {
           });
         },
         onError: (error: unknown) => {
-          console.log(`DataStream ${streamId} encountered error:`, {
-            name: error instanceof Error ? error.name : "Unknown",
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-          });
-
           // Handle other errors with the original handler
           return handleStreamError(error, "DataStream");
         },
