@@ -529,7 +529,6 @@ const ThemeSelector = memo(
       { key: "forest", label: "Forest", icon: "🌲" },
       { key: "sunset", label: "Sunset", icon: "🌅" },
       { key: "lavender", label: "Lavender", icon: "💜" },
-      { key: "midnight", label: "Midnight", icon: "🌌" },
       { key: "rose", label: "Rose", icon: "🌹" },
     ];
 

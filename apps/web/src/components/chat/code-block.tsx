@@ -140,18 +140,16 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
                 <ShikiHighlighter
                   theme={
                     resolvedTheme === "dark" ||
-                    resolvedTheme === "midnight" ||
-                    resolvedTheme === "forest"
+                    resolvedTheme === "forest" ||
+                    resolvedTheme === "lavender"
                       ? "github-dark"
                       : resolvedTheme === "ocean"
                         ? "github-light"
                         : resolvedTheme === "sunset"
                           ? "github-light"
-                          : resolvedTheme === "lavender"
+                          : resolvedTheme === "rose"
                             ? "github-light"
-                            : resolvedTheme === "rose"
-                              ? "github-light"
-                              : "github-light"
+                            : "github-light"
                   }
                   language={language}
                   delay={100}
