@@ -212,6 +212,7 @@ const MessageBubble = memo(
                 icon={<CpuChipIcon className="h-4 w-4" />}
                 defaultExpanded={false}
                 isLoading={isReasoningStreaming}
+                autoExpand={true}
               >
                 <MessageContent
                   content={part.reasoning}

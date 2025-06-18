@@ -11,7 +11,7 @@ export function ConditionalAppShell({ children }: ConditionalAppShellProps) {
   const pathname = usePathname();
 
   // Routes that should NOT have the AppShell
-  const excludedRoutes = ["/auth"];
+  const excludedRoutes = ["/auth", "/settings"];
 
   // Check if current path should be excluded
   const shouldExcludeAppShell = excludedRoutes.some((route) => pathname.startsWith(route));

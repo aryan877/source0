@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 interface ExpandableSectionProps {
   title: string;
@@ -11,6 +11,7 @@ interface ExpandableSectionProps {
   variant?: "reasoning" | "tool" | "source" | "default";
   isLoading?: boolean;
   noBg?: boolean;
+  autoExpand?: boolean;
 }
 
 const LoadingSpinner = memo(() => (
@@ -29,12 +30,26 @@ const ExpandableSection = memo(
     defaultExpanded = false,
     isLoading = false,
     noBg = false,
+    autoExpand = false,
   }: ExpandableSectionProps) => {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
     const handleToggle = useCallback(() => {
       setIsExpanded((prev) => !prev);
     }, []);
+
+    useEffect(() => {
+      if (autoExpand) {
+        if (isLoading) {
+          setIsExpanded(true);
+        } else {
+          const timer = setTimeout(() => {
+            setIsExpanded(false);
+          }, 1500);
+          return () => clearTimeout(timer);
+        }
+      }
+    }, [isLoading, autoExpand]);
 
     return (
       <div className="my-3">
@@ -46,7 +61,13 @@ const ExpandableSection = memo(
             {icon}
           </div>
 
-          <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/60">
+          <span
+            className={`flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/60 ${
+              isLoading
+                ? "relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
+                : ""
+            }`}
+          >
             {title}
           </span>
 
