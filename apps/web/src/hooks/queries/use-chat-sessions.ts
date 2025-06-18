@@ -10,7 +10,7 @@ import { chatSessionsKeys } from "@/utils/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../useAuth";
 
-// Main hook
+// Main hook - now clean and simple with built-in persistence
 export function useChatSessions(searchTerm = "") {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -19,7 +19,7 @@ export function useChatSessions(searchTerm = "") {
     queryKey: user?.id ? chatSessionsKeys.search(user.id, searchTerm) : [],
     queryFn: () => (searchTerm ? searchUserSessions(searchTerm) : getUserSessions(user!.id)),
     enabled: !!user?.id,
-    staleTime: Infinity, // Sessions don't change often, invalidate manually
+    staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh
     refetchOnWindowFocus: false,
   });
 
