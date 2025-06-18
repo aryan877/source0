@@ -1,5 +1,6 @@
 "use client";
 
+import { SecureFileDisplay } from "@/components/chat";
 import { CapabilityIcon } from "@/components/chat/capability-icons";
 import { ProviderIcon } from "@/components/chat/provider-section";
 import { CAPABILITY_LABELS, ModelCapability, MODELS, type ModelConfig } from "@/config/models";
@@ -32,11 +33,17 @@ import {
   DropdownMenu,
   DropdownTrigger,
   Input,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Spinner,
   Switch,
   Tab,
   Tabs,
   Textarea,
+  useDisclosure,
 } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -46,6 +53,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const selectedTab = searchParams.get("tab") || "customization";
 
@@ -67,6 +79,35 @@ export default function SettingsPage() {
   } = useUserPreferencesStore();
   const { theme, setTheme } = useTheme();
 
+  const [localAssistantName, setLocalAssistantName] = useState(assistantName);
+  const [localUserTraits, setLocalUserTraits] = useState(userTraits);
+
+  useEffect(() => {
+    setLocalAssistantName(assistantName);
+  }, [assistantName]);
+
+  useEffect(() => {
+    setLocalUserTraits(userTraits);
+  }, [userTraits]);
+
+  const personalInfoHasChanges =
+    localAssistantName !== assistantName || localUserTraits !== userTraits;
+
+  const handleSavePersonalInfo = () => {
+    setAssistantName(localAssistantName);
+    setUserTraits(localUserTraits);
+    addToast({
+      title: "Settings Saved",
+      description: "Your personal settings have been updated.",
+      color: "success",
+    });
+  };
+
+  const handleResetPersonalInfo = () => {
+    setLocalAssistantName(assistantName);
+    setLocalUserTraits(userTraits);
+  };
+
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
   // State for filtering models
@@ -74,6 +115,15 @@ export default function SettingsPage() {
   const [selectedCapabilities, setSelectedCapabilities] = useState<ModelCapability[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<ModelConfig["provider"] | null>(null);
   const { enabledModels, toggleModelEnabled } = useModelSelectorStore();
+  const {
+    isOpen: isDeleteModalOpen,
+    onOpen: onDeleteModalOpen,
+    onClose: onDeleteModalClose,
+  } = useDisclosure();
+  const [deleteTarget, setDeleteTarget] = useState<
+    { type: "single"; id: string; path: string } | { type: "multiple"; ids: string[] } | null
+  >(null);
+  const [isDeletingForModal, setIsDeletingForModal] = useState(false);
 
   // API Keys store
   const {
@@ -171,12 +221,10 @@ export default function SettingsPage() {
   const availableCapabilities = useMemo(() => getAvailableCapabilities(MODELS), []);
   const availableProviders = useMemo(() => getAvailableProviders(MODELS), []);
 
-  // Use the custom hook for file management
   const {
     files,
     loading: loadingFiles,
     error: filesError,
-    deleting,
     deleteFile,
     deleteMultipleFiles,
     clearError,
@@ -215,17 +263,29 @@ export default function SettingsPage() {
     }
   };
 
-  const handleDeleteSelected = async () => {
-    const filesToDelete = files.filter((f) => selectedFiles.has(f.id));
-    const paths = filesToDelete.map((f) => f.path);
-    const ids = filesToDelete.map((f) => f.id);
+  const handleDeleteSelected = () => {
+    if (selectedFiles.size > 0) {
+      setDeleteTarget({ type: "multiple", ids: Array.from(selectedFiles) });
+      onDeleteModalOpen();
+    }
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingForModal(true);
     try {
-      await deleteMultipleFiles(ids, paths);
-      setSelectedFiles(new Set());
-    } catch (error) {
-      // Error is already handled by the hook
-      console.error("Failed to delete selected files:", error);
+      if (deleteTarget.type === "single") {
+        await deleteFile(deleteTarget.id, deleteTarget.path);
+      } else {
+        const filesToDelete = files.filter((f) => deleteTarget.ids.includes(f.id));
+        const paths = filesToDelete.map((f) => f.path);
+        await deleteMultipleFiles(deleteTarget.ids, paths);
+        setSelectedFiles(new Set());
+      }
+    } finally {
+      setIsDeletingForModal(false);
+      onDeleteModalClose();
+      setDeleteTarget(null);
     }
   };
 
@@ -272,8 +332,8 @@ export default function SettingsPage() {
                     Assistant Name
                   </label>
                   <Input
-                    value={assistantName}
-                    onChange={(e) => setAssistantName(e.target.value)}
+                    value={localAssistantName}
+                    onChange={(e) => setLocalAssistantName(e.target.value)}
                     placeholder="What should this app call you?"
                     variant="bordered"
                   />
@@ -287,8 +347,8 @@ export default function SettingsPage() {
                     Your Traits & Preferences
                   </label>
                   <Textarea
-                    value={userTraits}
-                    onChange={(e) => setUserTraits(e.target.value)}
+                    value={localUserTraits}
+                    onChange={(e) => setLocalUserTraits(e.target.value)}
                     placeholder="Tell the AI about your preferences, communication style, expertise, etc."
                     minRows={4}
                     variant="bordered"
@@ -297,6 +357,17 @@ export default function SettingsPage() {
                     Help the AI understand how to communicate with you effectively.
                   </p>
                 </div>
+
+                {personalInfoHasChanges && (
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button variant="flat" color="default" onPress={handleResetPersonalInfo}>
+                      Cancel
+                    </Button>
+                    <Button color="primary" onPress={handleSavePersonalInfo}>
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <h3 className="mb-6 mt-12 text-xl font-bold text-foreground">Appearance</h3>
@@ -304,18 +375,26 @@ export default function SettingsPage() {
                 <div>
                   <label className="mb-4 block text-sm font-semibold text-foreground">Theme</label>
                   <div className="flex flex-wrap gap-3">
-                    {themeOptions.map((themeOption) => (
-                      <Button
-                        key={themeOption.key}
-                        variant={theme === themeOption.key ? "solid" : "bordered"}
-                        onPress={() => setTheme(themeOption.key)}
-                        color={theme === themeOption.key ? "primary" : "default"}
-                        className="capitalize"
-                        startContent={<span className="text-lg">{themeOption.icon}</span>}
-                      >
-                        {themeOption.label}
-                      </Button>
-                    ))}
+                    {!isMounted &&
+                      themeOptions.map((option) => (
+                        <div
+                          key={option.key}
+                          className="h-10 w-24 animate-pulse rounded-lg bg-content2"
+                        />
+                      ))}
+                    {isMounted &&
+                      themeOptions.map((themeOption) => (
+                        <Button
+                          key={themeOption.key}
+                          variant={theme === themeOption.key ? "solid" : "bordered"}
+                          onPress={() => setTheme(themeOption.key)}
+                          color={theme === themeOption.key ? "primary" : "default"}
+                          className="capitalize"
+                          startContent={<span className="text-lg">{themeOption.icon}</span>}
+                        >
+                          {themeOption.label}
+                        </Button>
+                      ))}
                   </div>
                 </div>
               </div>
@@ -477,6 +556,7 @@ export default function SettingsPage() {
                     size="sm"
                     startContent={<TrashIcon className="h-4 w-4" />}
                     onPress={handleDeleteSelected}
+                    isDisabled={isDeletingForModal || selectedFiles.size === 0}
                   >
                     Delete Selected
                   </Button>
@@ -522,23 +602,29 @@ export default function SettingsPage() {
                           : "border-divider bg-content1"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-1 items-start gap-4">
                           <Checkbox
                             isSelected={selectedFiles.has(file.id)}
                             onValueChange={() => handleToggleFileSelection(file.id)}
+                            className="mt-1 flex-shrink-0"
                           />
-
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-content2 text-xl">
-                            {file.contentType.startsWith("image/") ? "🖼️" : "📄"}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground">{file.name}</p>
-                            <div className="flex items-center gap-2 text-sm text-default-600">
+                          <div className="min-w-0 flex-1">
+                            <div className="max-w-xs">
+                              <SecureFileDisplay
+                                url={file.url}
+                                mimeType={file.contentType}
+                                fileName={file.name}
+                                isImage={file.contentType.startsWith("image/")}
+                                className="!mb-0"
+                                displaySize="small"
+                              />
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-default-600">
                               <span className="font-medium">{formatFileSize(file.size)}</span>
-                              <span>•</span>
+                              <span className="text-default-400">/</span>
                               <span>{file.chatFolder}</span>
-                              <span>•</span>
+                              <span className="text-default-400">/</span>
                               <span>{new Date(file.uploadDate).toLocaleDateString()}</span>
                             </div>
                           </div>
@@ -547,15 +633,13 @@ export default function SettingsPage() {
                           variant="light"
                           isIconOnly
                           color="danger"
-                          onPress={() => deleteFile(file.id, file.path)}
-                          isLoading={deleting.has(file.id)}
-                          isDisabled={deleting.has(file.id)}
+                          onPress={() => {
+                            setDeleteTarget({ type: "single", id: file.id, path: file.path });
+                            onDeleteModalOpen();
+                          }}
+                          isDisabled={isDeletingForModal}
                         >
-                          {deleting.has(file.id) ? (
-                            <Spinner size="sm" color="danger" />
-                          ) : (
-                            <TrashIcon className="h-5 w-5" />
-                          )}
+                          <TrashIcon className="h-5 w-5" />
                         </Button>
                       </div>
                     </div>
@@ -746,6 +830,28 @@ export default function SettingsPage() {
           </Tabs>
         </div>
       </div>
+      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose} size="md">
+        <ModalContent>
+          <ModalHeader>Confirm Deletion</ModalHeader>
+          <ModalBody>
+            <p className="text-default-700">
+              Are you sure you want to delete{" "}
+              {deleteTarget?.type === "multiple"
+                ? `${deleteTarget.ids.length} file(s)`
+                : "this file"}
+              ? This action cannot be undone.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={onDeleteModalClose} disabled={isDeletingForModal}>
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleConfirmDelete} isLoading={isDeletingForModal}>
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
