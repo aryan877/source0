@@ -3,6 +3,8 @@
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
+import { ChatSession } from "@/services";
+import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import {
   ArrowRightOnRectangleIcon,
   ArrowTurnRightUpIcon,
@@ -28,6 +30,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
+import { Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useState } from "react";
@@ -51,8 +54,10 @@ interface ChatItemProps {
   updatedAt: string;
   isSelected: boolean;
   isBranched: boolean;
+  isPinned: boolean;
   onSelect: (chatId: string) => void;
   onDelete: (chatId: string) => void;
+  onTogglePin: (chatId: string) => void;
   isDeleting: boolean;
 }
 
@@ -250,8 +255,10 @@ const ChatItem = memo(
     updatedAt,
     isSelected,
     isBranched,
+    isPinned,
     onSelect,
     onDelete,
+    onTogglePin,
     isDeleting,
   }: ChatItemProps) => {
     return (
@@ -299,9 +306,19 @@ const ChatItem = memo(
                 onAction={(key) => {
                   if (key === "delete") {
                     onDelete(chatId);
+                  } else if (key === "pin") {
+                    onTogglePin(chatId);
                   }
                 }}
               >
+                <DropdownItem
+                  key="pin"
+                  startContent={
+                    isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />
+                  }
+                >
+                  {isPinned ? "Unpin" : "Pin"}
+                </DropdownItem>
                 <DropdownItem
                   key="delete"
                   className="text-danger"
@@ -321,12 +338,146 @@ const ChatItem = memo(
 
 ChatItem.displayName = "ChatItem";
 
+const CategorySection = memo(
+  ({
+    title,
+    sessions,
+    selectedChatId,
+    onSelectChat,
+    onDeleteChat,
+    onTogglePin,
+    isDeletingSession,
+    isOnNewChat,
+  }: {
+    title: string;
+    sessions: ChatSession[];
+    selectedChatId: string;
+    onSelectChat: (chatId: string) => void;
+    onDeleteChat: (chatId: string) => void;
+    onTogglePin: (chatId: string) => void;
+    isDeletingSession: boolean;
+    isOnNewChat: boolean;
+  }) => {
+    const { isPinnedSession } = useSidebarStore();
+
+    if (sessions.length === 0) return null;
+
+    return (
+      <div className="mb-4">
+        <h4 className="mb-2 flex items-center gap-1 px-2 text-xs font-semibold uppercase tracking-wider text-default-400">
+          {title === "Pinned" && <Pin className="h-3 w-3" />}
+          {title}
+        </h4>
+        <div className="space-y-1">
+          {sessions.map((chat) => (
+            <ChatItem
+              key={chat.id}
+              chatId={chat.id}
+              title={chat.title}
+              updatedAt={chat.updated_at || new Date().toISOString()}
+              isSelected={!isOnNewChat && selectedChatId === chat.id}
+              isBranched={!!chat.branched_from_session_id}
+              isPinned={isPinnedSession(chat.id)}
+              onSelect={onSelectChat}
+              onDelete={onDeleteChat}
+              onTogglePin={onTogglePin}
+              isDeleting={isDeletingSession}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+);
+
+CategorySection.displayName = "CategorySection";
+
+const CategorizedChatList = memo(
+  ({
+    categorizedSessions,
+    selectedChatId,
+    onSelectChat,
+    onDeleteChat,
+    onTogglePin,
+    isDeletingSession,
+  }: {
+    categorizedSessions: CategorizedSessions;
+    selectedChatId: string;
+    onSelectChat: (chatId: string) => void;
+    onDeleteChat: (chatId: string) => void;
+    onTogglePin: (chatId: string) => void;
+    isDeletingSession: boolean;
+  }) => {
+    const isOnNewChat = selectedChatId === "new" || !selectedChatId;
+
+    return (
+      <ScrollShadow className="flex-1 p-2">
+        <div className="space-y-1">
+          <CategorySection
+            title="Pinned"
+            sessions={categorizedSessions.pinned}
+            selectedChatId={selectedChatId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            onTogglePin={onTogglePin}
+            isDeletingSession={isDeletingSession}
+            isOnNewChat={isOnNewChat}
+          />
+          <CategorySection
+            title="Today"
+            sessions={categorizedSessions.today}
+            selectedChatId={selectedChatId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            onTogglePin={onTogglePin}
+            isDeletingSession={isDeletingSession}
+            isOnNewChat={isOnNewChat}
+          />
+          <CategorySection
+            title="Yesterday"
+            sessions={categorizedSessions.yesterday}
+            selectedChatId={selectedChatId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            onTogglePin={onTogglePin}
+            isDeletingSession={isDeletingSession}
+            isOnNewChat={isOnNewChat}
+          />
+          <CategorySection
+            title="Last 7 Days"
+            sessions={categorizedSessions.lastWeek}
+            selectedChatId={selectedChatId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            onTogglePin={onTogglePin}
+            isDeletingSession={isDeletingSession}
+            isOnNewChat={isOnNewChat}
+          />
+          <CategorySection
+            title="Older"
+            sessions={categorizedSessions.older}
+            selectedChatId={selectedChatId}
+            onSelectChat={onSelectChat}
+            onDeleteChat={onDeleteChat}
+            onTogglePin={onTogglePin}
+            isDeletingSession={isDeletingSession}
+            isOnNewChat={isOnNewChat}
+          />
+        </div>
+      </ScrollShadow>
+    );
+  }
+);
+
+CategorizedChatList.displayName = "CategorizedChatList";
+
 const ChatList = memo(
   ({
     chats,
     selectedChatId,
     onSelectChat,
     onDeleteChat,
+    onTogglePin,
     isLoading,
     error,
     onRetry,
@@ -336,12 +487,13 @@ const ChatList = memo(
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
     onDeleteChat: (chatId: string) => void;
+    onTogglePin: (chatId: string) => void;
     isLoading: boolean;
     error: Error | null;
     onRetry: () => void;
     isDeletingSession: boolean;
   }) => {
-    // Don't highlight any chat if we're on a new chat
+    const { isPinnedSession } = useSidebarStore();
     const isOnNewChat = selectedChatId === "new" || !selectedChatId;
 
     return (
@@ -362,8 +514,10 @@ const ChatList = memo(
                 updatedAt={chat.updated_at || new Date().toISOString()}
                 isSelected={!isOnNewChat && selectedChatId === chat.id}
                 isBranched={!!chat.branched_from_session_id}
+                isPinned={isPinnedSession(chat.id)}
                 onSelect={onSelectChat}
                 onDelete={onDeleteChat}
+                onTogglePin={onTogglePin}
                 isDeleting={isDeletingSession}
               />
             ))
@@ -587,6 +741,17 @@ export const Sidebar = memo(
       deleteSession
     );
 
+    const { togglePinnedSession, categorizeSessions } = useSidebarStore();
+
+    const handleTogglePin = useCallback(
+      (chatId: string) => {
+        togglePinnedSession(chatId);
+      },
+      [togglePinnedSession]
+    );
+
+    const categorizedSessions = categorizeSessions(chats);
+
     const handleSignOut = useCallback(() => {
       onModalClose();
       signOut();
@@ -604,16 +769,28 @@ export const Sidebar = memo(
         >
           <SidebarHeader onNewChat={handleNewChat} />
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-          <ChatList
-            chats={chats}
-            selectedChatId={selectedChatId}
-            onSelectChat={onSelectChat}
-            onDeleteChat={handleDeleteChat}
-            isLoading={isLoadingChats}
-            error={chatsError}
-            onRetry={invalidateSessions}
-            isDeletingSession={isDeletingSession}
-          />
+          {isLoadingChats ? (
+            <div className="flex-1 p-2">
+              <LoadingSkeleton />
+            </div>
+          ) : chatsError ? (
+            <div className="flex-1 p-2">
+              <ErrorState onRetry={() => invalidateSessions()} />
+            </div>
+          ) : chats.length === 0 ? (
+            <div className="flex-1 p-2">
+              <EmptyState />
+            </div>
+          ) : (
+            <CategorizedChatList
+              categorizedSessions={categorizedSessions}
+              selectedChatId={selectedChatId}
+              onSelectChat={onSelectChat}
+              onDeleteChat={handleDeleteChat}
+              onTogglePin={handleTogglePin}
+              isDeletingSession={isDeletingSession}
+            />
+          )}
           <SidebarBottomActions
             user={user}
             onSignOut={onModalOpen}
