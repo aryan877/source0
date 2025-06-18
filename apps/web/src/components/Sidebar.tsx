@@ -128,11 +128,7 @@ const useSidebarChatHandlers = (
 ) => {
   const handleNewChat = useCallback(() => {
     router.push("/");
-    // Only close sidebar on mobile screens
-    if (windowObj && windowObj.innerWidth < 1024) {
-      onClose();
-    }
-  }, [router, windowObj, onClose]);
+  }, [router]);
 
   const handleDeleteChat = useCallback(
     (chatId: string) => {
@@ -140,16 +136,13 @@ const useSidebarChatHandlers = (
       if (selectedChatId === chatId) {
         if (chats.length <= 1) {
           router.push("/");
-          if (windowObj && windowObj.innerWidth < 1024) {
-            onClose();
-          }
         } else {
           const remainingChats = chats.filter((c) => c.id !== chatId);
           onSelectChat(remainingChats[0]?.id || "new");
         }
       }
     },
-    [deleteSession, selectedChatId, chats, onSelectChat, router, windowObj, onClose]
+    [deleteSession, selectedChatId, chats, onSelectChat, router]
   );
 
   return {

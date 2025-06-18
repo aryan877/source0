@@ -12,31 +12,50 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Start closed on mobile
   const router = useRouter();
   const pathname = usePathname();
   const windowObj = useWindow();
 
-  const handleSelectChat = (chatId: string) => {
-    if (windowObj && windowObj.innerWidth < 1024) {
-      setIsSidebarOpen(false);
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    if (windowObj) {
+      setIsSidebarOpen(windowObj.innerWidth >= 1024);
     }
+  }, [windowObj]);
 
-    router.push(`/chat/${chatId}`);
-  };
-
-  const handleOpenSettings = () => {
-    if (windowObj && windowObj.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
-    router.push("/settings");
-  };
-
+  // Close sidebar on mobile when pathname changes (any navigation)
   useEffect(() => {
     if (windowObj && windowObj.innerWidth < 1024) {
       setIsSidebarOpen(false);
     }
   }, [pathname, windowObj]);
+
+  // Handle window resize
+  useEffect(() => {
+    if (!windowObj) return;
+
+    const handleResize = () => {
+      if (windowObj.innerWidth >= 1024) {
+        setIsSidebarOpen(true); // Auto-open on desktop
+      } else {
+        setIsSidebarOpen(false); // Auto-close on mobile
+      }
+    };
+
+    windowObj.addEventListener("resize", handleResize);
+    return () => windowObj.removeEventListener("resize", handleResize);
+  }, [windowObj]);
+
+  const handleSelectChat = (chatId: string) => {
+    router.push(`/chat/${chatId}`);
+    // Sidebar will auto-close via pathname useEffect on mobile
+  };
+
+  const handleOpenSettings = () => {
+    router.push("/settings");
+    // Sidebar will auto-close via pathname useEffect on mobile
+  };
 
   const currentChatId = useMemo(() => {
     const segments = pathname.split("/").filter(Boolean);
