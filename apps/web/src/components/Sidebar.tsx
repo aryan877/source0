@@ -8,7 +8,6 @@ import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import {
   ArrowRightOnRectangleIcon,
   ArrowTurnRightUpIcon,
-  ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
   PlusIcon,
@@ -295,13 +294,11 @@ const ChatItem = memo(
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex items-center gap-2">
-              <div className="rounded-md bg-content2 p-1">
-                {isBranched ? (
+              {isBranched && (
+                <div className="rounded-md bg-content2 p-1">
                   <ArrowTurnRightUpIcon className="h-3 w-3 text-warning-600" />
-                ) : (
-                  <ChatBubbleLeftRightIcon className="h-3 w-3 text-default-600" />
-                )}
-              </div>
+                </div>
+              )}
               <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
               {isBranched && (
                 <div className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-900/30 dark:text-warning-400">
