@@ -14,11 +14,11 @@ export const ScrollToBottomButton = memo(
     if (!showScrollToBottom) return null;
 
     return (
-      <div className="absolute -top-16 left-1/2 z-20 -translate-x-1/2">
+      <div className="absolute -top-14 left-1/2 z-30 -translate-x-1/2">
         <Button
           size="sm"
           radius="full"
-          className="bg-content1/80 shadow-md backdrop-blur-md"
+          className="border border-default-200 bg-content1/90 shadow-lg backdrop-blur-md"
           onPress={onScrollToBottom}
           aria-label="Scroll to bottom"
           startContent={<ArrowDownIcon className="h-4 w-4" />}

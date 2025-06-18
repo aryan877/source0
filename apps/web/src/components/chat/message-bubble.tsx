@@ -9,11 +9,13 @@ import {
   CheckIcon,
   ClipboardDocumentIcon,
   CpuChipIcon,
+  PencilIcon,
   UserIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
 import type { JSONValue, Message } from "ai";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
@@ -70,6 +72,7 @@ interface MessageBubbleProps {
   message: Message;
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
   isLoading?: boolean;
 }
 
@@ -99,15 +102,38 @@ function getCitationsFromMessage(message: Message): TavilySearchResult[] {
 }
 
 const MessageBubble = memo(
-  ({ message, onRetry, onBranch, isLoading = false }: MessageBubbleProps) => {
+  ({ message, onRetry, onBranch, onEdit, isLoading = false }: MessageBubbleProps) => {
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editContent, setEditContent] = useState(message.content || "");
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const isUser = message.role === "user";
 
     const { isReasoningStreaming } = useReasoningSpinner({
       message,
       isLoading,
     });
+
+    // Auto-resize textarea and focus when editing starts
+    useEffect(() => {
+      if (isEditing && textareaRef.current) {
+        const textarea = textareaRef.current;
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+        // Auto-resize
+        const adjustHeight = () => {
+          textarea.style.height = "auto";
+          textarea.style.height = Math.min(textarea.scrollHeight, 300) + "px";
+        };
+        adjustHeight();
+
+        const handleInput = () => adjustHeight();
+        textarea.addEventListener("input", handleInput);
+        return () => textarea.removeEventListener("input", handleInput);
+      }
+    }, [isEditing]);
 
     // Stable callbacks with proper dependencies
     const handleCopy = useCallback(async () => {
@@ -130,6 +156,36 @@ const MessageBubble = memo(
       onBranch(message.id);
     }, [onBranch, message.id]);
 
+    const handleStartEdit = useCallback(() => {
+      setEditContent(message.content || "");
+      setIsEditing(true);
+      setShowActions(false);
+    }, [message.content]);
+
+    const handleCancelEdit = useCallback(() => {
+      setIsEditing(false);
+      setEditContent(message.content || "");
+    }, [message.content]);
+
+    const handleSaveEdit = useCallback(() => {
+      if (onEdit && editContent.trim() !== message.content?.trim()) {
+        onEdit(message.id, editContent.trim());
+      }
+      setIsEditing(false);
+    }, [onEdit, message.id, editContent, message.content]);
+
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSaveEdit();
+        } else if (e.key === "Escape") {
+          handleCancelEdit();
+        }
+      },
+      [handleSaveEdit, handleCancelEdit]
+    );
+
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
@@ -147,6 +203,41 @@ const MessageBubble = memo(
 
     // Render message parts using the AI SDK's built-in parts system
     const renderMessageParts = useMemo(() => {
+      // If editing, show textarea instead of message content
+      if (isEditing && isUser) {
+        return (
+          <div className="space-y-3">
+            <textarea
+              ref={textareaRef}
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full resize-none rounded-lg border border-divider bg-content1 p-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Edit your message..."
+              style={{ minHeight: "60px", maxHeight: "300px" }}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                size="sm"
+                variant="light"
+                onPress={handleCancelEdit}
+                startContent={<XMarkIcon className="h-4 w-4" />}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                color="primary"
+                onPress={handleSaveEdit}
+                isDisabled={!editContent.trim() || editContent.trim() === message.content?.trim()}
+              >
+                Send
+              </Button>
+            </div>
+          </div>
+        );
+      }
+
       // Always use parts - no fallback needed for modern implementation
       if (!message.parts?.length) {
         return null;
@@ -274,7 +365,16 @@ const MessageBubble = memo(
             return null;
         }
       });
-    }, [isReasoningStreaming, message]);
+    }, [
+      isReasoningStreaming,
+      message,
+      isEditing,
+      isUser,
+      editContent,
+      handleKeyDown,
+      handleCancelEdit,
+      handleSaveEdit,
+    ]);
 
     const renderGroundingMetadata = useMemo(() => {
       const completeData = getMessageCompleteData(message.annotations);
@@ -295,13 +395,29 @@ const MessageBubble = memo(
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
-      // Don't show actions when loading/streaming
-      if (isLoading) return null;
+      // Don't show actions when loading/streaming or editing
+      if (isLoading || isEditing) return null;
 
       return (
         <div
           className={`flex items-center gap-1 rounded-lg bg-content1/50 p-1 shadow-sm backdrop-blur-sm transition-opacity duration-200 ${showActions ? "opacity-100" : "opacity-0"}`}
         >
+          {isUser && onEdit && (
+            <Tooltip content="Edit message" placement="top" delay={300}>
+              <div>
+                <Button
+                  variant="light"
+                  size="sm"
+                  isIconOnly
+                  onPress={handleStartEdit}
+                  className="transition-all hover:scale-105 hover:bg-content2"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </Tooltip>
+          )}
+
           <Tooltip content="Retry message" placement="top" delay={300}>
             <div>
               <Button
@@ -351,13 +467,24 @@ const MessageBubble = memo(
           )}
         </div>
       );
-    }, [showActions, handleRetry, copied, handleCopy, handleBranch, isLoading, isUser]);
+    }, [
+      showActions,
+      handleStartEdit,
+      handleRetry,
+      copied,
+      handleCopy,
+      handleBranch,
+      isLoading,
+      isUser,
+      isEditing,
+      onEdit,
+    ]);
 
     return (
       <div
         className={`group flex gap-6 ${isUser ? "flex-row-reverse" : "flex-row"} transition-all duration-200`}
-        onMouseEnter={() => setShowActions(true)}
-        onMouseLeave={() => setShowActions(false)}
+        onMouseEnter={() => !isEditing && setShowActions(true)}
+        onMouseLeave={() => !isEditing && setShowActions(false)}
       >
         {isUser && (
           <div className="flex-shrink-0">
@@ -393,7 +520,7 @@ const MessageBubble = memo(
             <div className="flex items-center gap-2">
               {actionButtons}
               <div
-                className={`transition-opacity duration-200 ${showActions && !isLoading ? "opacity-100" : "opacity-0"}`}
+                className={`transition-opacity duration-200 ${showActions && !isLoading && !isEditing ? "opacity-100" : "opacity-0"}`}
               >
                 {modelMetadata && !isUser && (
                   <Tooltip

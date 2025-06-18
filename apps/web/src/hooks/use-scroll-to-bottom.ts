@@ -1,90 +1,104 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const SCROLL_ANIMATION_DURATION = 500; // ms, for smooth scroll
-const USER_SCROLLED_THRESHOLD = 100; // In pixels from bottom to detect user has scrolled up
+const USER_SCROLLED_THRESHOLD = 200; // Larger threshold - user must scroll up significantly before button appears
 
-interface UseScrollToBottomOptions {
-  isLoadingMessages: boolean;
-  messagesLength: number;
-}
-
-export function useScrollToBottom({ isLoadingMessages, messagesLength }: UseScrollToBottomOptions) {
+export function useScrollToBottom() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const userScrolled = useRef(false);
+  const [userScrolled, setUserScrolled] = useState(false);
   const programmaticScroll = useRef(false);
+  const containerRef = useRef<HTMLElement | null>(null);
 
-  const handleScrollToBottom = useCallback((container: HTMLElement) => {
-    if (!container) return;
-
-    programmaticScroll.current = true;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: "smooth",
-    });
-
-    setTimeout(() => {
-      programmaticScroll.current = false;
-      setShowScrollToBottom(false);
-      userScrolled.current = false;
-    }, SCROLL_ANIMATION_DURATION);
+  const isAtBottom = useCallback((container: HTMLElement): boolean => {
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - clientHeight - scrollTop <= USER_SCROLLED_THRESHOLD;
   }, []);
 
-  const checkScrollPosition = useCallback((container: HTMLElement) => {
-    if (programmaticScroll.current) return;
-
-    const isAtBottom =
-      container.scrollHeight - container.clientHeight <=
-      container.scrollTop + USER_SCROLLED_THRESHOLD;
-
-    const hasScrollableContent = container.scrollHeight > container.clientHeight;
-
-    if (isAtBottom || !hasScrollableContent) {
-      userScrolled.current = false;
-      setShowScrollToBottom(false);
-    } else {
-      userScrolled.current = true;
-      setShowScrollToBottom(true);
-    }
+  const hasScrollableContent = useCallback((container: HTMLElement): boolean => {
+    return container.scrollHeight > container.clientHeight;
   }, []);
+
+  const updateScrollState = useCallback(
+    (container: HTMLElement) => {
+      if (programmaticScroll.current) return;
+
+      const atBottom = isAtBottom(container);
+      const hasContent = hasScrollableContent(container);
+
+      if (!hasContent) {
+        setUserScrolled(false);
+        setShowScrollToBottom(false);
+      } else if (atBottom) {
+        setUserScrolled(false);
+        setShowScrollToBottom(false);
+      } else {
+        setUserScrolled(true);
+        setShowScrollToBottom(true);
+      }
+    },
+    [isAtBottom, hasScrollableContent]
+  );
+
+  const handleScrollToBottom = useCallback(
+    (container: HTMLElement) => {
+      if (!container) return;
+
+      programmaticScroll.current = true;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+
+      setTimeout(() => {
+        programmaticScroll.current = false;
+        if (containerRef.current) {
+          updateScrollState(containerRef.current);
+        }
+      }, SCROLL_ANIMATION_DURATION);
+    },
+    [updateScrollState]
+  );
 
   const setupScrollListener = useCallback(
     (container: HTMLElement) => {
-      const handleScroll = () => checkScrollPosition(container);
+      containerRef.current = container;
 
-      // Initial check when listener is set up
-      handleScroll();
+      const handleScroll = () => {
+        updateScrollState(container);
+      };
 
-      container.addEventListener("scroll", handleScroll);
-      return () => container.removeEventListener("scroll", handleScroll);
+      container.addEventListener("scroll", handleScroll, { passive: true });
+
+      // Initial state update
+      updateScrollState(container);
+
+      return () => {
+        container.removeEventListener("scroll", handleScroll);
+        containerRef.current = null;
+      };
     },
-    [checkScrollPosition]
+    [updateScrollState]
   );
 
-  // Initial check for scroll-to-bottom button visibility when messages load
-  useEffect(() => {
-    if (isLoadingMessages) return;
+  const checkScrollPosition = useCallback(
+    (container: HTMLElement) => {
+      updateScrollState(container);
+    },
+    [updateScrollState]
+  );
 
-    // Small delay to ensure layout is complete
-    const timeoutId = setTimeout(() => {
-      // This will be handled by the component when it gets the container ref
-      setShowScrollToBottom(false); // Reset state
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [isLoadingMessages, messagesLength]);
+  const setProgrammaticScroll = useCallback((value: boolean) => {
+    programmaticScroll.current = value;
+  }, []);
 
   return {
     showScrollToBottom,
-    userScrolled: userScrolled.current,
+    userScrolled,
     programmaticScroll: programmaticScroll.current,
     handleScrollToBottom,
     setupScrollListener,
     checkScrollPosition,
-    setUserScrolled: (value: boolean) => {
-      userScrolled.current = value;
-    },
-    setProgrammaticScroll: (value: boolean) => {
-      programmaticScroll.current = value;
-    },
+    setUserScrolled,
+    setProgrammaticScroll,
   };
 }

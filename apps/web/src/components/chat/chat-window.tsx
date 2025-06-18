@@ -30,7 +30,7 @@ import { MessagesList } from "./messages-list";
 import { SamplePrompts } from "./sample-prompts";
 import { ShareButton } from "./share-button";
 
-const SCROLL_TOP_MARGIN = 80; // Extra margin when scrolling user message to top
+const SCROLL_TOP_MARGIN = 120; // Extra margin when scrolling user message to top
 const SCROLL_TO_BOTTOM_THRESHOLD = 100; // In pixels from bottom to trigger auto-scroll
 const SCROLL_ANIMATION_DURATION = 500; // ms, for smooth scroll
 const STREAMING_SCROLL_DEBOUNCE = 100; // ms, for scroll debounce during streaming
@@ -246,10 +246,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     checkScrollPosition,
     setUserScrolled,
     setProgrammaticScroll,
-  } = useScrollToBottom({
-    isLoadingMessages,
-    messagesLength: messages.length,
-  });
+  } = useScrollToBottom();
 
   const handleScrollToBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -367,11 +364,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   // Effect to trigger auto-resume once messages are loaded
   useEffect(() => {
-    console.log("🔥 useEffect", {
-      chatId,
-      isLoadingMessages,
-      hasAttemptedResume: hasAttemptedResume.current,
-    });
     // Conditions to skip resume
     if (chatId === "new" || isLoadingMessages || hasAttemptedResume.current) {
       return;
@@ -384,11 +376,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingMessages]);
 
-  // Effect to reset resume attempt flag when changing chats
-  useEffect(() => {
-    hasAttemptedResume.current = false;
-  }, [chatId]);
-
   // Setup scroll listener when container is available
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -397,19 +384,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     return setupScrollListener(container);
   }, [setupScrollListener]);
 
-  // Initial check for scroll position when messages are loaded
-  useEffect(() => {
+  // Check scroll position after DOM updates using layoutEffect
+  useLayoutEffect(() => {
     if (isLoadingMessages) return;
 
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    // Small delay to ensure layout is complete
-    const timeoutId = setTimeout(() => {
-      checkScrollPosition(container);
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
+    // Check scroll position after layout is complete
+    checkScrollPosition(container);
   }, [isLoadingMessages, messages.length, checkScrollPosition]);
 
   // SCENARIO 1: A new user message was just submitted.
@@ -611,6 +594,83 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
     },
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
+  );
+
+  /**
+   * Edits a specific user message by its ID with new content.
+   *
+   * This function:
+   * 1. Finds the user message to edit in the conversation
+   * 2. Deletes the target message and all subsequent messages from the database
+   * 3. Removes them from the local state
+   * 4. Re-sends the message with the new content
+   *
+   * Only user messages can be edited.
+   */
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      try {
+        updateState({ uiError: null });
+        stop(); // Stop any ongoing requests first
+
+        const messageIndex = messages.findIndex((m) => m.id === messageId);
+        if (messageIndex === -1) {
+          console.error("Edit failed: message not found", { messageId });
+          updateState({ uiError: "Message to edit not found." });
+          return;
+        }
+
+        const messageToEdit = messages[messageIndex];
+        if (!messageToEdit) {
+          console.error("Edit failed: message object not found", { messageId });
+          updateState({ uiError: "Message to edit not found." });
+          return;
+        }
+
+        if (messageToEdit.role !== "user") {
+          updateState({ uiError: "Only user messages can be edited." });
+          return;
+        }
+
+        if (!newContent.trim()) {
+          updateState({ uiError: "Message content cannot be empty." });
+          return;
+        }
+
+        // Delete from database if not a new chat
+        if (chatId && chatId !== "new") {
+          await deleteFromPoint(messageToEdit.id);
+          invalidateMessages();
+        }
+
+        // Remove the message and everything after it from local state
+        setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
+
+        // Create new message with edited content but preserve other properties
+        const editedMessage: Message = {
+          ...messageToEdit,
+          id: uuidv4(), // Generate new ID for the edited message
+          content: newContent,
+          parts: [{ type: "text", text: newContent }], // Update parts with new content
+        };
+
+        // Store the message ID for scroll tracking
+        justSubmittedMessageId.current = editedMessage.id;
+        setUserScrolled(false);
+
+        // Re-send the edited message
+        append(editedMessage);
+      } catch (error) {
+        console.error("Error during message edit:", error);
+        updateState({
+          uiError: "Failed to edit message. Please try again.",
+        });
+        if (chatId && chatId !== "new") {
+          setTimeout(() => invalidateMessages(), 500);
+        }
+      }
+    },
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append, setUserScrolled]
   );
 
   const handleFormSubmit = useCallback(
@@ -815,6 +875,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           chatId={chatId}
           onBranchChat={handleBranchChat}
           onRetryMessage={handleRetryMessage}
+          onEditMessage={handleEditMessage}
           messagesContainerRef={messagesContainerRef}
           error={error}
           uiError={state.uiError}

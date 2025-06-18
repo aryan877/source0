@@ -99,7 +99,7 @@ export const ChatInput = memo(
 
             <form onSubmit={onSubmit}>
               <div
-                className={`relative w-full border-l border-r border-t border-default-200 bg-content2 p-4 ${
+                className={`relative w-full border-l border-r border-t border-default-200 bg-content2 pb-4 pl-4 pr-4 pt-4 ${
                   attachedFiles.length > 0 ? "rounded-b-2xl border-t-0" : "rounded-t-2xl"
                 }`}
               >
