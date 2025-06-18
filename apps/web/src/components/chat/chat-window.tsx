@@ -54,7 +54,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
-  const { assistantName, userTraits } = useUserPreferencesStore();
+  const { assistantName, userTraits, memoryEnabled } = useUserPreferencesStore();
   const router = useRouter();
   const justSubmittedMessageId = useRef<string | null>(null);
   const isInitialLoad = useRef(true);
@@ -115,6 +115,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         model: selectedModel,
         reasoningLevel: reasoningLevel,
         searchEnabled: searchEnabled,
+        memoryEnabled: memoryEnabled,
         id: chatId === "new" ? undefined : chatId,
         isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
         apiKey,
@@ -128,6 +129,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         selectedModel: selectedModel,
         reasoningLevel: reasoningLevel,
         searchEnabled: searchEnabled,
+        memoryEnabled: memoryEnabled,
         messageCount: messages.length,
         status,
         input: input?.substring(0, 100),

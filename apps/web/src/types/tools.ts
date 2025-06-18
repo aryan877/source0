@@ -29,6 +29,40 @@ export interface WebSearchToolData extends BaseToolData {
   errors: string[];
 }
 
+/**
+ * Memory save tool data
+ */
+export interface MemorySaveToolData extends BaseToolData {
+  toolName: "memorySave";
+  memoryId: string;
+  content: string;
+  metadata: Record<string, string | number | boolean>;
+  userId: string;
+  sessionId?: string;
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Memory retrieve tool data
+ */
+export interface MemoryRetrieveToolData extends BaseToolData {
+  toolName: "memoryRetrieve";
+  query: string;
+  memories: Array<{
+    id: string;
+    content: string;
+    metadata: Record<string, string | number | boolean>;
+    relevanceScore: number;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  totalFound: number;
+  strategy: string;
+  success: boolean;
+  message: string;
+}
+
 // =============================================================================
 // Generic Tool System
 // =============================================================================
@@ -36,7 +70,7 @@ export interface WebSearchToolData extends BaseToolData {
 /**
  * Union type of all possible tool data types
  */
-export type ToolDataUnion = WebSearchToolData;
+export type ToolDataUnion = WebSearchToolData | MemorySaveToolData | MemoryRetrieveToolData;
 
 /**
  * Generic tool result parser function type
@@ -48,6 +82,8 @@ export type ToolResultParser<T extends BaseToolData = BaseToolData> = (result: s
  */
 export interface ToolDataMap {
   webSearch: WebSearchToolData;
+  memorySave: MemorySaveToolData;
+  memoryRetrieve: MemoryRetrieveToolData;
 }
 
 /**
@@ -57,6 +93,8 @@ export const toolResultParsers: {
   [K in keyof ToolDataMap]: ToolResultParser<ToolDataMap[K]>;
 } = {
   webSearch: parseWebSearchResult,
+  memorySave: parseMemorySaveResult,
+  memoryRetrieve: parseMemoryRetrieveResult,
 } as const;
 
 // =============================================================================
@@ -85,6 +123,66 @@ export function parseWebSearchResult(result: string): WebSearchToolData | null {
         ...parsed,
         toolName: "webSearch",
       } as WebSearchToolData;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Utility function to safely parse memory save tool result
+ */
+export function parseMemorySaveResult(result: string): MemorySaveToolData | null {
+  try {
+    const parsed = JSON.parse(result);
+
+    // Basic validation
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof parsed.memoryId === "string" &&
+      typeof parsed.content === "string" &&
+      typeof parsed.metadata === "object" &&
+      typeof parsed.userId === "string" &&
+      typeof parsed.success === "boolean" &&
+      typeof parsed.message === "string"
+    ) {
+      return {
+        ...parsed,
+        toolName: "memorySave",
+      } as MemorySaveToolData;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Utility function to safely parse memory retrieve tool result
+ */
+export function parseMemoryRetrieveResult(result: string): MemoryRetrieveToolData | null {
+  try {
+    const parsed = JSON.parse(result);
+
+    // Basic validation
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof parsed.query === "string" &&
+      Array.isArray(parsed.memories) &&
+      typeof parsed.totalFound === "number" &&
+      typeof parsed.strategy === "string" &&
+      typeof parsed.success === "boolean" &&
+      typeof parsed.message === "string"
+    ) {
+      return {
+        ...parsed,
+        toolName: "memoryRetrieve",
+      } as MemoryRetrieveToolData;
     }
 
     return null;

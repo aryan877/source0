@@ -107,6 +107,7 @@ export const createModelInstance = (
 export const buildSystemMessage = (
   config: ModelConfig,
   searchEnabled: boolean,
+  memoryEnabled: boolean = true,
   userTraits?: string,
   assistantName?: string
 ): string => {
@@ -128,6 +129,8 @@ export const buildSystemMessage = (
     userTraits && `Here are the traits user wants you to follow: "${userTraits}"`,
     searchEnabled &&
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
+    memoryEnabled &&
+      "You have access to memory tools that allow you to save and retrieve important user information for personalized interactions. Use memorySave when users share personal preferences, information, or important details worth remembering. Use memoryRetrieve when you need context about the user to provide personalized responses. Always show when you're saving or retrieving memories.",
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
     "When providing code examples, use markdown code blocks with appropriate language specifiers: ```python code ```",

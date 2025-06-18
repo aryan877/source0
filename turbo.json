@@ -6,7 +6,8 @@
     "OPENAI_API_KEY",
     "REDIS_URL",
     "REDIS_TLS_ENABLED",
-    "TAVILY_API_KEY"
+    "TAVILY_API_KEY",
+    "MEM0_API_KEY"
   ],
   "tasks": {
     "build": {

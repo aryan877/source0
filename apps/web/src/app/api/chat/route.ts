@@ -46,6 +46,7 @@ interface ChatRequest {
   model?: string;
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
+  memoryEnabled?: boolean;
   id?: string;
   isFirstMessage?: boolean;
   apiKey?: string;
@@ -127,6 +128,7 @@ export async function POST(req: Request): Promise<Response> {
       model = "gemini-2.5-flash",
       reasoningLevel = "medium",
       searchEnabled = false,
+      memoryEnabled = true,
       id,
       isFirstMessage = false,
       apiKey,
@@ -170,7 +172,13 @@ export async function POST(req: Request): Promise<Response> {
       return handleImageGenerationRequest(supabase, user, finalSessionId, modelConfig, prompt);
     }
 
-    const systemMessage = buildSystemMessage(modelConfig, searchEnabled, userTraits, assistantName);
+    const systemMessage = buildSystemMessage(
+      modelConfig,
+      searchEnabled,
+      memoryEnabled,
+      userTraits,
+      assistantName
+    );
     const finalMessages = [{ role: "system" as const, content: systemMessage }, ...coreMessages];
 
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);
@@ -188,7 +196,7 @@ export async function POST(req: Request): Promise<Response> {
             model: modelInstance,
             messages: finalMessages,
             maxSteps: 5,
-            tools: getToolsForModel(searchEnabled, modelConfig),
+            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, modelConfig),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({

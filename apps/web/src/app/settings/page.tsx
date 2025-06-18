@@ -76,6 +76,8 @@ export default function SettingsPage() {
     setHidePersonalInfo,
     showSamplePrompts,
     setShowSamplePrompts,
+    memoryEnabled,
+    setMemoryEnabled,
   } = useUserPreferencesStore();
   const { theme, setTheme } = useTheme();
 
@@ -820,6 +822,28 @@ export default function SettingsPage() {
                       addToast({
                         title: "Setting Changed",
                         description: `Sample prompts are now ${isSelected ? "shown" : "hidden"}.`,
+                        color: "primary",
+                      });
+                    }}
+                  />
+                </div>
+
+                <Divider />
+
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
+                  <div>
+                    <label className="text-sm font-semibold text-foreground">Enable Memory</label>
+                    <p className="mt-1 text-sm text-default-600">
+                      Allow AI to save and recall information for personalized conversations
+                    </p>
+                  </div>
+                  <Switch
+                    isSelected={memoryEnabled}
+                    onValueChange={(isSelected) => {
+                      setMemoryEnabled(isSelected);
+                      addToast({
+                        title: "Setting Changed",
+                        description: `Memory is now ${isSelected ? "enabled" : "disabled"}.`,
                         color: "primary",
                       });
                     }}

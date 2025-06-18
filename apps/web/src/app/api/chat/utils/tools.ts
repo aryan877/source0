@@ -1,20 +1,35 @@
 import { type ModelCapability } from "@/config/models";
-import { tool } from "ai";
+import { tool, type Tool } from "ai";
 import { z } from "zod";
+import { retrieveMemory, saveMemory } from "./memory";
 import { createWebSearchToolData, generateSearchQueries, performWebSearch } from "./web-search";
 
 /**
  * Web search tool that allows the AI to search the internet for current information.
  * The AI can use this tool when it needs up-to-date information or when the user
  * asks questions about recent events, current data, or specific facts.
+ *
+ * The tool automatically generates 2-3 intelligent queries based on the complexity
+ * and context of the user's request for comprehensive results.
  */
 export const webSearchTool = tool({
-  description: `Search the web for current information, news, and facts. Use this tool when you need:
+  description: `Search the web for current information, news, and facts. This is an advanced search tool that automatically generates multiple intelligent queries when needed for comprehensive results.
+
+Use this tool when you need:
 - Current events or recent news
 - Up-to-date information that might not be in your training data
 - Specific facts, statistics, or data
 - Recent developments in any field
 - Real-time information
+- Comparative information (tool will automatically generate comparison queries)
+- Complex topics that benefit from multiple search angles
+
+INTELLIGENCE: The tool automatically determines if your query needs multiple search approaches:
+- For simple queries: Uses 1 focused search
+- For complex topics: Generates 2-3 complementary queries automatically
+- For comparisons: Creates separate queries for each item being compared
+- For time-sensitive topics: Adds temporal variations and news searches
+- For analysis requests: Enables detailed content extraction
 
 CRITICAL: When using search results in your response, you MUST include inline citations using square brackets with numbers like [1], [2], [3].
 
@@ -31,46 +46,78 @@ Example format:
 The search results will be numbered sequentially starting from [1] for you to reference.`,
 
   parameters: z.object({
-    query: z.string().describe("The search query or question to search for"),
+    query: z
+      .string()
+      .describe(
+        "The main search query or question. The tool will automatically generate additional intelligent queries if needed for comprehensive results."
+      ),
     options: z
       .object({
         topic: z
           .enum(["general", "news"])
           .optional()
-          .describe("Type of search - 'news' for current events, 'general' for broader searches"),
+          .describe(
+            "Type of search - 'news' for current events/breaking news, 'general' for broader searches. Tool auto-selects based on query."
+          ),
+        search_depth: z
+          .enum(["basic", "advanced"])
+          .optional()
+          .describe(
+            "Search depth - 'advanced' provides more relevant content snippets and better analysis, 'basic' for quick results. Defaults to 'advanced'."
+          ),
         max_results: z
           .number()
           .min(1)
           .max(10)
           .optional()
-          .describe("Maximum number of results per query (1-10)"),
+          .describe(
+            "Maximum number of results per query (1-10). Tool may generate multiple queries automatically."
+          ),
         time_range: z
           .enum(["day", "week", "month", "year"])
           .optional()
-          .describe("Time range for news searches"),
+          .describe("Time range for filtering results - use for time-sensitive searches"),
+        include_domains: z
+          .array(z.string())
+          .optional()
+          .describe("Specific domains to include (e.g., ['wikipedia.org', 'reuters.com'])"),
+        exclude_domains: z.array(z.string()).optional().describe("Domains to exclude from results"),
+        include_images: z.boolean().optional().describe("Include relevant images in results"),
+        enable_detailed_analysis: z
+          .boolean()
+          .optional()
+          .describe("Enable detailed content extraction for in-depth analysis requests"),
       })
       .optional()
-      .describe("Optional search configuration"),
+      .describe("Advanced search configuration options"),
   }),
 
   execute: async ({ query, options = {} }) => {
-    console.log(`AI requesting web search for: "${query}"`);
+    console.log(`AI requesting enhanced web search for: "${query}"`);
 
     // Generate intelligent search queries from the user's question
     const queries = generateSearchQueries(query);
-    console.log(`Generated queries: ${queries.join(", ")}`);
+    console.log(`Generated ${queries.length} intelligent queries: ${queries.join(", ")}`);
 
-    // Perform the search
+    // Build enhanced search options
+    const searchOptions = {
+      topic: options.topic || "general",
+      search_depth: options.search_depth || "advanced", // Default to advanced for better results
+      max_results: options.max_results || 5,
+      include_answer: true,
+      include_images: options.include_images || false,
+      include_raw_content: options.enable_detailed_analysis || false,
+      include_image_descriptions: options.include_images || false,
+      chunks_per_source: 3, // For advanced search depth
+      include_domains: options.include_domains || [],
+      exclude_domains: options.exclude_domains || [],
+      ...(options.time_range && { time_range: options.time_range }),
+    };
+
+    // Perform the enhanced search
     const searchResults = await performWebSearch({
       queries,
-      options: {
-        topic: options.topic || "general",
-        search_depth: "advanced",
-        max_results: options.max_results || 5,
-        include_answer: true,
-        include_images: false,
-        ...(options.time_range && { time_range: options.time_range }),
-      },
+      options: searchOptions,
     });
 
     // Create structured data for UI and build formatted sources for the model
@@ -82,23 +129,47 @@ The search results will be numbered sequentially starting from [1] for you to re
 
     for (const result of searchResults) {
       if (!result.error && result.results) {
+        // Add answer if available
+        if (result.answer) {
+          formattedSources.push(
+            `[${sourceNumber}] ANSWER: ${result.answer}\nQuery: ${result.query}`
+          );
+          sourceNumber++;
+        }
+
+        // Add individual sources
         for (const source of result.results) {
           formattedSources.push(
-            `[${sourceNumber}] ${source.title}\n${source.content}\nSource: ${source.url}`
+            `[${sourceNumber}] ${source.title}\n${source.content}\nSource: ${source.url}\nRelevance Score: ${source.score.toFixed(2)}`
           );
           sourceNumber++;
         }
       }
     }
 
+    // Build comprehensive formatted response
     const formattedResponse = {
       query: query,
+      generated_queries: queries,
+      total_sources: formattedSources.length,
+      search_strategy:
+        queries.length > 1 ? "multi-query intelligent search" : "focused single search",
       sources: formattedSources,
-      instruction:
-        "Use the numbered sources above in your response. Cite them using the format [1], [2], etc. immediately after statements that reference those sources.",
+      instruction: `Use the numbered sources above in your response. Cite them using the format [1], [2], etc. immediately after statements that reference those sources. 
+      
+Search Strategy: ${queries.length > 1 ? `Multi-query approach with ${queries.length} complementary searches` : "Single focused search"}
+Total Sources Found: ${formattedSources.length}
+
+Guidelines:
+- Synthesize information from multiple sources when possible
+- Use [1], [2], [3] etc. for citations
+- Prioritize sources with higher relevance scores
+- Include diverse perspectives when available`,
     };
 
-    console.log(`Web search completed for: "${query}" with ${formattedSources.length} sources`);
+    console.log(
+      `Enhanced web search completed for: "${query}" with ${formattedSources.length} total sources across ${queries.length} queries`
+    );
 
     // Return both the formatted response for the AI and the tool data for the UI
     return JSON.stringify({
@@ -109,20 +180,203 @@ The search results will be numbered sequentially starting from [1] for you to re
 });
 
 /**
+ * Memory save tool that intelligently saves important user information for future conversations.
+ * The AI should use this tool when users share personal information, preferences, or important details
+ * that would be valuable to remember for providing personalized responses in future interactions.
+ */
+const memorySaveParameters = z.object({
+  content: z
+    .string()
+    .describe("The important information to save as memory. Should be clear and specific."),
+  userId: z.string().describe("Unique identifier for the user whose memory this belongs to"),
+  sessionId: z
+    .string()
+    .optional()
+    .describe("Optional session identifier for grouping related memories"),
+  metadata: z
+    .record(z.union([z.string(), z.number(), z.boolean()]))
+    .optional()
+    .describe("Optional additional metadata to store with the memory"),
+});
+
+export const memorySaveToolDefinition = {
+  description: `Save important user information to memory for personalized future interactions. This tool creates long-term memory of user preferences, personal details, and important context.
+
+Use this tool when users share:
+- Personal preferences (likes, dislikes, interests)
+- Personal information (name, location, profession, background)
+- Goals and aspirations (what they want to achieve)
+- Important experiences or events
+- Constraints or limitations (allergies, restrictions)
+- Relationships and social context
+- Work or project details that matter to them
+
+AUTOMATIC INTELLIGENCE: The tool automatically understands and organizes memories without needing explicit categories. It identifies the core concepts in the information provided.
+
+WHEN TO USE:
+✅ User says "I love Italian food" → Save this preference
+✅ User mentions "I work as a software engineer" → Save this personal info
+✅ User shares "I'm allergic to nuts" → Save this important constraint
+✅ User says "My goal is to learn Spanish" → Save this goal
+
+❌ Don't save generic responses like "thanks", "ok", "yes"
+❌ Don't save questions unless they reveal preferences
+❌ Don't save temporary/session-specific information
+
+The tool will show a confirmation when memory is successfully saved.`,
+
+  parameters: memorySaveParameters,
+
+  execute: async ({
+    content,
+    userId,
+    sessionId,
+    metadata = {},
+  }: z.infer<typeof memorySaveParameters>) => {
+    console.log(`AI saving memory for user: ${userId}`);
+    console.log(`Content: ${content}`);
+
+    // Validate that we have a user ID
+    if (!userId || userId.trim() === "") {
+      return JSON.stringify({
+        toolName: "memorySave",
+        memoryId: "",
+        content,
+        metadata,
+        userId: "",
+        sessionId,
+        success: false,
+        message: "❌ Cannot save memory: User ID is required but not provided.",
+      });
+    }
+
+    // Create messages array for mem0
+    const messages = [
+      {
+        role: "user" as const,
+        content: content,
+      },
+    ];
+
+    // Save the memory
+    const result = await saveMemory({
+      messages,
+      userId,
+      sessionId,
+      metadata: {
+        ...metadata,
+        importance: "high",
+      },
+    });
+
+    console.log(`Memory save result:`, result);
+    return JSON.stringify(result);
+  },
+};
+export const memorySaveTool = tool(memorySaveToolDefinition);
+
+/**
+ * Memory retrieve tool that searches for relevant user memories to provide personalized responses.
+ * The AI should use this tool when it needs context about the user to provide better, more personalized answers.
+ */
+const memoryRetrieveParameters = z.object({
+  query: z
+    .string()
+    .describe(
+      "Search query to find relevant memories. Should describe what kind of information you're looking for."
+    ),
+  userId: z.string().describe("Unique identifier for the user whose memories to search"),
+  limit: z
+    .number()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe("Maximum number of memories to retrieve (default: 5)"),
+  sessionId: z
+    .string()
+    .optional()
+    .describe("Optional session identifier to search within specific session"),
+});
+export const memoryRetrieveToolDefinition = {
+  description: `Retrieve relevant user memories to provide personalized and contextual responses. This tool performs a semantic search through all saved user information to find the most relevant context for the current conversation.
+
+Use this tool when:
+- You need to understand user preferences for recommendations
+- User asks about something they might have mentioned before
+- You want to provide personalized advice based on their background
+- User references past conversations or shared information
+- You need context about their constraints, goals, or interests
+- User asks "what do you know about me?" or similar questions
+
+INTELLIGENT SEARCH: The tool automatically:
+- Performs semantic search across ALL user memories
+- Ranks results by relevance and recency
+- Provides context about when memories were created
+
+EXAMPLES:
+✅ User says "I love Italian food" → Save this preference
+✅ User mentions "I work as a software engineer" → Save this personal info
+✅ User shares "I'm allergic to nuts" → Save this important constraint
+✅ User says "My goal is to learn Spanish" → Save this goal`,
+
+  parameters: memoryRetrieveParameters,
+
+  execute: async ({
+    query,
+    userId,
+    limit = 5,
+    sessionId,
+  }: z.infer<typeof memoryRetrieveParameters>) => {
+    console.log(`AI retrieving memories for user: ${userId}`);
+    console.log(`Query: ${query}`);
+
+    // Validate that we have a user ID
+    if (!userId || userId.trim() === "") {
+      return JSON.stringify({
+        toolName: "memoryRetrieve",
+        query,
+        memories: [],
+        totalFound: 0,
+        strategy: "error",
+        success: false,
+        message: "❌ Cannot retrieve memories: User ID is required but not provided.",
+      });
+    }
+
+    // Retrieve memories
+    const result = await retrieveMemory({
+      query,
+      userId,
+      limit,
+      sessionId,
+      threshold: 0.1, // Lower threshold for more inclusive results
+    });
+
+    console.log(`Memory retrieval result:`, result);
+    return JSON.stringify(result);
+  },
+};
+export const memoryRetrieveTool = tool(memoryRetrieveToolDefinition);
+
+/**
  * Collection of all available tools
  */
 export const availableTools = {
   webSearch: webSearchTool,
+  memorySave: memorySaveTool,
+  memoryRetrieve: memoryRetrieveTool,
 };
 
 /**
  * Get tools based on model capabilities and user settings
  */
 export function getToolsForModel(
+  userId: string,
   searchEnabled: boolean,
+  memoryEnabled: boolean = true,
   modelConfig?: { capabilities: ModelCapability[] }
 ) {
-  const tools: Record<string, typeof webSearchTool> = {};
+  const tools: Record<string, Tool> = {};
 
   // Only add web search tool if:
   // 1. Search is enabled by user
@@ -131,6 +385,27 @@ export function getToolsForModel(
 
   if (shouldAddWebSearch) {
     tools.webSearch = webSearchTool;
+  }
+
+  if (memoryEnabled) {
+    // For memorySave, we create a new tool that doesn't ask the model for userId
+    tools.memorySave = tool({
+      description: memorySaveToolDefinition.description,
+      parameters: memorySaveToolDefinition.parameters.omit({ userId: true }),
+      execute: async (args) => {
+        // We inject the userId here before calling the original execute function
+        return memorySaveToolDefinition.execute({ ...args, userId });
+      },
+    });
+
+    // Do the same for memoryRetrieve
+    tools.memoryRetrieve = tool({
+      description: memoryRetrieveToolDefinition.description,
+      parameters: memoryRetrieveToolDefinition.parameters.omit({ userId: true }),
+      execute: async (args) => {
+        return memoryRetrieveToolDefinition.execute({ ...args, userId });
+      },
+    });
   }
 
   // Future tools can be added here with their own logic
