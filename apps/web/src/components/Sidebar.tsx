@@ -26,6 +26,8 @@ import {
   ModalFooter,
   ModalHeader,
   ScrollShadow,
+  Select,
+  SelectItem,
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
@@ -533,48 +535,57 @@ const ThemeSelector = memo(
 
     if (!mounted) {
       return (
-        <Button variant="light" size="sm" className="h-8 w-full justify-start gap-2" isDisabled>
-          <span className="text-sm font-medium">Theme</span>
-        </Button>
-      );
-    }
-
-    const currentThemeOption =
-      themeOptions.find((theme) => theme.key === currentTheme) || themeOptions[0];
-
-    return (
-      <Dropdown>
-        <DropdownTrigger>
-          <Button
-            variant="light"
-            size="sm"
-            className="h-8 w-full justify-start gap-2"
-            startContent={<span className="text-sm">{currentThemeOption?.icon}</span>}
-          >
-            <span className="text-sm font-medium">{currentThemeOption?.label}</span>
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu
-          aria-label="Theme selection"
-          selectedKeys={[currentTheme]}
-          selectionMode="single"
-          onSelectionChange={(keys) => {
-            const selectedTheme = Array.from(keys)[0] as string;
-            if (selectedTheme) {
-              onThemeChange(selectedTheme);
-            }
+        <Select
+          size="sm"
+          placeholder="Theme"
+          isDisabled
+          aria-label="Theme selector"
+          classNames={{
+            trigger: "h-8 min-h-unit-8",
           }}
         >
           {themeOptions.map((theme) => (
-            <DropdownItem
+            <SelectItem
               key={theme.key}
               startContent={<span className="text-sm">{theme.icon}</span>}
             >
               {theme.label}
-            </DropdownItem>
+            </SelectItem>
           ))}
-        </DropdownMenu>
-      </Dropdown>
+        </Select>
+      );
+    }
+
+    return (
+      <Select
+        size="sm"
+        selectedKeys={[currentTheme]}
+        onSelectionChange={(keys) => {
+          const selectedTheme = Array.from(keys)[0] as string;
+          if (selectedTheme) {
+            onThemeChange(selectedTheme);
+          }
+        }}
+        aria-label="Theme selector"
+        classNames={{
+          trigger: "h-8 min-h-unit-8",
+        }}
+        renderValue={() => {
+          const currentThemeOption = themeOptions.find((theme) => theme.key === currentTheme);
+          return currentThemeOption ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{currentThemeOption.icon}</span>
+              <span className="text-sm font-medium">{currentThemeOption.label}</span>
+            </div>
+          ) : null;
+        }}
+      >
+        {themeOptions.map((theme) => (
+          <SelectItem key={theme.key} startContent={<span className="text-sm">{theme.icon}</span>}>
+            {theme.label}
+          </SelectItem>
+        ))}
+      </Select>
     );
   }
 );

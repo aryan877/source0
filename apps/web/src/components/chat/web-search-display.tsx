@@ -29,7 +29,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
         {/* Header with searching indicator */}
         <div className="flex items-center">
           <div className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2">
-            <GlobeAltIcon className="h-4 w-4 animate-spin text-foreground/60" />
+            <GlobeAltIcon className="h-4 w-4 animate-spin text-primary" />
             <span className="text-sm font-medium text-foreground/80">Searching the web...</span>
           </div>
         </div>

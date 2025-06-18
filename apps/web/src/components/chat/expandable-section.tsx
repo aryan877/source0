@@ -16,7 +16,7 @@ interface ExpandableSectionProps {
 
 const LoadingSpinner = memo(() => (
   <div className="flex items-center justify-center">
-    <div className="h-3 w-3 animate-spin rounded-full border-2 border-foreground/20 border-t-foreground/60"></div>
+    <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary/20 border-t-primary"></div>
   </div>
 ));
 
@@ -57,7 +57,7 @@ const ExpandableSection = memo(
           onClick={handleToggle}
           className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-content1/50 ${
             isLoading
-              ? "relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent"
+              ? "relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_ease-in-out_infinite] before:bg-gradient-to-r before:from-transparent before:via-primary/20 before:to-transparent"
               : ""
           }`}
         >

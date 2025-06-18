@@ -519,26 +519,22 @@ const MessageBubble = memo(
           </div>
 
           {/* Action buttons and model info */}
-          <div
-            className={`flex w-full items-center ${isUser ? "justify-end" : "justify-between"} pl-1 pr-2`}
-          >
-            <div className="flex items-center gap-2">
-              {actionButtons}
+          <div className={`flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}>
+            {actionButtons}
+            {modelMetadata && !isUser && (
               <div
                 className={`transition-opacity duration-200 ${showActions && !isLoading && !isEditing ? "opacity-100" : "opacity-0"}`}
               >
-                {modelMetadata && !isUser && (
-                  <Tooltip
-                    content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
-                    placement="top"
-                  >
-                    <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
-                      <span>{modelMetadata.modelUsed}</span>
-                    </div>
-                  </Tooltip>
-                )}
+                <Tooltip
+                  content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
+                  placement="top"
+                >
+                  <div className="flex items-center gap-1.5 rounded-full bg-content2 px-2 py-1 text-xs text-foreground/60">
+                    <span>{modelMetadata.modelUsed}</span>
+                  </div>
+                </Tooltip>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -34,10 +34,10 @@ const StreamingIndicator = memo(() => (
               {[0, 1, 2].map((index) => (
                 <motion.div
                   key={index}
-                  className="h-1 w-1 rounded-full bg-foreground/40"
+                  className="h-1 w-1 rounded-full bg-primary/60"
                   animate={{
-                    opacity: [0.3, 1, 0.3],
-                    scale: [1, 1.2, 1],
+                    opacity: [0.4, 1, 0.4],
+                    scale: [1, 1.3, 1],
                   }}
                   transition={{
                     duration: 1.5,
