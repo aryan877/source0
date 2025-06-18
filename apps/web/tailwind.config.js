@@ -404,7 +404,7 @@ export default {
   plugins: [
     typography,
     heroui({
-      defaultTheme: "forest",
+      defaultTheme: "light",
       layout: {},
       themes: {
         // Light Theme (Neutral)
