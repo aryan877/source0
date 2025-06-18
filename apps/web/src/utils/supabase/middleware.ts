@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Configuration for protected routes
-const PROTECTED_ROUTES = ["/", "/chat"];
+const PROTECTED_ROUTES = ["/chat"];
 
 // Configuration for auth routes (redirect to home if already logged in)
 const AUTH_ROUTES = ["/auth/login"];

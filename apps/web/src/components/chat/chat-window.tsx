@@ -643,7 +643,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       if (chatId === "new") {
         if (!user) {
-          updateState({ uiError: "Please log in to start a chat." });
+          router.push("/auth/login");
           return;
         }
 
