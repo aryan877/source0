@@ -4,11 +4,24 @@ import { NextResponse, type NextRequest } from "next/server";
 // Configuration for protected routes
 const PROTECTED_ROUTES = ["/chat"];
 
+// Configuration for public routes that should bypass protection even if they match protected routes
+const PUBLIC_ROUTES = ["/chat/shared"];
+
 // Configuration for auth routes (redirect to home if already logged in)
 const AUTH_ROUTES = ["/auth/login"];
 
 // Helper function to check if path matches protected routes
 const isProtectedRoute = (pathname: string): boolean => {
+  // First check if it's a public route that should bypass protection
+  const isPublicRoute = PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
+  );
+
+  if (isPublicRoute) {
+    return false;
+  }
+
+  // Then check if it matches any protected routes
   return PROTECTED_ROUTES.some((route) => pathname === route || pathname.startsWith(route + "/"));
 };
 
