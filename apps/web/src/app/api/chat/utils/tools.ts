@@ -200,30 +200,7 @@ const memorySaveParameters = z.object({
 });
 
 export const memorySaveToolDefinition = {
-  description: `Save important user information to memory for personalized future interactions. This tool creates long-term memory of user preferences, personal details, and important context.
-
-Use this tool when users share:
-- Personal preferences (likes, dislikes, interests)
-- Personal information (name, location, profession, background)
-- Goals and aspirations (what they want to achieve)
-- Important experiences or events
-- Constraints or limitations (allergies, restrictions)
-- Relationships and social context
-- Work or project details that matter to them
-
-AUTOMATIC INTELLIGENCE: The tool automatically understands and organizes memories without needing explicit categories. It identifies the core concepts in the information provided.
-
-WHEN TO USE:
-✅ User says "I love Italian food" → Save this preference
-✅ User mentions "I work as a software engineer" → Save this personal info
-✅ User shares "I'm allergic to nuts" → Save this important constraint
-✅ User says "My goal is to learn Spanish" → Save this goal
-
-❌ Don't save generic responses like "thanks", "ok", "yes"
-❌ Don't save questions unless they reveal preferences
-❌ Don't save temporary/session-specific information
-
-The tool will show a confirmation when memory is successfully saved.`,
+  description: `Save important user information for personalized future interactions. Use when users share personal info, preferences, goals, constraints, or important context. Don't save generic responses or temporary information.`,
 
   parameters: memorySaveParameters,
 
@@ -298,26 +275,7 @@ const memoryRetrieveParameters = z.object({
     .describe("Optional session identifier to search within specific session"),
 });
 export const memoryRetrieveToolDefinition = {
-  description: `Retrieve relevant user memories to provide personalized and contextual responses. This tool performs a semantic search through all saved user information to find the most relevant context for the current conversation.
-
-Use this tool when:
-- You need to understand user preferences for recommendations
-- User asks about something they might have mentioned before
-- You want to provide personalized advice based on their background
-- User references past conversations or shared information
-- You need context about their constraints, goals, or interests
-- User asks "what do you know about me?" or similar questions
-
-INTELLIGENT SEARCH: The tool automatically:
-- Performs semantic search across ALL user memories
-- Ranks results by relevance and recency
-- Provides context about when memories were created
-
-EXAMPLES:
-✅ User says "I love Italian food" → Save this preference
-✅ User mentions "I work as a software engineer" → Save this personal info
-✅ User shares "I'm allergic to nuts" → Save this important constraint
-✅ User says "My goal is to learn Spanish" → Save this goal`,
+  description: `Retrieve relevant user memories to provide personalized responses. Use when you need context about user preferences, background, or past conversations for better recommendations and advice.`,
 
   parameters: memoryRetrieveParameters,
 
