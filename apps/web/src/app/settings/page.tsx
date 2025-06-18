@@ -47,9 +47,9 @@ import {
 } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type Key } from "react";
+import { Suspense, useEffect, useMemo, useState, type Key } from "react";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -877,5 +877,19 @@ export default function SettingsPage() {
         </ModalContent>
       </Modal>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-8">
+          <Spinner size="lg" />
+        </div>
+      }
+    >
+      <SettingsContent />
+    </Suspense>
   );
 }
