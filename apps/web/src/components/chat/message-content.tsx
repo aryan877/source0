@@ -238,24 +238,36 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
         );
       },
       code: ({ className, children, ...props }) => {
-        const isInline = !className?.startsWith("language-");
-
-        if (isInline) {
-          // Inline code should never be processed for citations
+        // For inline code, render a normal <code> tag.
+        // For block-level code, the <pre> wrapper will handle rendering.
+        if (!className?.startsWith("language-")) {
           return (
             <code className={className} {...props}>
               {children}
             </code>
           );
         }
-
-        // Block code should also be protected from citation processing
-        return (
-          <CodeBlock className={className || ""}>{String(children).replace(/\n$/, "")}</CodeBlock>
-        );
+        // For block-level code, we return the children directly.
+        // The `pre` component will wrap this in a CodeBlock.
+        return <>{children}</>;
       },
-      // Also protect pre elements explicitly
       pre: ({ children, ...props }) => {
+        if (
+          React.isValidElement(children) &&
+          (children.type === "code" ||
+            ((children.props as { className?: string }).className &&
+              (children.props as { className?: string }).className!.startsWith("language-")))
+        ) {
+          const codeProps = (children as React.ReactElement).props as {
+            className?: string;
+            children?: React.ReactNode;
+          };
+          const languageClassName = codeProps.className || "";
+          const codeContent = String(codeProps.children).replace(/\n$/, "");
+
+          return <CodeBlock className={languageClassName}>{codeContent}</CodeBlock>;
+        }
+
         return <pre {...props}>{children}</pre>;
       },
     }),

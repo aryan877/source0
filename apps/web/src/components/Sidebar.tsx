@@ -9,9 +9,7 @@ import {
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
-  MoonIcon,
   PlusIcon,
-  SunIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -94,11 +92,14 @@ const useSidebarState = () => {
     setMounted(true);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === "light" ? "dark" : "light");
-  }, [theme, setTheme]);
+  const handleThemeChange = useCallback(
+    (newTheme: string) => {
+      setTheme(newTheme);
+    },
+    [setTheme]
+  );
 
-  const currentTheme = resolvedTheme || theme || "system";
+  const currentTheme = resolvedTheme || theme || "light";
 
   return {
     user,
@@ -110,7 +111,7 @@ const useSidebarState = () => {
     router,
     mounted,
     currentTheme,
-    toggleTheme,
+    handleThemeChange,
     searchQuery,
     setSearchQuery,
     debouncedSearchQuery,
@@ -393,16 +394,27 @@ const UserInfo = memo(({ user }: { user: User }) => (
 
 UserInfo.displayName = "UserInfo";
 
-const ThemeToggle = memo(
+const ThemeSelector = memo(
   ({
     mounted,
     currentTheme,
-    onToggle,
+    onThemeChange,
   }: {
     mounted: boolean;
     currentTheme: string;
-    onToggle: () => void;
+    onThemeChange: (theme: string) => void;
   }) => {
+    const themeOptions = [
+      { key: "light", label: "Light", icon: "☀️" },
+      { key: "dark", label: "Dark", icon: "🌙" },
+      { key: "ocean", label: "Ocean", icon: "🌊" },
+      { key: "forest", label: "Forest", icon: "🌲" },
+      { key: "sunset", label: "Sunset", icon: "🌅" },
+      { key: "lavender", label: "Lavender", icon: "💜" },
+      { key: "midnight", label: "Midnight", icon: "🌌" },
+      { key: "rose", label: "Rose", icon: "🌹" },
+    ];
+
     if (!mounted) {
       return (
         <Button variant="light" size="sm" className="h-8 w-full justify-start gap-2" isDisabled>
@@ -411,29 +423,47 @@ const ThemeToggle = memo(
       );
     }
 
+    const currentThemeOption =
+      themeOptions.find((theme) => theme.key === currentTheme) || themeOptions[0];
+
     return (
-      <Button
-        variant="light"
-        size="sm"
-        className="h-8 w-full justify-start gap-2"
-        onPress={onToggle}
-        startContent={
-          currentTheme === "light" ? (
-            <MoonIcon className="h-4 w-4" />
-          ) : (
-            <SunIcon className="h-4 w-4" />
-          )
-        }
-      >
-        <span className="text-sm font-medium">
-          {currentTheme === "light" ? "Dark Mode" : "Light Mode"}
-        </span>
-      </Button>
+      <Dropdown>
+        <DropdownTrigger>
+          <Button
+            variant="light"
+            size="sm"
+            className="h-8 w-full justify-start gap-2"
+            startContent={<span className="text-sm">{currentThemeOption?.icon}</span>}
+          >
+            <span className="text-sm font-medium">{currentThemeOption?.label}</span>
+          </Button>
+        </DropdownTrigger>
+        <DropdownMenu
+          aria-label="Theme selection"
+          selectedKeys={[currentTheme]}
+          selectionMode="single"
+          onSelectionChange={(keys) => {
+            const selectedTheme = Array.from(keys)[0] as string;
+            if (selectedTheme) {
+              onThemeChange(selectedTheme);
+            }
+          }}
+        >
+          {themeOptions.map((theme) => (
+            <DropdownItem
+              key={theme.key}
+              startContent={<span className="text-sm">{theme.icon}</span>}
+            >
+              {theme.label}
+            </DropdownItem>
+          ))}
+        </DropdownMenu>
+      </Dropdown>
     );
   }
 );
 
-ThemeToggle.displayName = "ThemeToggle";
+ThemeSelector.displayName = "ThemeSelector";
 
 const SidebarBottomActions = memo(
   ({
@@ -441,14 +471,14 @@ const SidebarBottomActions = memo(
     onSignOut,
     mounted,
     currentTheme,
-    onToggleTheme,
+    onThemeChange,
     onOpenSettings,
   }: {
     user: User | null;
     onSignOut: () => void;
     mounted: boolean;
     currentTheme: string;
-    onToggleTheme: () => void;
+    onThemeChange: (theme: string) => void;
     onOpenSettings: () => void;
   }) => (
     <div className="space-y-1 border-t border-divider p-2">
@@ -467,9 +497,7 @@ const SidebarBottomActions = memo(
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <ThemeToggle mounted={mounted} currentTheme={currentTheme} onToggle={onToggleTheme} />
-      </div>
+      <ThemeSelector mounted={mounted} currentTheme={currentTheme} onThemeChange={onThemeChange} />
 
       <Button
         variant="light"
@@ -533,7 +561,7 @@ export const Sidebar = memo(
       router,
       mounted,
       currentTheme,
-      toggleTheme,
+      handleThemeChange,
       searchQuery,
       setSearchQuery,
       debouncedSearchQuery,
@@ -591,7 +619,7 @@ export const Sidebar = memo(
             onSignOut={onModalOpen}
             mounted={mounted}
             currentTheme={currentTheme}
-            onToggleTheme={toggleTheme}
+            onThemeChange={handleThemeChange}
             onOpenSettings={onOpenSettings}
           />
         </div>
