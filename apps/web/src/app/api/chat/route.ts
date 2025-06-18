@@ -30,9 +30,6 @@ import {
 import { processMessages } from "./utils/process-messages";
 import { getToolsForModel } from "./utils/tools";
 
-export const dynamic = "force-dynamic";
-export const maxDuration = 60;
-
 let streamContext: ResumableStreamContext | undefined;
 if (pub && sub) {
   streamContext = createResumableStreamContext({

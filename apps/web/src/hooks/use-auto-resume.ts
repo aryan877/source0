@@ -3,33 +3,18 @@
 import { getLatestStreamIdWithStatus } from "@/services";
 import { type UseChatHelpers } from "@ai-sdk/react";
 import { type Message as UIMessage } from "ai";
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 
 export type DataPart = { type: "append-message"; message: string };
 
 export interface Props {
-  autoResume: boolean;
   initialMessages: UIMessage[];
   experimental_resume: UseChatHelpers["experimental_resume"];
-  data: UseChatHelpers["data"];
-  setMessages: UseChatHelpers["setMessages"];
-  messagesLoading: boolean;
   chatId?: string;
 }
-
-export function useAutoResume({
-  autoResume,
-  initialMessages,
-  experimental_resume,
-  data,
-  setMessages,
-  messagesLoading,
-  chatId,
-}: Props) {
-  const resumeAttempted = useRef(false);
-
-  useEffect(() => {
-    if (!autoResume || messagesLoading || resumeAttempted.current || !chatId) {
+export function useAutoResume({ initialMessages, experimental_resume, chatId }: Props) {
+  const tryResume = useCallback(() => {
+    if (!chatId) {
       return;
     }
 
@@ -54,21 +39,7 @@ export function useAutoResume({
           experimental_resume();
         });
     }
+  }, [chatId, initialMessages, experimental_resume]);
 
-    // Mark as attempted once we have checked, to avoid re-triggering
-    if (initialMessages.length > 0) {
-      resumeAttempted.current = true;
-    }
-  }, [autoResume, initialMessages, experimental_resume, messagesLoading, chatId]);
-
-  useEffect(() => {
-    if (!data || data.length === 0) return;
-
-    const dataPart = data[0] as DataPart;
-
-    if (dataPart.type === "append-message") {
-      const message = JSON.parse(dataPart.message) as UIMessage;
-      setMessages([...initialMessages, message]);
-    }
-  }, [data, initialMessages, setMessages]);
+  return { tryResume };
 }
