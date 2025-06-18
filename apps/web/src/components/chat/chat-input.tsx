@@ -7,6 +7,7 @@ import { forwardRef, memo, useCallback, useImperativeHandle, useRef } from "reac
 import { FileAttachment } from "./file-attachment";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
+import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 import { type AttachedFileWithUrl } from "./utils/file-utils";
 
 interface ChatInputProps {
@@ -29,6 +30,8 @@ interface ChatInputProps {
   onStop: () => void;
   onClearUiError: () => void;
   onPromptSelect?: (prompt: string) => void;
+  showScrollToBottom?: boolean;
+  onScrollToBottom?: () => void;
 }
 
 export interface ChatInputRef {
@@ -57,6 +60,8 @@ export const ChatInput = memo(
         onRemoveFile,
         onStop,
         onClearUiError,
+        showScrollToBottom = false,
+        onScrollToBottom,
       },
       ref
     ) => {
@@ -79,6 +84,13 @@ export const ChatInput = memo(
       return (
         <div className="px-4" suppressHydrationWarning>
           <div className="relative mx-auto max-w-3xl">
+            {showScrollToBottom && onScrollToBottom && (
+              <ScrollToBottomButton
+                showScrollToBottom={showScrollToBottom}
+                onScrollToBottom={onScrollToBottom}
+              />
+            )}
+
             {attachedFiles.length > 0 && (
               <div className="rounded-t-2xl border-l border-r border-t border-default-200 bg-content2 p-4">
                 <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />

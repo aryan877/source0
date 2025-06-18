@@ -22,7 +22,7 @@ import { useChat, type Message } from "@ai-sdk/react";
 import { Chip } from "@heroui/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { MessagesList } from "./messages-list";
@@ -58,6 +58,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const isInitialLoad = useRef(true);
   const userScrolled = useRef(false);
   const programmaticScroll = useRef(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const {
     messages: queryMessages,
@@ -338,6 +339,23 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, [messages, stop, updateState, append]);
 
+  const handleScrollToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    programmaticScroll.current = true;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+
+    setTimeout(() => {
+      programmaticScroll.current = false;
+      setShowScrollToBottom(false);
+      userScrolled.current = false;
+    }, SCROLL_ANIMATION_DURATION);
+  }, []);
+
   const { tryResume } = useAutoResume({
     initialMessages: messagesToUse,
     experimental_resume,
@@ -459,22 +477,24 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     const handleScroll = () => {
       if (programmaticScroll.current) return;
 
-      // We consider the user to have scrolled up if they are more than a
-      // small threshold away from the bottom.
-      const isNearBottom =
+      const isAtBottom =
         container.scrollHeight - container.clientHeight <=
         container.scrollTop + USER_SCROLLED_THRESHOLD;
 
-      if (isNearBottom) {
-        // User is at the bottom, so we can re-enable auto-scroll.
-        if (userScrolled.current) {
-          userScrolled.current = false;
-        }
+      console.log("Scroll detection:", {
+        isAtBottom,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        scrollTop: container.scrollTop,
+        showScrollToBottom: !isAtBottom,
+      });
+
+      if (isAtBottom) {
+        userScrolled.current = false;
+        setShowScrollToBottom(false);
       } else {
-        // User has scrolled up. Disable auto-scroll.
-        if (!userScrolled.current) {
-          userScrolled.current = true;
-        }
+        userScrolled.current = true;
+        setShowScrollToBottom(true);
       }
     };
 
@@ -844,6 +864,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           onStop={handleStop}
           onClearUiError={handleDismissUiError}
           onPromptSelect={handlePromptSelect}
+          showScrollToBottom={showScrollToBottom}
+          onScrollToBottom={handleScrollToBottom}
           ref={chatInputRef}
         />
       )}

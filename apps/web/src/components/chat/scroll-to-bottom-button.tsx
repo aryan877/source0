@@ -14,7 +14,7 @@ export const ScrollToBottomButton = memo(
     if (!showScrollToBottom) return null;
 
     return (
-      <div className="absolute -top-12 left-1/2 z-10 -translate-x-1/2">
+      <div className="absolute -top-16 left-1/2 z-20 -translate-x-1/2">
         <Button
           isIconOnly
           size="sm"
