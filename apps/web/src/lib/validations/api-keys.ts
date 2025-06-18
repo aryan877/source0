@@ -17,6 +17,10 @@ const anthropicKeySchema = z
 
 const xaiKeySchema = z.string().trim().startsWith("xai-", "Invalid xAI API key format.");
 
+const groqKeySchema = z.string().trim().startsWith("gsk_", "Invalid Groq API key format.");
+
+const deepSeekKeySchema = z.string().trim().startsWith("sk-", "Invalid DeepSeek API key format.");
+
 const genericKeySchema = z.string().trim().min(1, "API key cannot be empty.");
 
 export const apiKeySchema = z.object({
@@ -24,8 +28,9 @@ export const apiKeySchema = z.object({
   Google: googleKeySchema.optional().or(z.literal("")),
   Anthropic: anthropicKeySchema.optional().or(z.literal("")),
   xAI: xaiKeySchema.optional().or(z.literal("")),
+  Groq: groqKeySchema.optional().or(z.literal("")),
   Meta: genericKeySchema.optional().or(z.literal("")),
-  DeepSeek: genericKeySchema.optional().or(z.literal("")),
+  DeepSeek: deepSeekKeySchema.optional().or(z.literal("")),
   Qwen: genericKeySchema.optional().or(z.literal("")),
 });
 

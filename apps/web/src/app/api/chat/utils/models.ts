@@ -5,21 +5,27 @@ import {
   type ReasoningLevel,
 } from "@/config/models";
 import { anthropic } from "@ai-sdk/anthropic";
+import { deepseek } from "@ai-sdk/deepseek";
 import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
 import { type JSONValue, type LanguageModel } from "ai";
 
-const PROVIDERS = { google, openai, anthropic, xai } as const;
+const PROVIDERS = { google, openai, anthropic, xai, deepseek, groq } as const;
 
 export interface ModelMappingResult {
   supported: true;
-  provider: typeof google | typeof openai | typeof anthropic | typeof xai;
+  provider:
+    | typeof google
+    | typeof openai
+    | typeof anthropic
+    | typeof xai
+    | typeof deepseek
+    | typeof groq;
   model: string;
   providerInfo: {
     name: string;
-    hasSearchGrounding?: boolean;
-    hasReasoning?: boolean;
     supported: boolean;
   };
 }

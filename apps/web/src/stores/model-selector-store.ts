@@ -233,9 +233,20 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         if (state && (!state.favorites || state.favorites.length === 0)) {
           state.favorites = [...DEFAULT_FAVORITES];
         }
-        // Initialize with all models enabled if none are set
-        if (state && (!state.enabledModels || state.enabledModels.length === 0)) {
-          state.enabledModels = MODELS.map((m) => m.id);
+        // Always sync enabledModels with current MODELS to include new models
+        if (state) {
+          const allModelIds = MODELS.map((m) => m.id);
+          if (!state.enabledModels || state.enabledModels.length === 0) {
+            // If no enabled models, enable all
+            state.enabledModels = [...allModelIds];
+          } else {
+            // Merge existing enabled models with any new models that were added
+            const existingEnabled = new Set(state.enabledModels);
+            const newModels = allModelIds.filter((id) => !existingEnabled.has(id));
+            if (newModels.length > 0) {
+              state.enabledModels = [...state.enabledModels, ...newModels];
+            }
+          }
         }
         // Initialize selectedModels if it doesn't exist
         if (state && !state.selectedModels) {

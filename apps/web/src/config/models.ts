@@ -11,14 +11,15 @@ export const CAPABILITY_LABELS = {
   "image-generation": "Image Gen",
 } as const;
 
-// Provider mapping for AI SDK - centralized here to avoid duplication
+// Provider mapping for AI SDK
 export const PROVIDER_MAPPING = {
-  Google: { name: "google", hasSearchGrounding: true, supported: true },
-  OpenAI: { name: "openai", hasReasoning: true, supported: true },
-  Anthropic: { name: "anthropic", hasReasoning: true, supported: true },
-  xAI: { name: "xai", hasReasoning: true, supported: true },
+  Google: { name: "google", supported: true },
+  OpenAI: { name: "openai", supported: true },
+  Anthropic: { name: "anthropic", supported: true },
+  xAI: { name: "xai", supported: true },
+  Groq: { name: "groq", supported: true },
   Meta: { name: null, supported: false },
-  DeepSeek: { name: null, supported: false },
+  DeepSeek: { name: "deepseek", supported: true },
   Qwen: { name: null, supported: false },
 } as const;
 
@@ -286,69 +287,62 @@ export const MODELS: ModelConfig[] = [
     }
   ),
 
-  // Meta Models
+  // Groq Models (Llama via Groq)
   createModel(
-    "llama-3.3-70b",
-    "Llama 3.3 70B",
-    "Large-scale open-source model",
-    "Meta",
-    "meta-llama/Llama-3.3-70B-Instruct"
+    "llama-3.3-70b-groq",
+    "Llama 3.3 70B (Groq)",
+    "Fast Llama 3.3 70B with tool calling support",
+    "Groq",
+    "llama-3.3-70b-versatile",
+    {
+      isOpenSource: true,
+      category: "flagship",
+    }
   ),
   createModel(
-    "llama-4-scout",
-    "Llama 4 Scout",
-    "Next-gen Llama with vision capabilities",
-    "Meta",
-    "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "llama-4-scout-groq",
+    "Llama 4 Scout (Groq)",
+    "Fast Llama 4 Scout with vision and tool calling",
+    "Groq",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
     {
       capabilities: ["image"],
+      isOpenSource: true,
       category: "vision",
     }
   ),
   createModel(
-    "llama-4-maverick",
-    "Llama 4 Maverick",
-    "Advanced Llama variant with enhanced features",
-    "Meta",
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+    "llama-3.1-8b-groq",
+    "Llama 3.1 8B (Groq)",
+    "Fast and efficient Llama 3.1 8B with tool calling",
+    "Groq",
+    "llama-3.1-8b-instant",
     {
-      capabilities: ["image"],
-      category: "flagship",
+      isOpenSource: true,
+      category: "efficient",
     }
   ),
 
   // DeepSeek Models
   createModel(
-    "deepseek-v3-base",
-    "DeepSeek V3 Base",
-    "Advanced language model",
-    "DeepSeek",
-    "deepseek-ai/DeepSeek-V3-Base",
-    { isOpenSource: false }
-  ),
-  createModel(
     "deepseek-v3-chat",
     "DeepSeek V3 Chat",
-    "Conversational AI model",
+    "Conversational AI model (DeepSeek-V3-0324)",
     "DeepSeek",
-    "deepseek-ai/DeepSeek-V3",
-    { isOpenSource: false }
+    "deepseek-chat",
+    { isOpenSource: true }
   ),
   createModel(
     "deepseek-r1-preview",
     "DeepSeek R1 Preview",
-    "Advanced language model",
+    "Advanced reasoning model (DeepSeek-R1-0528)",
     "DeepSeek",
     "deepseek-reasoner",
-    { isOpenSource: false }
-  ),
-  createModel(
-    "deepseek-r1-zero",
-    "DeepSeek R1 Zero",
-    "Specialized language model",
-    "DeepSeek",
-    "deepseek-r1-zero",
-    { isOpenSource: false }
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "reasoning",
+    }
   ),
 
   // xAI Models
@@ -412,11 +406,20 @@ export const IMAGE_GEN_MODELS = MODELS.filter((m) =>
 
 // Defaults
 export const DEFAULT_MODEL = "gemini-2.5-flash";
-export const DEFAULT_FAVORITES = ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o"];
+export const DEFAULT_FAVORITES = [
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "claude-3.5-sonnet",
+  "claude-4-sonnet-reasoning",
+  "gpt-4o",
+  "llama-3.3-70b-groq",
+  "deepseek-r1-preview",
+  "deepseek-v3-chat",
+];
 
 // Dynamic model groupings
 export const MODEL_GROUPS = {
-  Recommended: ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-4-maverick"],
+  Recommended: ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-3.3-70b-groq"],
   Reasoning: REASONING_MODELS,
   "Vision & Multimodal": VISION_MODELS,
   "Image Generation": IMAGE_GEN_MODELS,
