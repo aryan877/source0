@@ -200,7 +200,7 @@ SidebarOverlay.displayName = "SidebarOverlay";
 const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
   <div className="border-b border-divider p-3">
     <div className="mb-3 flex h-10 items-center">
-      <h2 className="ml-14 text-lg font-bold text-foreground">AlmostT3</h2>
+      <h2 className="ml-14 text-lg font-bold text-foreground">Source0</h2>
     </div>
 
     <Button onPress={onNewChat} color="primary" size="sm" className="h-8 w-full">
