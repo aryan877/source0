@@ -30,6 +30,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
+import { format, formatDistanceToNow, isThisWeek, isToday, isYesterday } from "date-fns";
 import { Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -68,14 +69,36 @@ interface ChatItemProps {
 const formatTimestamp = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const minutes = Math.floor(diff / (1000 * 60));
-  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
 
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return date.toLocaleDateString();
+  // For very recent messages (less than 1 hour), show relative time
+  if (diffInMinutes < 60) {
+    if (diffInMinutes < 1) return "just now";
+    return formatDistanceToNow(date, { addSuffix: true });
+  }
+
+  // For today's messages, show time
+  if (isToday(date)) {
+    return format(date, "h:mm a");
+  }
+
+  // For yesterday's messages
+  if (isYesterday(date)) {
+    return "Yesterday";
+  }
+
+  // For this week's messages
+  if (isThisWeek(date)) {
+    return format(date, "EEEE"); // Day name like "Monday"
+  }
+
+  // For older messages, show formatted date
+  if (date.getFullYear() === now.getFullYear()) {
+    return format(date, "MMMM do"); // "June 17th"
+  }
+
+  // For messages from different years
+  return format(date, "MMM do, yyyy"); // "Jun 17th, 2023"
 };
 
 // ========================================
@@ -126,11 +149,11 @@ const useSidebarState = () => {
 const useSidebarChatHandlers = (
   selectedChatId: string,
   onSelectChat: (chatId: string) => void,
-  onClose: () => void,
   windowObj: Window | null,
   router: ReturnType<typeof useRouter>,
   chats: ReturnType<typeof useChatSessions>["sessions"],
-  deleteSession: ReturnType<typeof useChatSessions>["deleteSession"]
+  deleteSession: ReturnType<typeof useChatSessions>["deleteSession"],
+  removePinnedSession: (sessionId: string) => void
 ) => {
   const handleNewChat = useCallback(() => {
     router.push("/");
@@ -139,6 +162,7 @@ const useSidebarChatHandlers = (
   const handleDeleteChat = useCallback(
     (chatId: string) => {
       deleteSession(chatId);
+      removePinnedSession(chatId);
       if (selectedChatId === chatId) {
         if (chats.length <= 1) {
           router.push("/");
@@ -148,7 +172,7 @@ const useSidebarChatHandlers = (
         }
       }
     },
-    [deleteSession, selectedChatId, chats, onSelectChat, router]
+    [deleteSession, removePinnedSession, selectedChatId, chats, onSelectChat, router]
   );
 
   return {
@@ -364,7 +388,7 @@ const CategorySection = memo(
 
     return (
       <div className="mb-4">
-        <h4 className="mb-2 flex items-center gap-1 px-2 text-xs font-semibold uppercase tracking-wider text-default-400">
+        <h4 className="text-foreground-600 dark:text-foreground-500 mb-2 flex items-center gap-1 px-2 text-xs font-bold uppercase tracking-wider">
           {title === "Pinned" && <Pin className="h-3 w-3" />}
           {title}
         </h4>
@@ -470,65 +494,6 @@ const CategorizedChatList = memo(
 );
 
 CategorizedChatList.displayName = "CategorizedChatList";
-
-const ChatList = memo(
-  ({
-    chats,
-    selectedChatId,
-    onSelectChat,
-    onDeleteChat,
-    onTogglePin,
-    isLoading,
-    error,
-    onRetry,
-    isDeletingSession,
-  }: {
-    chats: ReturnType<typeof useChatSessions>["sessions"];
-    selectedChatId: string;
-    onSelectChat: (chatId: string) => void;
-    onDeleteChat: (chatId: string) => void;
-    onTogglePin: (chatId: string) => void;
-    isLoading: boolean;
-    error: Error | null;
-    onRetry: () => void;
-    isDeletingSession: boolean;
-  }) => {
-    const { isPinnedSession } = useSidebarStore();
-    const isOnNewChat = selectedChatId === "new" || !selectedChatId;
-
-    return (
-      <ScrollShadow className="flex-1 p-2">
-        <div className="space-y-1">
-          {isLoading ? (
-            <LoadingSkeleton />
-          ) : error ? (
-            <ErrorState onRetry={onRetry} />
-          ) : chats.length === 0 ? (
-            <EmptyState />
-          ) : (
-            chats.map((chat) => (
-              <ChatItem
-                key={chat.id}
-                chatId={chat.id}
-                title={chat.title}
-                updatedAt={chat.updated_at || new Date().toISOString()}
-                isSelected={!isOnNewChat && selectedChatId === chat.id}
-                isBranched={!!chat.branched_from_session_id}
-                isPinned={isPinnedSession(chat.id)}
-                onSelect={onSelectChat}
-                onDelete={onDeleteChat}
-                onTogglePin={onTogglePin}
-                isDeleting={isDeletingSession}
-              />
-            ))
-          )}
-        </div>
-      </ScrollShadow>
-    );
-  }
-);
-
-ChatList.displayName = "ChatList";
 
 const UserInfo = memo(({ user }: { user: User }) => (
   <div className="rounded-lg bg-content2 p-2">
@@ -731,17 +696,17 @@ export const Sidebar = memo(
       invalidateSessions,
     } = useChatSessions(debouncedSearchQuery);
 
+    const { togglePinnedSession, categorizeSessions, removePinnedSession } = useSidebarStore();
+
     const { handleNewChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
       onSelectChat,
-      onClose,
       windowObj,
       router,
       chats,
-      deleteSession
+      deleteSession,
+      removePinnedSession
     );
-
-    const { togglePinnedSession, categorizeSessions } = useSidebarStore();
 
     const handleTogglePin = useCallback(
       (chatId: string) => {

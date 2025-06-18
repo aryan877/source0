@@ -17,6 +17,7 @@ interface SidebarState {
 
   // Actions
   togglePinnedSession: (sessionId: string) => void;
+  removePinnedSession: (sessionId: string) => void;
   isPinnedSession: (sessionId: string) => boolean;
   categorizeSessions: (sessions: ChatSession[]) => CategorizedSessions;
 }
@@ -34,6 +35,12 @@ export const useSidebarStore = create<SidebarState>()(
           ? pinnedSessions.filter((id) => id !== sessionId)
           : [...pinnedSessions, sessionId];
         set({ pinnedSessions: newPinnedSessions });
+      },
+
+      removePinnedSession: (sessionId) => {
+        set((state) => ({
+          pinnedSessions: state.pinnedSessions.filter((id) => id !== sessionId),
+        }));
       },
 
       isPinnedSession: (sessionId) => {

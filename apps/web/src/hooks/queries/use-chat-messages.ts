@@ -10,7 +10,7 @@ export function useChatMessages(sessionId: string) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: chatMessagesKeys.bySession(sessionId),
+    queryKey: chatMessagesKeys.byId(sessionId),
     queryFn: async () => {
       const dbMessages = await getMessages(sessionId);
       return convertToAiMessages(dbMessages);
@@ -22,7 +22,7 @@ export function useChatMessages(sessionId: string) {
 
   const invalidateMessages = () => {
     queryClient.invalidateQueries({
-      queryKey: chatMessagesKeys.bySession(sessionId),
+      queryKey: chatMessagesKeys.byId(sessionId),
     });
   };
 

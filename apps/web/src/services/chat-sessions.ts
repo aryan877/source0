@@ -80,8 +80,15 @@ export async function getSession(sessionId: string): Promise<ChatSession | null>
     .single();
 
   if (error) {
+    // PostgREST error `PGRST116` indicates that `single()` found no rows.
+    // This is not a "real" error in our case; it just means the session doesn't exist.
+    // We can return null and let the query succeed.
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    // For all other errors, we should re-throw so React Query can handle them properly.
     console.error(`Error fetching chat session ${sessionId}:`, error);
-    return null;
+    throw error;
   }
   return data;
 }

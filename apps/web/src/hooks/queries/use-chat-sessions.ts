@@ -25,10 +25,22 @@ export function useChatSessions(searchTerm = "") {
 
   const deleteMutation = useMutation({
     mutationFn: deleteSession,
-    onSuccess: () => {
-      // Invalidate all session queries for the user to refetch lists
+    onSuccess: (_, deletedSessionId) => {
+      // Optimistically update all session lists for the user
       if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: chatSessionsKeys.byUser(user.id) });
+        queryClient.setQueriesData(
+          {
+            queryKey: chatSessionsKeys.byUser(user.id),
+            exact: false,
+          },
+          (oldData: ChatSession[] | undefined): ChatSession[] => {
+            if (!oldData) return [];
+            return oldData.filter((session) => session.id !== deletedSessionId);
+          }
+        );
+
+        // Remove the individual session from cache
+        queryClient.removeQueries({ queryKey: chatSessionsKeys.byId(deletedSessionId) });
       }
     },
     onError: (error) => {
@@ -52,7 +64,7 @@ export function useChatSessions(searchTerm = "") {
     }
 
     queryClient.setQueriesData(
-      { queryKey: chatSessionsKeys.byUser(targetUserId), exact: false },
+      { queryKey: chatSessionsKeys.byUser(targetUserId) },
       (oldData: ChatSession[] | undefined): ChatSession[] => {
         const sessionWithDate = {
           ...updatedSession,
