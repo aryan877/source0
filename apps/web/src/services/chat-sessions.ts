@@ -26,12 +26,16 @@ export interface SessionAncestry {
 export async function createSession(
   userId: string,
   title: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  sessionId?: string
 ): Promise<ChatSession> {
   const supabase = createClient();
+  const newSessionId = sessionId || uuidv4();
+
   const { data, error } = await supabase
     .from("chat_sessions")
     .insert({
+      id: newSessionId,
       user_id: userId,
       title,
       system_prompt: systemPrompt || null,

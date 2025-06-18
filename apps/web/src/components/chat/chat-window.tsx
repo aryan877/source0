@@ -613,62 +613,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
   );
 
-  /**
-   * Creates a new chat session and handles the first message.
-   *
-   * This function:
-   * 1. Creates a new session in the database
-   * 2. Stores the pending message in sessionStorage (to survive navigation)
-   * 3. Navigates to the new session URL
-   * 4. The message will be automatically sent when the new page loads
-   *
-   * This pattern ensures the session exists before sending the first message,
-   * which is required for proper database relationships.
-   */
-  const handleCreateNewSession = useCallback(
-    async (
-      message: Message,
-      chatRequestOptions?: Parameters<typeof append>[1] & { isFirstMessage?: boolean }
-    ) => {
-      if (!user) {
-        updateState({ uiError: "Please log in to start a chat." });
-        return;
-      }
-
-      try {
-        const messageData = {
-          message,
-          chatRequestOptions: {
-            ...chatRequestOptions,
-            isFirstMessage: true,
-          },
-          selectedModel,
-          reasoningLevel: reasoningLevel,
-          searchEnabled: searchEnabled,
-        };
-        sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
-
-        const newSession = await createSession(user.id, "New Chat");
-        invalidateSessions();
-        transferModelSelection("new", newSession.id);
-        router.push(`/chat/${newSession.id}`);
-      } catch (error) {
-        console.error("Failed to create new session:", error);
-        updateState({ uiError: "Failed to create new chat. Please try again." });
-      }
-    },
-    [
-      user,
-      updateState,
-      selectedModel,
-      reasoningLevel,
-      searchEnabled,
-      invalidateSessions,
-      transferModelSelection,
-      router,
-    ]
-  );
-
   const handleFormSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -728,7 +672,40 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           : undefined;
 
       if (chatId === "new") {
-        await handleCreateNewSession(messageToAppend, chatRequestOptions);
+        if (!user) {
+          updateState({ uiError: "Please log in to start a chat." });
+          return;
+        }
+
+        const newSessionId = uuidv4();
+        // Optimistically show the new message and navigate
+        setMessages([messageToAppend]);
+        justSubmittedMessageId.current = messageToAppend.id;
+        router.push(`/chat/${newSessionId}`);
+
+        // Store pending message for the new page to pick up
+        const messageData = {
+          message: messageToAppend,
+          chatRequestOptions: { ...chatRequestOptions, isFirstMessage: true },
+          selectedModel,
+          reasoningLevel,
+          searchEnabled,
+        };
+        sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
+
+        // In the background, create the session and clean up
+        createSession(user.id, "New Chat", undefined, newSessionId)
+          .then(() => {
+            invalidateSessions();
+            transferModelSelection("new", newSessionId);
+          })
+          .catch((error) => {
+            console.error("Failed to create new session in background:", error);
+            // Handle error, maybe show a toast
+          });
+
+        setInput("");
+        updateState({ attachedFiles: [] });
         return;
       }
 
@@ -749,8 +726,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setInput,
       updateState,
       chatId,
-      handleCreateNewSession,
       setUserScrolled,
+      user,
+      selectedModel,
+      reasoningLevel,
+      searchEnabled,
+      router,
+      invalidateSessions,
+      transferModelSelection,
+      setMessages,
     ]
   );
 
