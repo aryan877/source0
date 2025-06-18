@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AlmostT3 - AI Chat Interface",
+  title: "Source0 - AI Chat Interface",
   description: "Modern AI chat interface with purple and grey theme",
 };
 
