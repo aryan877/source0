@@ -9,7 +9,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
     <HeroUIProvider>
       <NextThemesProvider
         attribute="class"
-        defaultTheme="light"
+        defaultTheme="forest"
         themes={["light", "dark", "ocean", "forest", "sunset", "lavender", "midnight", "rose"]}
       >
         <QueryProvider>{children}</QueryProvider>
