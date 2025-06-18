@@ -48,6 +48,9 @@ interface ChatRequest {
   searchEnabled?: boolean;
   id?: string;
   isFirstMessage?: boolean;
+  apiKey?: string;
+  assistantName?: string;
+  userTraits?: string;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -126,9 +129,12 @@ export async function POST(req: Request): Promise<Response> {
       searchEnabled = false,
       id,
       isFirstMessage = false,
+      apiKey,
+      assistantName,
+      userTraits,
     } = body;
 
-    console.log("Chat request:", body);
+    console.log("Chat request:", { ...body, apiKey: apiKey ? "[REDACTED]" : undefined });
 
     const sessionId = id || uuidv4();
 
@@ -164,11 +170,11 @@ export async function POST(req: Request): Promise<Response> {
       return handleImageGenerationRequest(supabase, user, finalSessionId, modelConfig, prompt);
     }
 
-    const systemMessage = buildSystemMessage(modelConfig, searchEnabled);
+    const systemMessage = buildSystemMessage(modelConfig, searchEnabled, userTraits, assistantName);
     const finalMessages = [{ role: "system" as const, content: systemMessage }, ...coreMessages];
 
     const modelInstance = createModelInstance(modelConfig, mapping, searchEnabled);
-    const providerOptions = buildProviderOptions(modelConfig, reasoningLevel);
+    const providerOptions = buildProviderOptions(modelConfig, reasoningLevel, apiKey);
 
     if (streamContext) {
       const streamId = uuidv4();

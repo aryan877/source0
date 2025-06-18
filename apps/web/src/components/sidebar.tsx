@@ -5,6 +5,7 @@ import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
+import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences-store";
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -488,21 +489,24 @@ const CategorizedChatList = memo(
 
 CategorizedChatList.displayName = "CategorizedChatList";
 
-const UserInfo = memo(({ user }: { user: User }) => (
-  <div className="rounded-lg bg-content2 p-2">
-    <div className="flex items-center gap-2">
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
-        <UserIcon className="h-3 w-3 text-primary" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground">
-          {user.user_metadata?.full_name || "User"}
-        </p>
-        <p className="truncate text-xs text-default-500">{user.email}</p>
+const UserInfo = memo(({ user }: { user: User }) => {
+  const { hidePersonalInfo } = useUserPreferencesStore();
+  return (
+    <div className="rounded-lg bg-content2 p-2">
+      <div className="flex items-center gap-2">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
+          <UserIcon className="h-3 w-3 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-foreground">
+            {hidePersonalInfo ? "User" : user.user_metadata?.full_name || "User"}
+          </p>
+          {!hidePersonalInfo && <p className="truncate text-xs text-default-500">{user.email}</p>}
+        </div>
       </div>
     </div>
-  </div>
-));
+  );
+});
 
 UserInfo.displayName = "UserInfo";
 
@@ -516,16 +520,6 @@ const ThemeSelector = memo(
     currentTheme: string;
     onThemeChange: (theme: string) => void;
   }) => {
-    const themeOptions = [
-      { key: "light", label: "Light", icon: "☀️" },
-      { key: "dark", label: "Dark", icon: "🌙" },
-      { key: "ocean", label: "Ocean", icon: "🌊" },
-      { key: "forest", label: "Forest", icon: "🌲" },
-      { key: "sunset", label: "Sunset", icon: "🌅" },
-      { key: "lavender", label: "Lavender", icon: "💜" },
-      { key: "rose", label: "Rose", icon: "🌹" },
-    ];
-
     if (!mounted) {
       return (
         <Select

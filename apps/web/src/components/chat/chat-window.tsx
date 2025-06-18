@@ -17,7 +17,9 @@ import {
   saveAssistantMessage,
 } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
+import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
+import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import Link from "next/link";
@@ -52,6 +54,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
+  const { assistantName, userTraits } = useUserPreferencesStore();
   const router = useRouter();
   const justSubmittedMessageId = useRef<string | null>(null);
   const isInitialLoad = useRef(true);
@@ -100,13 +103,25 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     sendExtraMessageFields: true,
     generateId: () => uuidv4(),
     experimental_throttle: 100,
-    body: {
-      model: selectedModel,
-      reasoningLevel: reasoningLevel,
-      searchEnabled: searchEnabled,
-      id: chatId === "new" ? undefined : chatId,
-      isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
-    },
+    body: (() => {
+      const modelConfig = getModelById(selectedModel);
+      const provider = modelConfig?.provider;
+      const apiKey =
+        provider && useApiKeysStore.getState().shouldUseProviderKey(provider)
+          ? useApiKeysStore.getState().getApiKey(provider)
+          : undefined;
+
+      return {
+        model: selectedModel,
+        reasoningLevel: reasoningLevel,
+        searchEnabled: searchEnabled,
+        id: chatId === "new" ? undefined : chatId,
+        isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
+        apiKey,
+        assistantName,
+        userTraits,
+      };
+    })(),
     onError: (error) => {
       console.error("useChat Hook Error", error, {
         chatId,
@@ -779,8 +794,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const chatInputRef = useRef<ChatInputRef | null>(null);
   const { data: sessionData } = useChatSession(chatId);
 
-  const showSamplePrompts =
-    messages.length === 0 && !input.trim() && state.attachedFiles.length === 0;
+  const showSamplePrompts = !isLoadingMessages && !messages.length && chatId === "new";
 
   return (
     <div className="flex h-full flex-col">
@@ -792,11 +806,54 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       {showSamplePrompts ? (
         <div className="flex flex-1 items-center justify-center p-8">
-          <SamplePrompts
-            onPromptSelect={handlePromptSelect}
-            className=""
-            userName={user?.user_metadata?.full_name || user?.email?.split("@")[0] || "there"}
-          />
+          <div className="mx-auto w-full max-w-3xl">
+            {/* Personal Greeting */}
+            {!useUserPreferencesStore.getState().hidePersonalInfo &&
+              (() => {
+                // Get user's display name from various sources
+                const getUserDisplayName = () => {
+                  if (!user) return null;
+
+                  // Try to get name from user metadata first
+                  const displayName =
+                    user.user_metadata?.display_name ||
+                    user.user_metadata?.full_name ||
+                    user.user_metadata?.name;
+
+                  if (displayName) return displayName;
+
+                  // Fall back to email username (part before @)
+                  if (user.email) {
+                    const emailUsername = user.email.split("@")[0];
+                    if (emailUsername) {
+                      // Capitalize first letter and replace dots/underscores with spaces
+                      return emailUsername
+                        .split(/[._-]/)
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join(" ");
+                    }
+                  }
+
+                  return null;
+                };
+
+                const displayName = getUserDisplayName();
+
+                return (
+                  <div className="mb-8 text-center">
+                    <div className="rounded-lg bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-6">
+                      <h2 className="mb-2 text-2xl font-semibold text-foreground">
+                        {displayName
+                          ? `Hello ${displayName}! How are you doing? 👋`
+                          : "Hello! How are you doing? 👋"}
+                      </h2>
+                    </div>
+                  </div>
+                );
+              })()}
+
+            <SamplePrompts onPromptSelect={handlePromptSelect} className="" />
+          </div>
         </div>
       ) : (
         <MessagesList

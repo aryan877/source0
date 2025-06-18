@@ -1,7 +1,9 @@
 "use client";
 
 import { QueryProvider } from "@/providers/query-provider";
+import { themeOptions } from "@/stores/user-preferences-store";
 import { HeroUIProvider } from "@heroui/react";
+import { ToastProvider } from "@heroui/toast";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -10,9 +12,12 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
       <NextThemesProvider
         attribute="class"
         defaultTheme="forest"
-        themes={["light", "dark", "ocean", "forest", "sunset", "lavender", "midnight", "rose"]}
+        themes={themeOptions.map((t) => t.key)}
       >
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          {children}
+          <ToastProvider />
+        </QueryProvider>
       </NextThemesProvider>
     </HeroUIProvider>
   );

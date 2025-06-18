@@ -51,26 +51,36 @@ export const getModelMapping = (config: ModelConfig): ModelMapping => {
 
 export const buildProviderOptions = (
   config: ModelConfig,
-  reasoningLevel: ReasoningLevel
+  reasoningLevel: ReasoningLevel,
+  apiKey?: string
 ): Record<string, Record<string, JSONValue>> => {
   const options: Record<string, Record<string, JSONValue>> = {};
+  const providerName = PROVIDER_MAPPING[config.provider].name;
 
-  if (reasoningLevel && config.reasoningLevels?.includes(reasoningLevel)) {
-    switch (config.provider) {
-      case "Google":
-        options.google = {
-          thinkingConfig: {
+  if (providerName) {
+    const providerSettings: Record<string, JSONValue> = {};
+
+    if (apiKey) {
+      providerSettings.apiKey = apiKey;
+    }
+
+    if (reasoningLevel && config.reasoningLevels?.includes(reasoningLevel)) {
+      switch (config.provider) {
+        case "Google":
+          providerSettings.thinkingConfig = {
             thinkingBudget: { low: 1024, medium: 4096, high: 8192 }[reasoningLevel],
             includeThoughts: true,
-          },
-        };
-        break;
-      case "OpenAI":
-        options.openai = { reasoningEffort: reasoningLevel };
-        break;
-      case "xAI":
-        options.xai = { reasoningEffort: reasoningLevel };
-        break;
+          };
+          break;
+        case "OpenAI":
+        case "xAI":
+          providerSettings.reasoningEffort = reasoningLevel;
+          break;
+      }
+    }
+
+    if (Object.keys(providerSettings).length > 0) {
+      options[providerName] = providerSettings;
     }
   }
 
@@ -94,7 +104,12 @@ export const createModelInstance = (
   return provider(model);
 };
 
-export const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean): string => {
+export const buildSystemMessage = (
+  config: ModelConfig,
+  searchEnabled: boolean,
+  userTraits?: string,
+  assistantName?: string
+): string => {
   const currentTime = new Date().toLocaleString("en-US", {
     timeZone: "UTC",
     weekday: "long",
@@ -108,6 +123,9 @@ export const buildSystemMessage = (config: ModelConfig, searchEnabled: boolean):
 
   const parts = [
     `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
+    assistantName &&
+      `The assistant's name is ${assistantName}. Address yourself by name when appropriate.`,
+    userTraits && `Here are the traits user wants you to follow: "${userTraits}"`,
     searchEnabled &&
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
     config.capabilities.includes("image") && "You can analyze images.",

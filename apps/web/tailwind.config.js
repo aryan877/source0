@@ -783,6 +783,7 @@ export default {
             content2: "#262a26",
             content3: "#404440",
             content4: "#525552",
+            divider: "#404440",
             default: {
               50: "#0a0f0a",
               100: "#1a1e1a",
@@ -979,6 +980,7 @@ export default {
             content2: "#2a262a",
             content3: "#444044",
             content4: "#555255",
+            divider: "#444044",
             default: {
               50: "#0f0a0f",
               100: "#1e1a1e",

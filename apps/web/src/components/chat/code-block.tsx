@@ -1,5 +1,6 @@
 "use client";
 
+import { themeOptions } from "@/stores/user-preferences-store";
 import { ArrowsRightLeftIcon, CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import { Button, Tooltip } from "@heroui/react";
 import { transformerNotationDiff, transformerNotationHighlight } from "@shikijs/transformers";
@@ -30,6 +31,11 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const isLanguageSupported = useMemo(() => {
     return (Object.keys(bundledLanguages) as string[]).includes(language);
   }, [language]);
+
+  const shikiTheme = useMemo(() => {
+    const currentThemeInfo = themeOptions.find((t) => t.key === resolvedTheme);
+    return currentThemeInfo?.base === "dark" ? "github-dark" : "github-light";
+  }, [resolvedTheme]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -138,19 +144,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
             {isLanguageSupported ? (
               <div className="px-3 py-3 font-mono text-sm leading-6">
                 <ShikiHighlighter
-                  theme={
-                    resolvedTheme === "dark" ||
-                    resolvedTheme === "forest" ||
-                    resolvedTheme === "lavender"
-                      ? "github-dark"
-                      : resolvedTheme === "ocean"
-                        ? "github-light"
-                        : resolvedTheme === "sunset"
-                          ? "github-light"
-                          : resolvedTheme === "rose"
-                            ? "github-light"
-                            : "github-light"
-                  }
+                  theme={shikiTheme}
                   language={language}
                   delay={100}
                   transformers={[transformerNotationDiff(), transformerNotationHighlight()]}

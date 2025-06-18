@@ -63,6 +63,7 @@
     "unified": "^11.0.5",
     "use-debounce": "^10.0.5",
     "uuid": "^11.1.0",
+    "zod": "^3.25.64",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
