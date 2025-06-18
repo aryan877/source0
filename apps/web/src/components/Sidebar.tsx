@@ -6,11 +6,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import {
+  ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
   ArrowTurnRightUpIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
-  PlusIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -202,14 +202,8 @@ const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
       <h2 className="ml-14 text-lg font-bold text-foreground">AlmostT3</h2>
     </div>
 
-    <Button
-      onPress={onNewChat}
-      color="primary"
-      size="sm"
-      className="h-8 w-full"
-      startContent={<PlusIcon className="h-4 w-4" />}
-    >
-      New Chat
+    <Button onPress={onNewChat} color="primary" size="sm" className="h-8 w-full">
+      <span className="text-sm font-medium">New Chat</span>
     </Button>
   </div>
 ));
@@ -595,6 +589,7 @@ const SidebarBottomActions = memo(
   ({
     user,
     onSignOut,
+    onLogin,
     mounted,
     currentTheme,
     onThemeChange,
@@ -602,13 +597,14 @@ const SidebarBottomActions = memo(
   }: {
     user: User | null;
     onSignOut: () => void;
+    onLogin: () => void;
     mounted: boolean;
     currentTheme: string;
     onThemeChange: (theme: string) => void;
     onOpenSettings: () => void;
   }) => (
     <div className="space-y-1 border-t border-divider p-2">
-      {user && (
+      {user ? (
         <div className="space-y-1">
           <UserInfo user={user} />
           <Button
@@ -621,6 +617,16 @@ const SidebarBottomActions = memo(
             <span className="text-sm font-medium">Sign Out</span>
           </Button>
         </div>
+      ) : (
+        <Button
+          color="primary"
+          size="sm"
+          className="h-8 w-full justify-start gap-2"
+          onPress={onLogin}
+          startContent={<ArrowRightEndOnRectangleIcon className="h-4 w-4" />}
+        >
+          <span className="text-sm font-medium">Login</span>
+        </Button>
       )}
 
       <ThemeSelector mounted={mounted} currentTheme={currentTheme} onThemeChange={onThemeChange} />
@@ -729,6 +735,10 @@ export const Sidebar = memo(
       signOut();
     }, [onModalClose, signOut]);
 
+    const handleLogin = useCallback(() => {
+      router.push("/auth/login");
+    }, [router]);
+
     return (
       <>
         <SidebarOverlay isOpen={isOpen} onClose={onClose} />
@@ -766,6 +776,7 @@ export const Sidebar = memo(
           <SidebarBottomActions
             user={user}
             onSignOut={onModalOpen}
+            onLogin={handleLogin}
             mounted={mounted}
             currentTheme={currentTheme}
             onThemeChange={handleThemeChange}
