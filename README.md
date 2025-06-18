@@ -1,20 +1,41 @@
 # Source0
 
-Advanced AI chat application with multi-provider support, intelligent web search, and memory-enabled conversations.
+Source0 is an advanced AI chat application that pushes the boundaries of conversational AI. Built with enterprise-grade stream management, intelligent multi-provider routing, and sophisticated memory systems, it delivers a seamless chat experience across OpenAI, Anthropic, Google Gemini, XAI Grok, and more. The application features revolutionary stream handling with auto-resume capabilities, comprehensive web search with proper citation pipelines, and persistent cross-session memory that truly understands user context.
 
 ## Features
 
-- **Multi-Provider AI**: OpenAI, Anthropic, Google Gemini, XAI Grok
-- **Smart Web Search**: Automatic multi-query generation with citations
-- **Memory System**: Persistent user memory across sessions
-- **Stream Management**: Robust stopping/resuming with auto-resume
-- **Code Highlighting**: Beautiful syntax highlighting for all languages
-- **Message Retry**: Intelligent retry with state synchronization
-- **BYOK Security**: Client-side key storage, never stored on servers
-- **Sharing**: Public/private message sharing with granular controls
-- **Image Generation**: Generate and chat about AI-created images
-- **Session Branching**: Explore different conversation paths
-- **Pinned Messages**: Save important messages across conversations
+### 🚀 **Advanced Stream Architecture**
+
+- **Bulletproof Stream Management**: Revolutionary handling of interrupted streams with intelligent auto-resume
+- **Real-time State Synchronization**: Complex coordination between React Query cache, local state, and database
+- **Smart Retry System**: Seamless message retry with perfect state consistency across stream interruptions
+
+### 🔍 **Intelligent Web Search Engine**
+
+- **Multi-Query Generation**: Automatically generates 2-3 optimized search queries for comprehensive results
+- **Citation Pipeline**: Robust annotation processing handling multiple data streams (web search, grounding, metadata)
+- **Universal Search Support**: Adds web search capabilities to any AI model, regardless of native search support
+- **Proper Attribution**: Inline citations [1], [2], [3] with source verification and grounding displays
+
+### 🧠 **Advanced Memory System**
+
+- **Cross-Session Persistence**: Sophisticated user memory using Mem0 with proper isolation and privacy
+- **Contextual Understanding**: AI remembers preferences, constraints, and personal details across conversations
+- **Semantic Memory Retrieval**: Intelligent memory search for personalized responses and recommendations
+
+### 🎨 **Rich Media & Interaction**
+
+- **Multi-Provider AI**: Seamless switching between OpenAI, Anthropic, Google Gemini, XAI Grok, and more
+- **Image Generation & Chat**: Generate images and continue AI-aware conversations about generated content
+- **Code Syntax Highlighting**: Beautiful rendering for 100+ programming languages
+- **Session Branching**: Explore different conversation paths with advanced session management
+- **Pinned Messages**: Save and reference important messages across conversations
+
+### 🔐 **Security & Sharing**
+
+- **BYOK Architecture**: Bring-your-own-keys with client-side encryption, zero server-side key storage
+- **Granular Privacy Controls**: Public/private sharing with fine-grained message visibility controls
+- **Secure Image Handling**: Private image generation with controlled sharing capabilities
 
 ## Quick Start
 
