@@ -1,10 +1,12 @@
 "use client";
 
 import { type ReasoningLevel } from "@/config/models";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { Button, Textarea } from "@heroui/react";
 import { ArrowRight } from "lucide-react";
 import { forwardRef, memo, useCallback, useImperativeHandle, useRef } from "react";
 import { FileAttachment } from "./file-attachment";
+import { MicButton } from "./mic-button";
 import { ModelControls } from "./model-controls";
 import { ModelSelector } from "./model-selector";
 import { ScrollToBottomButton } from "./scroll-to-bottom-button";
@@ -66,6 +68,8 @@ export const ChatInput = memo(
       ref
     ) => {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
+      const { isRecording, isProcessingSpeech, startRecording, stopRecording } =
+        useSpeechRecognition();
 
       useImperativeHandle(ref, () => ({
         focus: () => {
@@ -80,6 +84,13 @@ export const ChatInput = memo(
         },
         [setInput, onClearUiError]
       );
+
+      const handleStopRecording = useCallback(async () => {
+        const transcribedText = await stopRecording();
+        if (transcribedText) {
+          setInput(input + transcribedText);
+        }
+      }, [stopRecording, setInput, input]);
 
       return (
         <div className="px-4" suppressHydrationWarning>
@@ -139,7 +150,7 @@ export const ChatInput = memo(
                     />
                   </div>
 
-                  <div className="flex-shrink-0">
+                  <div className="flex flex-shrink-0 items-center gap-2">
                     {isLoading ? (
                       <Button
                         onPress={onStop}
@@ -151,16 +162,25 @@ export const ChatInput = memo(
                         <div className="h-3 w-3 rounded-sm bg-current" />
                       </Button>
                     ) : (
-                      <Button
-                        type="submit"
-                        isDisabled={!canSubmit}
-                        isIconOnly
-                        color="primary"
-                        size="sm"
-                        className="h-8 w-8"
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <MicButton
+                          isRecording={isRecording}
+                          isProcessingSpeech={isProcessingSpeech}
+                          startRecording={startRecording}
+                          stopRecording={handleStopRecording}
+                          hasText={input.trim().length > 0}
+                        />
+                        <Button
+                          type="submit"
+                          isDisabled={!canSubmit}
+                          isIconOnly
+                          color="primary"
+                          size="sm"
+                          className="h-8 w-8"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

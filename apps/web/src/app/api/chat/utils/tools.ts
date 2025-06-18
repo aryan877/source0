@@ -13,37 +13,12 @@ import { createWebSearchToolData, generateSearchQueries, performWebSearch } from
  * and context of the user's request for comprehensive results.
  */
 export const webSearchTool = tool({
-  description: `Search the web for current information, news, and facts. This is an advanced search tool that automatically generates multiple intelligent queries when needed for comprehensive results.
-
-Use this tool when you need:
-- Current events or recent news
-- Up-to-date information that might not be in your training data
-- Specific facts, statistics, or data
-- Recent developments in any field
-- Real-time information
-- Comparative information (tool will automatically generate comparison queries)
-- Complex topics that benefit from multiple search angles
-
-INTELLIGENCE: The tool automatically determines if your query needs multiple search approaches:
-- For simple queries: Uses 1 focused search
-- For complex topics: Generates 2-3 complementary queries automatically
-- For comparisons: Creates separate queries for each item being compared
-- For time-sensitive topics: Adds temporal variations and news searches
-- For analysis requests: Enables detailed content extraction
-
-CRITICAL: When using search results in your response, you MUST include inline citations using square brackets with numbers like [1], [2], [3].
-
-Citation Rules:
-1. Place citations [1], [2] etc. immediately after the sentence or phrase that uses information from that source
-2. Use the exact citation number that corresponds to the search result order
-3. Multiple citations can be grouped like [1,2] or [1, 2, 3]
-4. Every factual claim from search results MUST have a citation
-5. Do not make up citation numbers - only use numbers that correspond to actual search results
-
-Example format:
-"The event occurred on June 15th [1] and resulted in significant policy changes [2, 3]. According to recent reports [1], the impact was substantial."
-
-The search results will be numbered sequentially starting from [1] for you to reference.`,
+  description: `Search the web for current information.
+This tool returns a JSON object with search results. You must use these results to answer the user's request.
+In your response, you MUST use inline citations for every piece of information you use from the search results.
+The 'searchResults' array in the JSON contains the results. Each result in the 'results' array within it is a source.
+Cite sources sequentially using [1], [2], [3], etc. The first source is [1], the second is [2], and so on.
+Example response: "The first search result says that X is Y [1]. The second result adds that... [2]."`,
 
   parameters: z.object({
     query: z
@@ -120,62 +95,16 @@ The search results will be numbered sequentially starting from [1] for you to re
       options: searchOptions,
     });
 
-    // Create structured data for UI and build formatted sources for the model
+    // Create structured data for UI and model
     const toolData = createWebSearchToolData(query, queries, searchResults);
 
-    // Create a formatted response for the AI model with numbered sources
-    const formattedSources = [];
-    let sourceNumber = 1;
-
-    for (const result of searchResults) {
-      if (!result.error && result.results) {
-        // Add answer if available
-        if (result.answer) {
-          formattedSources.push(
-            `[${sourceNumber}] ANSWER: ${result.answer}\nQuery: ${result.query}`
-          );
-          sourceNumber++;
-        }
-
-        // Add individual sources
-        for (const source of result.results) {
-          formattedSources.push(
-            `[${sourceNumber}] ${source.title}\n${source.content}\nSource: ${source.url}\nRelevance Score: ${source.score.toFixed(2)}`
-          );
-          sourceNumber++;
-        }
-      }
-    }
-
-    // Build comprehensive formatted response
-    const formattedResponse = {
-      query: query,
-      generated_queries: queries,
-      total_sources: formattedSources.length,
-      search_strategy:
-        queries.length > 1 ? "multi-query intelligent search" : "focused single search",
-      sources: formattedSources,
-      instruction: `Use the numbered sources above in your response. Cite them using the format [1], [2], etc. immediately after statements that reference those sources. 
-      
-Search Strategy: ${queries.length > 1 ? `Multi-query approach with ${queries.length} complementary searches` : "Single focused search"}
-Total Sources Found: ${formattedSources.length}
-
-Guidelines:
-- Synthesize information from multiple sources when possible
-- Use [1], [2], [3] etc. for citations
-- Prioritize sources with higher relevance scores
-- Include diverse perspectives when available`,
-    };
-
     console.log(
-      `Enhanced web search completed for: "${query}" with ${formattedSources.length} total sources across ${queries.length} queries`
+      `Web search completed for: "${query}" with ${toolData.totalResults} total sources across ${queries.length} queries`
     );
 
-    // Return both the formatted response for the AI and the tool data for the UI
-    return JSON.stringify({
-      ...toolData,
-      formatted_response: formattedResponse,
-    });
+    // Return the structured data. Both the UI and the model will use this.
+    // The model is instructed via the description on how to parse this and create citations.
+    return toolData;
   },
 });
 

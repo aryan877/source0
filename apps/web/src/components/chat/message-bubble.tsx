@@ -89,7 +89,8 @@ function getCitationsFromMessage(message: Message): TavilySearchResult[] {
     if (part.type === "tool-invocation" && part.toolInvocation.toolName === "webSearch") {
       const searchData = handleToolInvocation(part.toolInvocation, "webSearch");
       if (searchData) {
-        // Add all search results as numbered citations
+        // The searchData contains an array of search results, each with its own array of sources.
+        // We need to flatten this into a single list of citable sources.
         searchData.searchResults.forEach((result) => {
           if (!result.error && result.results) {
             citations.push(...result.results);
