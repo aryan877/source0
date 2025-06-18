@@ -16,14 +16,14 @@ export const ScrollToBottomButton = memo(
     return (
       <div className="absolute -top-16 left-1/2 z-20 -translate-x-1/2">
         <Button
-          isIconOnly
           size="sm"
           radius="full"
           className="bg-content1/80 shadow-md backdrop-blur-md"
           onPress={onScrollToBottom}
           aria-label="Scroll to bottom"
+          startContent={<ArrowDownIcon className="h-4 w-4" />}
         >
-          <ArrowDownIcon className="h-4 w-4" />
+          Scroll to bottom
         </Button>
       </div>
     );
