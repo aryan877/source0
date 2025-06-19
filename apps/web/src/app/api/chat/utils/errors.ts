@@ -14,14 +14,27 @@ export const createErrorResponse = (
   );
 };
 
-export const handleStreamError = (error: unknown, context: string): string => {
+const logError = (context: string, error: Error, details: object = {}) => {
+  console.error(`[${context}]`, {
+    message: error.message,
+    stack: error.stack,
+    ...details,
+  });
+};
+
+export const handleStreamError = (
+  error: unknown,
+  context: string,
+  details: object = {}
+): string => {
   const err = error instanceof Error ? error : new Error(String(error));
-  console.error(`Stream error [${context}]:`, err.message);
+  logError(`StreamError: ${context}`, err, details);
   return `[${err.name}] ${err.message}`;
 };
 
-export const getErrorResponse = (error: Error): Response => {
+export const getErrorResponse = (error: Error, details: object = {}): Response => {
   const message = error.message;
+  logError("APIError", error, details);
 
   // Context/Token limit errors
   if (
@@ -68,6 +81,5 @@ export const getErrorResponse = (error: Error): Response => {
   if (message.includes("rate limit") || message.includes("quota"))
     return createErrorResponse("Rate limit exceeded", 429, "RATE_LIMIT_ERROR");
 
-  console.error("API Error:", { message: error.message, stack: error.stack });
   return createErrorResponse(`Internal server error: ${error.message}`, 500, "INTERNAL_ERROR");
 };

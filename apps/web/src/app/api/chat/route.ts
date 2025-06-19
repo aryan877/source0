@@ -198,6 +198,19 @@ export async function POST(req: Request): Promise<Response> {
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({ text, providerMetadata, response }) => {
+              const logContext: {
+                sessionId: string;
+                userId: string;
+                model: string;
+                streamId: string;
+                messageId?: string;
+              } = {
+                sessionId: finalSessionId,
+                userId: user.id,
+                model,
+                streamId,
+              };
+
               // Check if stream was cancelled before saving message
               try {
                 const streamStatus = await serverGetLatestStreamIdWithStatus(
@@ -209,11 +222,21 @@ export async function POST(req: Request): Promise<Response> {
                   return; // Don't save message if stream was cancelled
                 }
               } catch (error) {
-                console.error("Error checking stream status:", error);
+                console.error("Error checking stream status:", {
+                  ...logContext,
+                  error,
+                });
                 // Continue with saving if we can't check status
               }
 
+              // The stream can finish without any substantive content.
+              if (!text && (!response || response.messages.length === 0)) {
+                console.warn("Stream finished with no message content.", logContext);
+                return;
+              }
+
               const messageId = uuidv4();
+              logContext.messageId = messageId;
 
               // Process response.messages to construct proper assistant message format
               let messageSaved = false;
@@ -300,7 +323,10 @@ export async function POST(req: Request): Promise<Response> {
 
                   messageSaved = true;
                 } catch (error) {
-                  console.error("Failed to save assistant message:", error);
+                  console.error("Failed to save assistant message:", {
+                    ...logContext,
+                    error,
+                  });
                 }
               } else if (text) {
                 // Fallback to simple text message if no response.messages
@@ -326,7 +352,10 @@ export async function POST(req: Request): Promise<Response> {
                   messageSaved = true;
                   console.log("Message saved successfully with ID:", messageId);
                 } catch (error) {
-                  console.error("Failed to save assistant message:", error);
+                  console.error("Failed to save assistant message:", {
+                    ...logContext,
+                    error,
+                  });
                 }
               }
 
@@ -348,10 +377,16 @@ export async function POST(req: Request): Promise<Response> {
                     .eq("id", finalSessionId);
 
                   if (titleError) {
-                    console.error("Failed to update title in database:", titleError);
+                    console.error("Failed to update title in database:", {
+                      ...logContext,
+                      error: titleError,
+                    });
                   }
                 } catch (error) {
-                  console.error("Failed to generate title:", error);
+                  console.error("Failed to generate title:", {
+                    ...logContext,
+                    error,
+                  });
                 }
               }
 
@@ -402,10 +437,12 @@ export async function POST(req: Request): Promise<Response> {
             },
             onError: ({ error }) => {
               // Log LLM-specific errors (not abort errors)
-              console.error(
-                "LLM Stream error:",
-                error instanceof Error ? error.message : String(error)
-              );
+              handleStreamError(error, "LLMStream", {
+                sessionId: finalSessionId,
+                userId: user.id,
+                model,
+                streamId,
+              });
             },
           });
 
@@ -415,8 +452,11 @@ export async function POST(req: Request): Promise<Response> {
           });
         },
         onError: (error: unknown) => {
-          // Handle other errors with the original handler
-          return handleStreamError(error, "DataStream");
+          return handleStreamError(error, "DataStream", {
+            sessionId: finalSessionId,
+            userId: user.id,
+            model,
+          });
         },
       });
       return new Response(await streamContext.resumableStream(streamId, () => stream), {
@@ -428,6 +468,9 @@ export async function POST(req: Request): Promise<Response> {
     throw new Error("Redis not configured - this should not happen");
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    return getErrorResponse(err);
+    return getErrorResponse(err, {
+      body: req.body,
+      headers: req.headers,
+    });
   }
 }

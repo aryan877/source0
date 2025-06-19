@@ -67,8 +67,7 @@ export const ModelControls = ({
     }
 
     const hasReasoning = modelConfig.capabilities.includes("reasoning");
-    // Show search for all models except image generation models
-    const hasSearch = !modelConfig.capabilities.includes("image-generation");
+    const hasSearch = modelConfig.supportsFunctions && modelConfig.capabilities.includes("search");
     const supportsImages = modelConfig.capabilities.includes("image");
     const supportsPdf = modelConfig.capabilities.includes("pdf");
     const availableReasoningLevels = modelConfig.reasoningLevels || [];
