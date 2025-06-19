@@ -40,7 +40,6 @@ interface AssistantReasoningPart {
 
 type UserContentPart = TextPart | ImagePart | FilePart;
 type AssistantContentPart = TextPart | FilePart | ToolCallPart | AssistantReasoningPart;
-type ToolContentPart = ToolResultPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
 const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<keyof typeof PROVIDER_MAPPING>([

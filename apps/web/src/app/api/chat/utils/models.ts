@@ -167,14 +167,15 @@ export const buildSystemMessage = (
     `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
     assistantName &&
       `The assistant's name is ${assistantName}. Use your name very sparingly, only when specifically needed or directly asked.`,
-    userTraits && `Here are the traits user wants you to follow: "${userTraits}"`,
+    userTraits &&
+      `The user has pre-configured the following preferences. You must follow them. DO NOT use the memorySave tool for this information as it is already persisted: "${userTraits}"`,
     hasWebSearchTool &&
       "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
     config.capabilities.includes("search") &&
       searchEnabled &&
       "You have native web search capabilities integrated into your responses. You can automatically search for and include current information when needed.",
     memoryEnabled &&
-      "You have access to memory tools that allow you to save and retrieve important user information for personalized interactions. Use memorySave when users share personal preferences, information, or important details worth remembering. Use memoryRetrieve when you need context about the user to provide personalized responses. Always show when you're saving or retrieving memories.",
+      "You have access to memory tools. Use 'memorySave' for NEW information or preferences explicitly shared during conversation that should be remembered for future interactions. Do not save the user's pre-configured preferences. Use 'memoryRetrieve' to recall saved information.",
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
     "When providing code examples, use markdown code blocks with appropriate language specifiers: ```python code ```",
