@@ -7,7 +7,6 @@ import {
   saveUserMessageServer,
   serverAppendStreamId,
   serverGetLatestStreamIdWithStatus,
-  serverMarkStreamAsCancelled,
   serverMarkStreamAsComplete,
 } from "@/services";
 import { convertToAiMessages } from "@/utils/message-utils";
@@ -457,10 +456,6 @@ export async function POST(req: Request): Promise<Response> {
                 model,
                 streamId,
               });
-              // Mark as cancelled, but don't block
-              serverMarkStreamAsCancelled(supabase, streamId).catch((e) => {
-                console.error("Failed to mark stream as cancelled after LLMStream error", e);
-              });
             },
           });
 
@@ -470,15 +465,13 @@ export async function POST(req: Request): Promise<Response> {
           });
         },
         onError: (error: unknown) => {
+          console.error("DataStream error", error);
           const errorResponse = handleStreamError(error, "DataStream", {
             sessionId: finalSessionId,
             userId: user.id,
             model,
             streamId,
           });
-          serverMarkStreamAsCancelled(supabase, streamId).catch((e) =>
-            console.error("Failed to mark stream as cancelled after DataStream error", e)
-          );
           return errorResponse;
         },
       });

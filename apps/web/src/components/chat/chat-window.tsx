@@ -10,7 +10,13 @@ import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { useAuth } from "@/hooks/useAuth";
-import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
+import {
+  createSession,
+  deleteFromPoint,
+  getLatestStreamIdWithStatus,
+  markStreamAsCancelled,
+  saveAssistantMessage,
+} from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
@@ -357,6 +363,19 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
           { fireAndForget: true, existingParts: preparedMessage.parts }
         );
+      }
+
+      if (chatId && chatId !== "new") {
+        getLatestStreamIdWithStatus(chatId)
+          .then((latestStream) => {
+            if (latestStream && !latestStream.cancelled) {
+              console.log(`Marking stream ${latestStream.streamId} as cancelled`);
+              return markStreamAsCancelled(latestStream.streamId);
+            }
+          })
+          .catch((error) => {
+            console.error("Error marking stream as cancelled:", error);
+          });
       }
     }
   }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
