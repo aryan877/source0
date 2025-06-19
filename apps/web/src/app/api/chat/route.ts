@@ -1,4 +1,4 @@
-import { type ReasoningLevel } from "@/config/models";
+import { getModelById, type ReasoningLevel } from "@/config/models";
 import {
   createOrGetSession,
   generateTitleOnly,
@@ -24,7 +24,6 @@ import {
   buildProviderOptions,
   buildSystemMessage,
   createModelInstance,
-  getModelById,
   getModelMapping,
 } from "./utils/models";
 import { processMessages } from "./utils/process-messages";
@@ -153,7 +152,7 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(`Model ${model} not found`, 400);
     }
 
-    const mapping = getModelMapping(modelConfig);
+    const mapping = getModelMapping(modelConfig, apiKey);
     if (!mapping.supported) {
       return createErrorResponse(mapping.message, 400);
     }
@@ -192,7 +191,10 @@ export async function POST(req: Request): Promise<Response> {
             model: modelInstance,
             messages: finalMessages,
             maxSteps: 5,
-            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, modelConfig),
+            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, {
+              capabilities: modelConfig.capabilities,
+              supportsFunctions: modelConfig.supportsFunctions,
+            }),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
             onFinish: async ({ text, providerMetadata, response }) => {

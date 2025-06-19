@@ -36,7 +36,7 @@ import {
 import { Pin, PinOff } from "lucide-react";
 import React, { useCallback, useEffect, useMemo } from "react";
 import { CapabilityIcon } from "./capability-icons";
-import { ProviderIcon } from "./provider-section";
+import { ProviderIcon } from "./provider-icon";
 
 interface ModelSelectorProps {
   value?: string;

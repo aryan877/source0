@@ -21,7 +21,10 @@ const groqKeySchema = z.string().trim().startsWith("gsk_", "Invalid Groq API key
 
 const deepSeekKeySchema = z.string().trim().startsWith("sk-", "Invalid DeepSeek API key format.");
 
-const genericKeySchema = z.string().trim().min(1, "API key cannot be empty.");
+const openRouterKeySchema = z
+  .string()
+  .trim()
+  .startsWith("sk-or-", "Invalid OpenRouter API key format.");
 
 export const apiKeySchema = z.object({
   OpenAI: openAIKeySchema.optional().or(z.literal("")),
@@ -29,9 +32,8 @@ export const apiKeySchema = z.object({
   Anthropic: anthropicKeySchema.optional().or(z.literal("")),
   xAI: xaiKeySchema.optional().or(z.literal("")),
   Groq: groqKeySchema.optional().or(z.literal("")),
-  Meta: genericKeySchema.optional().or(z.literal("")),
   DeepSeek: deepSeekKeySchema.optional().or(z.literal("")),
-  Qwen: genericKeySchema.optional().or(z.literal("")),
+  OpenRouter: openRouterKeySchema.optional().or(z.literal("")),
 });
 
 export const getApiKeySchema = (provider: keyof typeof apiKeySchema.shape) => {

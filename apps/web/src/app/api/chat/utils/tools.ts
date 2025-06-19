@@ -261,9 +261,15 @@ export function getToolsForModel(
   userId: string,
   searchEnabled: boolean,
   memoryEnabled: boolean = true,
-  modelConfig?: { capabilities: ModelCapability[] }
+  modelConfig?: { capabilities: ModelCapability[]; supportsFunctions?: boolean }
 ) {
   const tools: Record<string, Tool> = {};
+
+  // If the model doesn't support functions, return empty tools
+  if (modelConfig?.supportsFunctions === false) {
+    console.log("Model doesn't support function calling, skipping tools");
+    return tools;
+  }
 
   // Only add web search tool if:
   // 1. Search is enabled by user

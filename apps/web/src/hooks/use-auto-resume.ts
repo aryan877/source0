@@ -30,60 +30,37 @@ export function useAutoResume({
       return;
     }
 
-    const mostRecentMessage = initialMessages.at(-1);
+    // Check if the most recent stream was cancelled before attempting resume
+    getLatestStreamIdWithStatus(chatId)
+      .then((streamStatus) => {
+        if (streamStatus?.cancelled) {
+          console.log("Most recent stream was cancelled, skipping resume");
+          return;
+        }
 
-    if (mostRecentMessage?.role === "user") {
-      // Check if the most recent stream was cancelled before attempting resume
-      getLatestStreamIdWithStatus(chatId)
-        .then((streamStatus) => {
-          if (streamStatus?.cancelled) {
-            console.log("Most recent stream was cancelled, skipping resume");
-            return;
-          }
-
-          console.log("Attempting to resume chat stream...");
-          experimental_resume();
-        })
-        .catch((error) => {
-          console.error("Error checking stream status for resume:", error);
-          // If we can't check, attempt resume anyway (fallback to previous behavior)
-          console.log("Attempting to resume chat stream (fallback)...");
-          experimental_resume();
-        });
-    } else {
-      console.log("Auto-resume skipped: most recent message is not from user", {
-        mostRecentMessageRole: mostRecentMessage?.role,
-        messagesLength: initialMessages.length,
+        console.log("Attempting to resume chat stream...");
+        experimental_resume();
+      })
+      .catch((error) => {
+        console.error("Error checking stream status for resume:", error);
+        // If we can't check, attempt resume anyway (fallback to previous behavior)
+        console.log("Attempting to resume chat stream (fallback)...");
+        experimental_resume();
       });
-    }
-  }, [chatId, initialMessages, experimental_resume]);
+  }, [chatId, experimental_resume]);
 
   // Auto-execute resume logic once on mount when autoResume is true
   useEffect(() => {
-    console.log("useAutoResume effect running:", {
-      autoResume,
-      chatId,
-      messagesLength: initialMessages.length,
-      mostRecentMessageRole: initialMessages.at(-1)?.role,
-    });
-
     if (!autoResume) {
       console.log("Auto-resume disabled");
       return;
     }
 
-    const mostRecentMessage = initialMessages.at(-1);
-
-    if (mostRecentMessage?.role === "user") {
-      console.log("Auto-resume conditions met, attempting resume...");
-      tryResume();
-    } else {
-      console.log("Auto-resume conditions not met - most recent message is not from user");
-    }
+    tryResume();
 
     // we intentionally run this once with empty dependency array
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessages]);
+  }, []);
 
   // Handle append-message data parts for resumable streams
   useEffect(() => {

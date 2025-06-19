@@ -68,11 +68,6 @@ export async function saveMemory(request: SaveMemoryRequest): Promise<MemorySave
       },
     };
 
-    console.log(`Saving memory for user: ${userId}`, {
-      messageCount: messages.length,
-      sessionId,
-    });
-
     // Make API call to Mem0 v1 endpoint (save still uses v1)
     const response = await fetch("https://api.mem0.ai/v1/memories/", {
       method: "POST",
@@ -89,7 +84,6 @@ export async function saveMemory(request: SaveMemoryRequest): Promise<MemorySave
     }
 
     const result = await response.json();
-    console.log("Memory saved successfully:", result);
 
     // Extract memory ID from response (Mem0 returns an array of memory operations)
     const memoryId = result[0]?.id || "unknown";
@@ -135,12 +129,6 @@ export async function retrieveMemory(
     if (!apiKey) {
       throw new Error("MEM0_API_KEY environment variable is not set");
     }
-
-    console.log(`Retrieving memories for user: ${userId}`, {
-      query,
-      limit,
-      sessionId,
-    });
 
     // Prepare search payload using v2 API with proper filters structure
     const filters: Record<string, unknown> = {

@@ -46,17 +46,6 @@ const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<keyof typeof PROVIDER_MAPPING
   "Anthropic",
 ]);
 
-// Configuration for image explanation text per provider
-const PROVIDER_IMAGE_EXPLANATIONS: Record<keyof typeof PROVIDER_MAPPING, string> = {
-  OpenAI: "Generated image by AI assistant:",
-  Anthropic: "Generated image by AI assistant:",
-  Google: "Generated image by AI assistant:",
-  xAI: "Generated image by AI assistant:",
-  Meta: "Generated image by AI assistant:",
-  DeepSeek: "Generated image by AI assistant:",
-  Qwen: "Generated image by AI assistant:",
-} as const;
-
 // Generic helper functions for providers that need assistant images converted to user messages
 const needsImageConversion = (modelConfig: ModelConfig) =>
   PROVIDERS_NEEDING_IMAGE_CONVERSION.has(modelConfig.provider);
@@ -92,11 +81,8 @@ const createUserImageMessage = async (
     }
   }
 
-  // Add explanation text at the beginning if we have images
+  // Just return the images without any special explanation text
   if (imageParts.length > 0) {
-    const explanationText =
-      PROVIDER_IMAGE_EXPLANATIONS[modelConfig.provider] || "Generated image by AI assistant:";
-    imageParts.unshift({ type: "text", text: explanationText });
     return { role: "user", content: imageParts };
   }
 

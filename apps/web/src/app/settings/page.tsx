@@ -2,7 +2,7 @@
 
 import { SecureFileDisplay } from "@/components/chat";
 import { CapabilityIcon } from "@/components/chat/capability-icons";
-import { ProviderIcon } from "@/components/chat/provider-section";
+import { ProviderIcon } from "@/components/chat/provider-icon";
 import { CAPABILITY_LABELS, ModelCapability, MODELS, type ModelConfig } from "@/config/models";
 import { useModelFiltering } from "@/hooks/use-model-filtering";
 import { useUserFiles } from "@/hooks/use-user-files";

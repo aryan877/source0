@@ -27,6 +27,7 @@
     "@heroui/react": "^2.7.6",
     "@heroui/toast": "^2.0.9",
     "@heroui/use-theme": "^2.1.6",
+    "@openrouter/ai-sdk-provider": "^0.7.2",
     "@repo/ui": "workspace:*",
     "@shikijs/transformers": "^3.6.0",
     "@supabase/ssr": "^0.6.1",

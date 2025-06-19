@@ -1,15 +1,11 @@
-import {
-  getModelById,
-  PROVIDER_MAPPING,
-  type ModelConfig,
-  type ReasoningLevel,
-} from "@/config/models";
+import { PROVIDER_MAPPING, type ModelConfig, type ReasoningLevel } from "@/config/models";
 import { anthropic } from "@ai-sdk/anthropic";
 import { deepseek } from "@ai-sdk/deepseek";
 import { google } from "@ai-sdk/google";
 import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { type JSONValue, type LanguageModel } from "ai";
 
 const PROVIDERS = { google, openai, anthropic, xai, deepseek, groq } as const;
@@ -22,7 +18,8 @@ export interface ModelMappingResult {
     | typeof anthropic
     | typeof xai
     | typeof deepseek
-    | typeof groq;
+    | typeof groq
+    | ReturnType<typeof createOpenRouter>;
   model: string;
   providerInfo: {
     name: string;
@@ -37,13 +34,28 @@ export interface UnsupportedModelResult {
 
 export type ModelMapping = ModelMappingResult | UnsupportedModelResult;
 
-export const getModelMapping = (config: ModelConfig): ModelMapping => {
+export const getModelMapping = (config: ModelConfig, apiKey?: string): ModelMapping => {
   const providerInfo = PROVIDER_MAPPING[config.provider];
 
   if (!providerInfo.supported || !providerInfo.name || !config.apiModelName) {
     return {
       supported: false,
-      message: `${config.name} (${config.provider}) not supported. Available: OpenAI, Google, Anthropic, xAI.`,
+      message: `${config.name} (${config.provider}) not supported.`,
+    };
+  }
+
+  // Handle OpenRouter
+  if (providerInfo.name === "openrouter") {
+    const openRouterKey = apiKey || process.env.OPENROUTER_API_KEY;
+    const openrouter = createOpenRouter({
+      apiKey: openRouterKey,
+    });
+
+    return {
+      supported: true,
+      provider: openrouter,
+      model: config.apiModelName,
+      providerInfo,
     };
   }
 
@@ -63,7 +75,7 @@ export const buildProviderOptions = (
   const options: Record<string, Record<string, JSONValue>> = {};
   const providerName = PROVIDER_MAPPING[config.provider].name;
 
-  if (providerName) {
+  if (providerName && providerName !== "openrouter") {
     const providerSettings: Record<string, JSONValue> = {};
 
     if (apiKey) {
@@ -106,14 +118,28 @@ export const createModelInstance = (
 ): LanguageModel => {
   const { provider, model } = mapping;
 
+  // Handle OpenRouter models
+  if (mapping.providerInfo.name === "openrouter") {
+    return (provider as ReturnType<typeof createOpenRouter>).chat(model);
+  }
+
+  // Handle Google with search grounding
   if (config.provider === "Google" && config.capabilities.includes("search") && searchEnabled) {
-    return provider(model, {
+    return (provider as typeof google)(model, {
       useSearchGrounding: true,
       dynamicRetrievalConfig: { mode: "MODE_DYNAMIC" as const, dynamicThreshold: 0.3 },
     });
   }
 
-  return provider(model);
+  return (
+    provider as
+      | typeof google
+      | typeof openai
+      | typeof anthropic
+      | typeof xai
+      | typeof deepseek
+      | typeof groq
+  )(model);
 };
 
 export const buildSystemMessage = (
@@ -156,5 +182,3 @@ export const buildSystemMessage = (
 
   return parts.filter(Boolean).join(" ");
 };
-
-export { getModelById };

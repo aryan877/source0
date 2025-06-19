@@ -18,9 +18,8 @@ export const PROVIDER_MAPPING = {
   Anthropic: { name: "anthropic", supported: true },
   xAI: { name: "xai", supported: true },
   Groq: { name: "groq", supported: true },
-  Meta: { name: null, supported: false },
   DeepSeek: { name: "deepseek", supported: true },
-  Qwen: { name: null, supported: false },
+  OpenRouter: { name: "openrouter", supported: true },
 } as const;
 
 export interface ModelConfig {
@@ -53,7 +52,7 @@ const createModel = (
   provider,
   apiModelName,
   capabilities: [],
-  isOpenSource: provider === "Meta" || provider === "Qwen",
+  isOpenSource: false,
   maxTokens: 8192,
   supportsStreaming: true,
   supportsFunctions: true,
@@ -359,27 +358,131 @@ export const MODELS: ModelConfig[] = [
     category: "reasoning",
   }),
 
-  // Qwen Models
+  // OpenRouter Models - Free Qwen Series Only
   createModel(
-    "qwq-32b",
-    "QwQ 32B",
-    "Question-answering model with reasoning",
-    "Qwen",
-    "Qwen/QwQ-32B-Preview",
+    "qwen3-30b-a3b-free",
+    "Qwen3 30B A3B (Free)",
+    "Free 30.5B parameter MoE model with superior reasoning, coding, and dialogue capabilities (No tool support)",
+    "OpenRouter",
+    "qwen/qwen3-30b-a3b:free",
     {
+      isOpenSource: true,
       capabilities: ["reasoning"],
-      category: "reasoning",
+      category: "flagship",
+      maxTokens: 40960,
+      supportsFunctions: false,
     }
   ),
   createModel(
-    "qwen-2.5-32b",
-    "Qwen 2.5 32B",
-    "Multimodal model with vision capabilities",
-    "Qwen",
-    "Qwen/Qwen2.5-32B-Instruct",
+    "qwen3-14b-free",
+    "Qwen3 14B (Free)",
+    "Free 14.8B parameter model for complex reasoning and efficient dialogue (No tool support)",
+    "OpenRouter",
+    "qwen/qwen3-14b:free",
     {
-      capabilities: ["image"],
-      category: "vision",
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "flagship",
+      maxTokens: 40960,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen3-8b-free",
+    "Qwen3 8B (Free)",
+    "Free 8.2B parameter model for reasoning and dialogue tasks (No tool support)",
+    "OpenRouter",
+    "qwen/qwen3-8b:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "efficient",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen3-32b-free",
+    "Qwen3 32B (Free)",
+    "Free 32.8B parameter model optimized for complex reasoning and dialogue (No tool support)",
+    "OpenRouter",
+    "qwen/qwen3-32b:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "flagship",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen3-235b-a22b-free",
+    "Qwen3 235B A22B (Free)",
+    "Free 235B parameter MoE model activating 22B parameters per forward pass (No tool support)",
+    "OpenRouter",
+    "qwen/qwen3-235b-a22b:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "flagship",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen-2.5-coder-32b-free",
+    "Qwen2.5 Coder 32B (Free)",
+    "Free 32B parameter model optimized for code generation and reasoning (No tool support)",
+    "OpenRouter",
+    "qwen/qwen-2.5-coder-32b-instruct:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "coding",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen-2.5-72b-free",
+    "Qwen2.5 72B (Free)",
+    "Free 72B parameter model with enhanced instruction following and reasoning (No tool support)",
+    "OpenRouter",
+    "qwen/qwen-2.5-72b-instruct:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "flagship",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwen-2.5-7b-free",
+    "Qwen2.5 7B (Free)",
+    "Free 7B parameter model with improved coding and math capabilities (No tool support)",
+    "OpenRouter",
+    "qwen/qwen-2.5-7b-instruct:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "efficient",
+      maxTokens: 131072,
+      supportsFunctions: false,
+    }
+  ),
+  createModel(
+    "qwq-32b-free",
+    "QwQ 32B (Free)",
+    "Free 32B reasoning model capable of enhanced logical thinking and problem solving (No tool support)",
+    "OpenRouter",
+    "qwen/qwq-32b:free",
+    {
+      isOpenSource: true,
+      capabilities: ["reasoning"],
+      category: "reasoning",
+      maxTokens: 131072,
+      supportsFunctions: false,
     }
   ),
 ];
