@@ -4,6 +4,7 @@ import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
 import { memo, useMemo } from "react";
 import { MessageBubble } from "..";
+import { getModelById } from "../../config/models";
 import { ErrorDisplay } from "./error-display";
 import { SuggestedQuestions } from "./suggested-questions";
 
@@ -24,6 +25,18 @@ const LoadingMessages = memo(() => (
 ));
 
 LoadingMessages.displayName = "LoadingMessages";
+
+const ImageLoadingSkeleton = memo(() => (
+  <div className="w-full max-w-full overflow-hidden">
+    <div className="flex gap-4">
+      <div className="flex max-w-[75%] flex-col items-start gap-3">
+        <div className="relative aspect-square w-64 animate-pulse rounded-xl bg-content3"></div>
+        <div className="h-4 w-48 animate-pulse rounded-lg bg-content3"></div>
+      </div>
+    </div>
+  </div>
+));
+ImageLoadingSkeleton.displayName = "ImageLoadingSkeleton";
 
 const StreamingIndicator = memo(() => (
   <div className="w-full max-w-full overflow-hidden">
@@ -75,6 +88,7 @@ interface MessagesListProps {
   isLoadingQuestions: boolean;
   questionsError: string | null;
   onQuestionSelect: (question: string) => void;
+  selectedModel: string;
 }
 
 export const MessagesList = memo(
@@ -95,6 +109,7 @@ export const MessagesList = memo(
     isLoadingQuestions,
     questionsError,
     onQuestionSelect,
+    selectedModel,
   }: MessagesListProps) => {
     const containerStyle = useMemo(
       () => ({
@@ -102,6 +117,10 @@ export const MessagesList = memo(
       }),
       []
     );
+
+    const modelConfig = getModelById(selectedModel);
+    const isGeneratingImage = isLoading && modelConfig?.capabilities.includes("image-generation");
+
     return (
       <div
         ref={messagesContainerRef}
@@ -126,7 +145,7 @@ export const MessagesList = memo(
             ))
           )}
 
-          {isLoading && <StreamingIndicator />}
+          {isGeneratingImage ? <ImageLoadingSkeleton /> : isLoading ? <StreamingIndicator /> : null}
 
           <ErrorDisplay
             error={error}

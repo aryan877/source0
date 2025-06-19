@@ -18,7 +18,7 @@ interface ClientAttachment extends Attachment {
   filename?: string;
 }
 
-interface CustomFileUIPart {
+export interface CustomFileUIPart {
   type: "file";
   url: string;
   mimeType: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFileUIPart } from "@/app/api/chat/utils/process-messages";
 import { type GroundingMetadata } from "@/types/provider-metadata";
 import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
@@ -25,20 +26,6 @@ import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 import { WebSearchDisplay } from "./web-search-display";
-/**
- * Custom type definition for file parts in our message system.
- *
- * The AI SDK's built-in FileUIPart uses base64 data, but our application
- * uses a URL-based file system. This interface defines the structure
- * we expect when casting file parts from the AI SDK format.
- */
-interface CustomFileUIPart {
-  type: "file";
-  url: string;
-  mimeType: string;
-  filename?: string;
-  path?: string;
-}
 
 interface MessageCompleteData {
   modelUsed?: string;

@@ -21,6 +21,7 @@ import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
+import { TypedImageGenerationAnnotation } from "@/types/annotations";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import Link from "next/link";
@@ -225,6 +226,44 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           const messagesContainerElement = messagesContainer as HTMLElement;
           const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
           messagesContainerElement.style.paddingBottom = originalPadding;
+        }
+      }
+
+      const imageGenerationAnnotation = message.annotations?.find(
+        (a) =>
+          typeof a === "object" &&
+          a !== null &&
+          !Array.isArray(a) &&
+          (a as { type?: string }).type === "image_generation_complete"
+      );
+
+      if (imageGenerationAnnotation) {
+        const data = (imageGenerationAnnotation as TypedImageGenerationAnnotation).data;
+        if (data.databaseId && data.content && data.filePart) {
+          setMessages((currentMessages) =>
+            currentMessages.map((msg) => {
+              if (msg.id !== message.id) return msg;
+
+              const filePart = {
+                type: "file" as const,
+                mimeType: data.filePart.mimeType,
+                url: data.filePart.url,
+                filename: data.filePart.filename,
+              };
+
+              // The AI SDK's Message type is a union. By casting to `unknown`
+              // first, we can safely assert our custom part structure.
+              const parts = [filePart as unknown] as Message["parts"];
+
+              return {
+                ...msg,
+                id: data.databaseId,
+                role: "assistant",
+                content: data.content,
+                parts,
+              };
+            })
+          );
         }
       }
 
@@ -911,6 +950,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           isLoadingQuestions={isLoadingQuestions}
           questionsError={questionsError}
           onQuestionSelect={handlePromptSelect}
+          selectedModel={selectedModel}
         />
       )}
 
