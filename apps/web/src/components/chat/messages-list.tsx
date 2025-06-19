@@ -32,9 +32,154 @@ LoadingMessages.displayName = "LoadingMessages";
 const ImageLoadingSkeleton = memo(() => (
   <div className="w-full max-w-full overflow-hidden">
     <div className="flex gap-4">
-      <div className="flex max-w-[75%] flex-col items-start gap-3">
-        <div className="relative aspect-square w-64 animate-pulse rounded-xl bg-content3"></div>
-        <div className="h-4 w-48 animate-pulse rounded-lg bg-content3"></div>
+      <div className="flex max-w-[75%] flex-col items-start gap-4">
+        {/* Header with generating indicator */}
+        <div className="flex items-center">
+          <div className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2">
+            <motion.div
+              animate={{
+                rotate: [0, 360],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            >
+              <svg
+                className="h-4 w-4 text-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </motion.div>
+            <span className="text-sm font-medium text-foreground/80">Generating image...</span>
+          </div>
+        </div>
+
+        {/* Main image container with shimmer effect */}
+        <div className="relative aspect-square w-64 overflow-hidden rounded-xl bg-gradient-to-br from-content2 to-content3 shadow-md">
+          {/* Shimmer overlay */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+            animate={{
+              x: [-300, 300],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+
+          {/* Floating elements to indicate image generation */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="relative">
+              {/* Central icon */}
+              <motion.div
+                className="relative z-10 rounded-full bg-primary/20 p-4"
+                animate={{
+                  scale: [1, 1.1, 1],
+                  opacity: [0.6, 0.8, 0.6],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                <svg
+                  className="h-8 w-8 text-primary/60"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              </motion.div>
+
+              {/* Orbiting dots */}
+              {[0, 1, 2].map((index) => (
+                <motion.div
+                  key={index}
+                  className="absolute h-2 w-2 rounded-full bg-primary/40"
+                  style={{
+                    top: "50%",
+                    left: "50%",
+                    transformOrigin: "0 0",
+                  }}
+                  animate={{
+                    rotate: [0, 360],
+                    scale: [0.8, 1.2, 0.8],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    delay: index * 0.5,
+                    ease: "easeInOut",
+                  }}
+                  initial={{
+                    x: 40 * Math.cos((index * 2 * Math.PI) / 3),
+                    y: 40 * Math.sin((index * 2 * Math.PI) / 3),
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Description loading bar with gradient */}
+        <div className="space-y-2">
+          <motion.div
+            className="h-3 w-48 overflow-hidden rounded-lg bg-gradient-to-r from-content2 to-content3"
+            initial={{ opacity: 0.5 }}
+            animate={{ opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20"
+              animate={{
+                x: [-200, 200],
+              }}
+              transition={{
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          </motion.div>
+          <motion.div
+            className="h-3 w-32 overflow-hidden rounded-lg bg-gradient-to-r from-content2 to-content3"
+            initial={{ opacity: 0.5 }}
+            animate={{ opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+          >
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20"
+              animate={{
+                x: [-150, 150],
+              }}
+              transition={{
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 0.3,
+              }}
+            />
+          </motion.div>
+        </div>
       </div>
     </div>
   </div>
