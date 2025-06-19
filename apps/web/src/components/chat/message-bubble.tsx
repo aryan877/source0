@@ -5,7 +5,6 @@ import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
   ArrowPathIcon,
-  ArrowTurnRightUpIcon,
   BookmarkIcon,
   CheckIcon,
   ClipboardDocumentIcon,
@@ -17,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
 import type { JSONValue, Message, ToolInvocation } from "ai";
+import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { BranchOptionsPanel } from "./branch-options-panel";
@@ -25,7 +25,6 @@ import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 import { WebSearchDisplay } from "./web-search-display";
-
 /**
  * Custom type definition for file parts in our message system.
  *
@@ -561,7 +560,7 @@ const MessageBubble = memo(
                   onPress={handleBranch}
                   className="transition-all hover:scale-105 hover:bg-content2"
                 >
-                  <ArrowTurnRightUpIcon className="h-4 w-4" />
+                  <GitBranchIcon className="h-4 w-4" />
                 </Button>
               </div>
             </Tooltip>

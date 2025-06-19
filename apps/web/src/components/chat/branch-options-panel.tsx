@@ -3,7 +3,7 @@
 import { getModelById, type ModelConfig, MODELS } from "@/config/models";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { Button, Divider } from "@heroui/react";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ProviderIcon } from "./provider-icon";
 
 interface BranchOptionsPanelProps {
@@ -19,6 +19,26 @@ export const BranchOptionsPanel = memo(
     const { getSelectedModel, enabledModels } = useModelSelectorStore();
     const currentModelId = getSelectedModel(chatId);
     const currentModel = useMemo(() => getModelById(currentModelId), [currentModelId]);
+    const [positionClass, setPositionClass] = useState("bottom-full mb-2");
+    const [style, setStyle] = useState<React.CSSProperties>({ opacity: 0 });
+
+    useLayoutEffect(() => {
+      if (anchorRef.current && panelRef.current) {
+        const anchorRect = anchorRef.current.getBoundingClientRect();
+        const panelHeight = panelRef.current.offsetHeight;
+
+        const spaceAbove = anchorRect.top;
+        const spaceBelow = window.innerHeight - anchorRect.bottom;
+
+        if (spaceAbove < panelHeight && spaceBelow > panelHeight) {
+          setPositionClass("top-full mt-2");
+        } else {
+          setPositionClass("bottom-full mb-2");
+        }
+
+        setStyle({ opacity: 1 });
+      }
+    }, [anchorRef]);
 
     const modelsByProvider = useMemo(() => {
       if (!enabledModels) return {};
@@ -71,7 +91,8 @@ export const BranchOptionsPanel = memo(
     return (
       <div
         ref={panelRef}
-        className="absolute bottom-full right-0 z-10 mb-2 w-80 rounded-xl border border-divider bg-content1 p-2 shadow-2xl"
+        className={`absolute right-0 z-20 w-80 rounded-xl border border-divider bg-content1 p-2 shadow-2xl transition-opacity duration-150 ${positionClass}`}
+        style={style}
       >
         <p className="px-2 py-1 text-sm font-semibold text-foreground">Branch with...</p>
         <div className="max-h-80 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-lg [&::-webkit-scrollbar-thumb]:bg-default-300 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">

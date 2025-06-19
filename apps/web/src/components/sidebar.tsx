@@ -9,7 +9,6 @@ import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
-  ArrowTurnRightUpIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
   UserIcon,
@@ -33,7 +32,7 @@ import {
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
 import { format, formatDistanceToNow, isThisWeek, isToday, isYesterday } from "date-fns";
-import { Pin, PinOff } from "lucide-react";
+import { GitBranchIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useState } from "react";
@@ -293,7 +292,7 @@ const ChatItem = memo(
             <div className="mb-2 flex items-center gap-2">
               {isBranched && (
                 <div className="rounded-md bg-content2 p-1">
-                  <ArrowTurnRightUpIcon className="h-3 w-3 text-warning-600" />
+                  <GitBranchIcon className="h-3 w-3 text-warning-600" />
                 </div>
               )}
               <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
