@@ -92,11 +92,12 @@ export async function markStreamAsCancelled(streamId: string): Promise<void> {
 export async function getLatestStreamIdWithStatus(chatId: string): Promise<{
   streamId: string;
   cancelled: boolean;
+  createdAt: string;
 } | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_stream_ids")
-    .select("stream_id, cancelled")
+    .select("stream_id, cancelled, created_at")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -111,7 +112,9 @@ export async function getLatestStreamIdWithStatus(chatId: string): Promise<{
     throw new Error(`Failed to load latest stream: ${error.message}`);
   }
 
-  return data ? { streamId: data.stream_id, cancelled: data.cancelled } : null;
+  return data
+    ? { streamId: data.stream_id, cancelled: data.cancelled, createdAt: data.created_at }
+    : null;
 }
 
 /**
@@ -251,10 +254,11 @@ export async function serverGetLatestStreamIdWithStatus(
 ): Promise<{
   streamId: string;
   cancelled: boolean;
+  createdAt: string;
 } | null> {
   const { data, error } = await supabase
     .from("chat_stream_ids")
-    .select("stream_id, cancelled")
+    .select("stream_id, cancelled, created_at")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -269,5 +273,7 @@ export async function serverGetLatestStreamIdWithStatus(
     throw new Error(`Failed to load latest stream: ${error.message}`);
   }
 
-  return data ? { streamId: data.stream_id, cancelled: data.cancelled } : null;
+  return data
+    ? { streamId: data.stream_id, cancelled: data.cancelled, createdAt: data.created_at }
+    : null;
 }

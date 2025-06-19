@@ -33,8 +33,22 @@ export function useAutoResume({
     // Check if the most recent stream was cancelled before attempting resume
     getLatestStreamIdWithStatus(chatId)
       .then((streamStatus) => {
-        if (streamStatus?.cancelled) {
+        if (!streamStatus) {
+          console.log("No stream found for this chat, skipping resume.");
+          return;
+        }
+
+        if (streamStatus.cancelled) {
           console.log("Most recent stream was cancelled, skipping resume");
+          return;
+        }
+
+        const streamAge = Date.now() - new Date(streamStatus.createdAt).getTime();
+        const fiveMinutes = 5 * 60 * 1000; // 300 seconds - conservative threshold based on Vercel function limits
+        if (streamAge > fiveMinutes) {
+          console.log(
+            `Most recent stream is too old (${Math.round(streamAge / 1000)}s), skipping resume.`
+          );
           return;
         }
 
