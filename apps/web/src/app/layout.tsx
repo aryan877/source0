@@ -18,7 +18,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Source0 - AI Chat Interface",
-  description: "Modern AI chat interface with purple and grey theme",
+  description:
+    "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
 };
 
 export default function RootLayout({
