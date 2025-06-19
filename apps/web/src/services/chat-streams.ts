@@ -26,6 +26,7 @@ export async function loadStreamIds(chatId: string): Promise<string[]> {
     .select("stream_id")
     .eq("chat_id", chatId)
     .eq("cancelled", false)
+    .eq("complete", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -87,17 +88,34 @@ export async function markStreamAsCancelled(streamId: string): Promise<void> {
 }
 
 /**
+ * Mark a stream as complete
+ */
+export async function markStreamAsComplete(streamId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ complete: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error(`Error marking stream as complete: ${error.message}`);
+    throw new Error(`Failed to mark stream as complete: ${error.message}`);
+  }
+}
+
+/**
  * Get the most recent stream ID for a chat (including cancelled streams)
  */
 export async function getLatestStreamIdWithStatus(chatId: string): Promise<{
   streamId: string;
   cancelled: boolean;
+  complete: boolean;
   createdAt: string;
 } | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_stream_ids")
-    .select("stream_id, cancelled, created_at")
+    .select("stream_id, cancelled, complete, created_at")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -113,7 +131,12 @@ export async function getLatestStreamIdWithStatus(chatId: string): Promise<{
   }
 
   return data
-    ? { streamId: data.stream_id, cancelled: data.cancelled, createdAt: data.created_at }
+    ? {
+        streamId: data.stream_id,
+        cancelled: data.cancelled,
+        complete: data.complete,
+        createdAt: data.created_at,
+      }
     : null;
 }
 
@@ -202,6 +225,7 @@ export async function serverLoadStreamIds(
     .select("stream_id")
     .eq("chat_id", chatId)
     .eq("cancelled", false)
+    .eq("complete", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -246,6 +270,24 @@ export async function serverMarkStreamAsCancelled(
 }
 
 /**
+ * Mark a stream as complete using server-side client
+ */
+export async function serverMarkStreamAsComplete(
+  supabase: SupabaseClient,
+  streamId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ complete: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error(`Error marking stream as complete: ${error.message}`);
+    throw new Error(`Failed to mark stream as complete: ${error.message}`);
+  }
+}
+
+/**
  * Get the most recent stream ID with status using server-side client
  */
 export async function serverGetLatestStreamIdWithStatus(
@@ -254,11 +296,12 @@ export async function serverGetLatestStreamIdWithStatus(
 ): Promise<{
   streamId: string;
   cancelled: boolean;
+  complete: boolean;
   createdAt: string;
 } | null> {
   const { data, error } = await supabase
     .from("chat_stream_ids")
-    .select("stream_id, cancelled, created_at")
+    .select("stream_id, cancelled, complete, created_at")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -274,6 +317,11 @@ export async function serverGetLatestStreamIdWithStatus(
   }
 
   return data
-    ? { streamId: data.stream_id, cancelled: data.cancelled, createdAt: data.created_at }
+    ? {
+        streamId: data.stream_id,
+        cancelled: data.cancelled,
+        complete: data.complete,
+        createdAt: data.created_at,
+      }
     : null;
 }

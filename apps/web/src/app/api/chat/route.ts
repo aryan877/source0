@@ -7,6 +7,8 @@ import {
   saveUserMessageServer,
   serverAppendStreamId,
   serverGetLatestStreamIdWithStatus,
+  serverMarkStreamAsCancelled,
+  serverMarkStreamAsComplete,
 } from "@/services";
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
@@ -80,9 +82,11 @@ export async function GET(req: Request): Promise<Response> {
     return new Response(null, { status: 204 }); // No streams to resume
   }
 
-  if (latestStream.cancelled) {
-    console.log(`Stream ${latestStream.streamId} was cancelled by user, not resuming`);
-    return new Response(null, { status: 204 }); // Stream was cancelled, don't resume
+  if (latestStream.cancelled || latestStream.complete) {
+    console.log(
+      `Stream ${latestStream.streamId} was cancelled or completed, not resuming (cancelled: ${latestStream.cancelled}, complete: ${latestStream.complete})`
+    );
+    return new Response(null, { status: 204 }); // Stream was cancelled or completed, don't resume
   }
 
   const recentStreamId = latestStream.streamId;
@@ -438,6 +442,12 @@ export async function POST(req: Request): Promise<Response> {
               };
 
               dataStream.writeMessageAnnotation(annotationData);
+
+              try {
+                await serverMarkStreamAsComplete(supabase, streamId);
+              } catch (e) {
+                console.error("Failed to mark stream as complete", { ...logContext, error: e });
+              }
             },
             onError: ({ error }) => {
               // Log LLM-specific errors (not abort errors)
@@ -446,6 +456,10 @@ export async function POST(req: Request): Promise<Response> {
                 userId: user.id,
                 model,
                 streamId,
+              });
+              // Mark as cancelled, but don't block
+              serverMarkStreamAsCancelled(supabase, streamId).catch((e) => {
+                console.error("Failed to mark stream as cancelled after LLMStream error", e);
               });
             },
           });
@@ -456,11 +470,16 @@ export async function POST(req: Request): Promise<Response> {
           });
         },
         onError: (error: unknown) => {
-          return handleStreamError(error, "DataStream", {
+          const errorResponse = handleStreamError(error, "DataStream", {
             sessionId: finalSessionId,
             userId: user.id,
             model,
+            streamId,
           });
+          serverMarkStreamAsCancelled(supabase, streamId).catch((e) =>
+            console.error("Failed to mark stream as cancelled after DataStream error", e)
+          );
+          return errorResponse;
         },
       });
       return new Response(await streamContext.resumableStream(streamId, () => stream), {

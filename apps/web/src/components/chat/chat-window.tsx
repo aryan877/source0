@@ -10,13 +10,7 @@ import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  createSession,
-  deleteFromPoint,
-  getLatestStreamIdWithStatus,
-  markStreamAsCancelled,
-  saveAssistantMessage,
-} from "@/services";
+import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
@@ -365,19 +359,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         );
       }
     }
-
-    if (chatId && chatId !== "new") {
-      getLatestStreamIdWithStatus(chatId)
-        .then((latestStream) => {
-          if (latestStream && !latestStream.cancelled) {
-            console.log(`Marking stream ${latestStream.streamId} as cancelled`);
-            return markStreamAsCancelled(latestStream.streamId);
-          }
-        })
-        .catch((error) => {
-          console.error("Error marking stream as cancelled:", error);
-        });
-    }
   }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
 
   const handleRetryFailedRequest = useCallback(async () => {
@@ -541,8 +522,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         clearSuggestions();
         setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
-        lastUserMessageForSuggestions.current = userMessageToRetry;
-        append(userMessageToRetry);
+
+        setTimeout(() => {
+          lastUserMessageForSuggestions.current = userMessageToRetry;
+          append(userMessageToRetry);
+        }, 50);
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
@@ -604,8 +588,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         justSubmittedMessageId.current = editedMessage.id;
         userScrolled.current = false;
 
-        lastUserMessageForSuggestions.current = editedMessage;
-        append(editedMessage);
+        setTimeout(() => {
+          lastUserMessageForSuggestions.current = editedMessage;
+          append(editedMessage);
+        }, 50);
       } catch (error) {
         console.error("Error during message edit:", error);
         updateState({

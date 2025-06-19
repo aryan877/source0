@@ -43,12 +43,8 @@ export function useAutoResume({
           return;
         }
 
-        const streamAge = Date.now() - new Date(streamStatus.createdAt).getTime();
-        const fiveMinutes = 5 * 60 * 1000; // 300 seconds - conservative threshold based on Vercel function limits
-        if (streamAge > fiveMinutes) {
-          console.log(
-            `Most recent stream is too old (${Math.round(streamAge / 1000)}s), skipping resume.`
-          );
+        if (streamStatus.complete) {
+          console.log("Most recent stream was completed, skipping resume.");
           return;
         }
 
