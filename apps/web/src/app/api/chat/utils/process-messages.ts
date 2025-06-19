@@ -159,22 +159,22 @@ async function processAssistantMessage(
   message: Message,
   modelConfig: ModelConfig
 ): Promise<CoreMessage[]> {
-  const assistantCoreParts: AssistantContentPart[] = [];
-  const toolCoreMessages: CoreMessage[] = [];
+  const textParts: TextPart[] = [];
+  const fileParts: FilePart[] = [];
+  const reasoningParts: AssistantReasoningPart[] = [];
+  const completedToolInvocations: { call: ToolCallPart; result: ToolResultPart }[] = [];
 
   const messageParts = message.parts ?? [];
 
-  // If parts are empty, fallback to message.content
   if (messageParts.length === 0 && typeof message.content === "string" && message.content.trim()) {
-    assistantCoreParts.push({ type: "text", text: message.content.trim() });
+    textParts.push({ type: "text", text: message.content.trim() });
   }
 
-  // Iterate through parts in their original order
   for (const part of messageParts) {
     switch (part.type) {
       case "text":
         if ("text" in part && part.text) {
-          assistantCoreParts.push({ type: "text", text: part.text });
+          textParts.push({ type: "text", text: part.text });
         }
         break;
 
@@ -190,99 +190,93 @@ async function processAssistantMessage(
             modelConfig,
             true
           );
-          if (corePart) assistantCoreParts.push(corePart as AssistantContentPart);
+          if (corePart?.type === "file") fileParts.push(corePart);
         }
         break;
       }
 
-      case "tool-invocation":
-        if ("toolInvocation" in part) {
-          type ToolInvocationWithMessage = {
-            toolInvocation: {
-              toolCallId: string;
-              toolName: string;
-              args: Record<string, unknown>;
-              result?: unknown;
-            };
+      case "tool-invocation": {
+        type ToolInvocationWithMessage = {
+          toolInvocation: {
+            toolCallId: string;
+            toolName: string;
+            args: Record<string, unknown>;
+            result?: unknown;
           };
+        };
+        const { toolInvocation } = part as ToolInvocationWithMessage;
+        const { toolCallId, toolName, args, result } = toolInvocation;
 
-          const { toolInvocation } = part as ToolInvocationWithMessage;
-          const { toolCallId, toolName, args, result } = toolInvocation;
-
-          if (toolCallId && toolName) {
-            // 1. Add the tool_call to the assistant's message parts
-            assistantCoreParts.push({
-              type: "tool-call",
-              toolCallId,
-              toolName,
-              args,
-            });
-
-            // 2. Create a separate 'tool' message for the result
-            if (result !== undefined) {
-              toolCoreMessages.push({
-                role: "tool",
-                content: [
-                  {
-                    type: "tool-result",
-                    toolCallId,
-                    toolName,
-                    result,
-                  },
-                ] as ToolContentPart[],
-              });
-            }
-          }
+        // Only process tool invocations that have a result. This prevents
+        // incomplete tool calls from cancelled streams from being sent to the API.
+        if (toolCallId && toolName && result !== undefined) {
+          completedToolInvocations.push({
+            call: { type: "tool-call", toolCallId, toolName, args },
+            result: { type: "tool-result", toolCallId, toolName, result },
+          });
         }
         break;
+      }
 
       case "reasoning": {
         const reasoningPart = part as unknown as CustomReasoningUIPart;
         if (reasoningPart.reasoning) {
-          // For Claude reasoning models, check if we have signature data in details
           const signature = reasoningPart.details?.[0]?.signature;
-
           if (
             modelConfig.provider === "Anthropic" &&
             modelConfig.capabilities.includes("reasoning") &&
             signature
           ) {
-            // Create a reasoning part with a signature for Claude models
-            assistantCoreParts.push({
+            reasoningParts.push({
               type: "reasoning",
               text: reasoningPart.reasoning,
               signature: signature,
             });
           } else {
-            // For non-reasoning models or when signature is not available
-            assistantCoreParts.push({
-              type: "reasoning",
-              text: reasoningPart.reasoning,
-            });
+            reasoningParts.push({ type: "reasoning", text: reasoningPart.reasoning });
           }
         }
         break;
       }
-
       default:
-        // Other part types can be handled here if needed
         break;
     }
   }
 
   const allMessages: CoreMessage[] = [];
-  if (assistantCoreParts.length > 0) {
-    const firstPart = assistantCoreParts[0];
-    // Simplify to a string if it's just a single text part
-    if (assistantCoreParts.length === 1 && firstPart?.type === "text") {
-      allMessages.push({ role: "assistant", content: firstPart.text });
-    } else {
-      allMessages.push({ role: "assistant", content: assistantCoreParts });
-    }
+
+  // If there were any completed tool calls, structure them correctly.
+  if (completedToolInvocations.length > 0) {
+    const toolCallParts = completedToolInvocations.map((inv) => inv.call);
+    const toolResultParts = completedToolInvocations.map((inv) => inv.result);
+
+    // 1. Assistant message with only tool calls
+    allMessages.push({ role: "assistant", content: toolCallParts });
+
+    // 2. Tool message with all corresponding results
+    allMessages.push({ role: "tool", content: toolResultParts });
   }
 
-  // Add all the tool result messages after the assistant's message
-  allMessages.push(...toolCoreMessages);
+  // 3. Final assistant message with any text/file/reasoning content.
+  // This message comes *after* the tool results.
+  const finalAssistantParts: (TextPart | FilePart | AssistantReasoningPart)[] = [
+    ...textParts,
+    ...fileParts,
+    ...reasoningParts,
+  ];
+
+  if (finalAssistantParts.length > 0) {
+    // Simplify to a string if it's just a single text part
+    const firstPart = finalAssistantParts[0];
+    if (finalAssistantParts.length === 1 && firstPart?.type === "text") {
+      allMessages.push({ role: "assistant", content: firstPart.text });
+    } else {
+      allMessages.push({
+        role: "assistant",
+        content: finalAssistantParts,
+      });
+    }
+  }
 
   return allMessages;
 }
@@ -317,12 +311,13 @@ export const processMessages = async (
       }
       case "assistant": {
         const coreMessagesFromAssistant = await processAssistantMessage(message, modelConfig);
+        const userImageMessage = await createUserImageMessage(message, modelConfig);
+
         if (coreMessagesFromAssistant.length > 0) {
           coreMessages.push(...coreMessagesFromAssistant);
         }
 
-        // For providers that need image conversion, create additional user messages for images since they can't read assistant files properly
-        const userImageMessage = await createUserImageMessage(message, modelConfig);
+        // The user image message (if any) should come after all assistant and tool messages
         if (userImageMessage) {
           coreMessages.push(userImageMessage);
         }
