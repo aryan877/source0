@@ -3,9 +3,12 @@
 import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
 import { memo, useMemo } from "react";
-import { MessageBubble } from "..";
-import { getModelById } from "../../config/models";
+import {
+  type TypedImageErrorAnnotation,
+  type TypedImagePendingAnnotation,
+} from "../../types/annotations";
 import { ErrorDisplay } from "./error-display";
+import MessageBubble from "./message-bubble";
 import { SuggestedQuestions } from "./suggested-questions";
 
 const LoadingMessages = memo(() => (
@@ -109,7 +112,6 @@ export const MessagesList = memo(
     isLoadingQuestions,
     questionsError,
     onQuestionSelect,
-    selectedModel,
   }: MessagesListProps) => {
     const containerStyle = useMemo(
       () => ({
@@ -118,8 +120,16 @@ export const MessagesList = memo(
       []
     );
 
-    const modelConfig = getModelById(selectedModel);
-    const isGeneratingImage = isLoading && modelConfig?.capabilities.includes("image-generation");
+    const isStreamingText =
+      isLoading &&
+      !messages.some((m) =>
+        m.annotations?.some(
+          (a) =>
+            typeof a === "object" &&
+            a !== null &&
+            (a as { type?: unknown }).type === "image_generation_pending"
+        )
+      );
 
     return (
       <div
@@ -131,21 +141,76 @@ export const MessagesList = memo(
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
           ) : (
-            messages.map((message, index) => (
-              <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
-                <MessageBubble
-                  message={message}
-                  onRetry={onRetryMessage}
-                  onBranch={onBranchChat}
-                  onEdit={onEditMessage}
-                  isLoading={isLoading && index === messages.length - 1}
-                  chatId={chatId}
-                />
-              </div>
-            ))
+            messages.map((message, index) => {
+              const hasImage = message.parts?.some(
+                (p) => p.type === "file" && p.mimeType?.startsWith("image/")
+              );
+
+              if (hasImage) {
+                return (
+                  <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
+                    <MessageBubble
+                      message={message}
+                      onRetry={onRetryMessage}
+                      onBranch={onBranchChat}
+                      onEdit={onEditMessage}
+                      isLoading={isLoading && index === messages.length - 1}
+                      chatId={chatId}
+                    />
+                  </div>
+                );
+              }
+
+              // Only check for pending/error annotations if no image is present.
+              // Prioritize error display over pending state.
+              const imageGenErrorAnnotation = message.annotations?.find(
+                (a): a is TypedImageErrorAnnotation =>
+                  typeof a === "object" &&
+                  a !== null &&
+                  (a as { type?: unknown }).type === "image_generation_error"
+              );
+
+              if (imageGenErrorAnnotation) {
+                return (
+                  <ErrorDisplay
+                    key={`error-${message.id}`}
+                    uiError={imageGenErrorAnnotation.data.error}
+                    onDismissUiError={() => {
+                      /* Cannot dismiss this error */
+                    }}
+                    isMessageError={true}
+                  />
+                );
+              }
+
+              const imageGenPendingAnnotation = message.annotations?.find(
+                (a): a is TypedImagePendingAnnotation =>
+                  typeof a === "object" &&
+                  a !== null &&
+                  (a as { type?: unknown }).type === "image_generation_pending"
+              );
+
+              if (imageGenPendingAnnotation) {
+                return <ImageLoadingSkeleton key={`pending-${message.id}`} />;
+              }
+
+              // Default case: render a normal message bubble for text, tools, etc.
+              return (
+                <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
+                  <MessageBubble
+                    message={message}
+                    onRetry={onRetryMessage}
+                    onBranch={onBranchChat}
+                    onEdit={onEditMessage}
+                    isLoading={isLoading && index === messages.length - 1}
+                    chatId={chatId}
+                  />
+                </div>
+              );
+            })
           )}
 
-          {isGeneratingImage ? <ImageLoadingSkeleton /> : isLoading ? <StreamingIndicator /> : null}
+          {isStreamingText && <StreamingIndicator />}
 
           <ErrorDisplay
             error={error}

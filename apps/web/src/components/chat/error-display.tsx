@@ -9,11 +9,16 @@ interface ErrorDisplayProps {
   uiError?: string | null;
   onDismissUiError: () => void;
   onRetry?: () => void;
+  isMessageError?: boolean;
 }
 
 export const ErrorDisplay = memo(
-  ({ error, uiError, onDismissUiError, onRetry }: ErrorDisplayProps) => {
-    if (!error && !uiError) return null;
+  ({ error, uiError, onDismissUiError, onRetry, isMessageError = false }: ErrorDisplayProps) => {
+    const effectiveError = uiError || error?.message;
+
+    if (!effectiveError) {
+      return null;
+    }
 
     let errorTitle = "Error";
     let errorMessage: string | undefined = error?.message;
@@ -27,47 +32,54 @@ export const ErrorDisplay = memo(
     }
 
     return (
-      <div className="w-full max-w-full">
-        <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="mb-1 flex items-center gap-2">
-                <div className="h-2 w-2 flex-shrink-0 rounded-full bg-danger" />
-                <p className="text-sm font-medium text-danger">{error ? errorTitle : "Notice"}</p>
-              </div>
+      <div
+        className={`relative rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger-600 shadow-lg backdrop-blur-sm ${
+          isMessageError ? "w-full" : "max-w-full"
+        }`}
+      >
+        {/* Dismiss button - positioned absolutely in top-right */}
+        {uiError && (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            color="danger"
+            onPress={onDismissUiError}
+            aria-label="Dismiss error"
+            className="absolute right-2 top-2 h-6 w-6 min-w-0"
+          >
+            <XMarkIcon className="h-3 w-3" />
+          </Button>
+        )}
 
-              {errorMessage && (
-                <p className="mb-2 text-xs leading-relaxed text-danger/80">{errorMessage}</p>
-              )}
-              {uiError && <p className="mb-2 text-xs leading-relaxed text-danger/80">{uiError}</p>}
-
-              {error && onRetry && (
-                <Button
-                  size="sm"
-                  color="danger"
-                  variant="flat"
-                  onPress={onRetry}
-                  className="h-7 px-3 text-xs"
-                >
-                  Try Again
-                </Button>
-              )}
-            </div>
-
-            {uiError && (
-              <Button
-                isIconOnly
-                size="sm"
-                variant="light"
-                color="danger"
-                onPress={onDismissUiError}
-                aria-label="Dismiss error"
-                className="h-6 w-6 min-w-0 flex-shrink-0"
-              >
-                <XMarkIcon className="h-3 w-3" />
-              </Button>
-            )}
+        {/* Main content */}
+        <div className="flex flex-col gap-3 pr-8">
+          {/* Header with icon and title */}
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 flex-shrink-0 rounded-full bg-danger" />
+            <p className="text-sm font-medium text-danger">{error ? errorTitle : "Notice"}</p>
           </div>
+
+          {/* Error message */}
+          {errorMessage && (
+            <p className="pl-4 text-xs leading-relaxed text-danger/80">{errorMessage}</p>
+          )}
+          {uiError && <p className="pl-4 text-xs leading-relaxed text-danger/80">{uiError}</p>}
+
+          {/* Retry button */}
+          {error && onRetry && (
+            <div className="flex justify-start pl-4">
+              <Button
+                size="sm"
+                color="danger"
+                variant="flat"
+                onPress={onRetry}
+                className="h-7 px-3 text-xs"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );

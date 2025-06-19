@@ -230,7 +230,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
 
       const imageGenerationAnnotation = message.annotations?.find(
-        (a) =>
+        (a): a is TypedImageGenerationAnnotation =>
           typeof a === "object" &&
           a !== null &&
           !Array.isArray(a) &&
@@ -238,31 +238,25 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       );
 
       if (imageGenerationAnnotation) {
-        const data = (imageGenerationAnnotation as TypedImageGenerationAnnotation).data;
+        const data = imageGenerationAnnotation.data;
         if (data.databaseId && data.content && data.filePart) {
+          const filePart = {
+            type: "file" as const,
+            mimeType: data.filePart.mimeType,
+            url: data.filePart.url,
+            filename: data.filePart.filename,
+          };
+
+          const finalMessage: Message = {
+            id: data.databaseId,
+            role: "assistant",
+            content: data.content,
+            parts: [filePart as unknown] as Message["parts"],
+            createdAt: new Date(),
+          };
+
           setMessages((currentMessages) =>
-            currentMessages.map((msg) => {
-              if (msg.id !== message.id) return msg;
-
-              const filePart = {
-                type: "file" as const,
-                mimeType: data.filePart.mimeType,
-                url: data.filePart.url,
-                filename: data.filePart.filename,
-              };
-
-              // The AI SDK's Message type is a union. By casting to `unknown`
-              // first, we can safely assert our custom part structure.
-              const parts = [filePart as unknown] as Message["parts"];
-
-              return {
-                ...msg,
-                id: data.databaseId,
-                role: "assistant",
-                content: data.content,
-                parts,
-              };
-            })
+            currentMessages.map((msg) => (msg.id === message.id ? finalMessage : msg))
           );
         }
       }

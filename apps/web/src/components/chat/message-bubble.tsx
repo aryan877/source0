@@ -27,6 +27,15 @@ import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
 import { WebSearchDisplay } from "./web-search-display";
 
+export interface ImagePendingData {
+  type: "image_generation_pending";
+}
+
+export interface ImageErrorData {
+  type: "image_generation_error";
+  error: string;
+}
+
 interface MessageCompleteData {
   modelUsed?: string;
   modelProvider?: string;

@@ -20,64 +20,74 @@ export async function handleImageGenerationRequest(
 ): Promise<Response> {
   const messageId = generateId();
 
-  try {
-    const { image } = await generateImage({
-      model: openai.image("gpt-image-1"),
-      prompt: prompt.trim(),
-      size: "1024x1024",
-      providerOptions: {
-        openai: { quality: "auto" },
-      },
-    });
-
-    const imageBuffer = image.uint8Array;
-    const filePath = `uploads/${user.id}/generated-${messageId}.png`;
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("chat-attachments")
-      .upload(filePath, imageBuffer, {
-        contentType: "image/png",
-        upsert: false,
+  return createDataStreamResponse({
+    execute: async (dataStream) => {
+      // 1. Send pending annotation immediately
+      dataStream.writeMessageAnnotation({
+        type: "image_generation_pending",
+        data: {
+          messageId: messageId,
+          prompt: prompt,
+          content: "Generating image...",
+        },
       });
 
-    if (uploadError) {
-      throw new Error(`Storage upload failed: ${uploadError.message}`);
-    }
+      try {
+        const { image } = await generateImage({
+          model: openai.image("gpt-image-1"),
+          prompt: prompt.trim(),
+          size: "1024x1024",
+          providerOptions: {
+            openai: { quality: "auto" },
+          },
+        });
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("chat-attachments").getPublicUrl(uploadData.path);
+        const imageBuffer = image.uint8Array;
+        const filePath = `uploads/${user.id}/generated-${messageId}.png`;
 
-    const assistantMessage: Message = {
-      id: messageId,
-      role: "assistant",
-      content: "Here is the generated image:",
-      parts: [
-        {
-          type: "file",
-          mimeType: "image/png",
-          // @ts-expect-error - Additional fields supported by our database schema but not in AI SDK Message type
-          url: publicUrl,
-          filename: "generated-image.png",
-          path: filePath,
-          // @ts-expect-error - Additional fields supported by our database schema but not in AI SDK Message type
-          size: imageBuffer.length,
-        } satisfies CustomFileUIPart,
-      ],
-    };
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("chat-attachments")
+          .upload(filePath, imageBuffer, {
+            contentType: "image/png",
+            upsert: false,
+          });
 
-    await saveAssistantMessageServer(
-      supabase,
-      assistantMessage,
-      sessionId,
-      user.id,
-      modelConfig.id,
-      modelConfig.provider,
-      { reasoningLevel: "low", searchEnabled: false }
-    );
+        if (uploadError) {
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
 
-    return createDataStreamResponse({
-      execute: (dataStream) => {
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("chat-attachments").getPublicUrl(uploadData.path);
+
+        const assistantMessage: Message = {
+          id: messageId,
+          role: "assistant",
+          content: "Here is the generated image:",
+          parts: [
+            {
+              type: "file",
+              mimeType: "image/png",
+              // @ts-expect-error - Additional fields supported by our database schema but not in AI SDK Message type
+              url: publicUrl,
+              filename: "generated-image.png",
+              path: filePath,
+              // @ts-expect-error - Additional fields supported by our database schema but not in AI SDK Message type
+              size: imageBuffer.length,
+            } satisfies CustomFileUIPart,
+          ],
+        };
+
+        await saveAssistantMessageServer(
+          supabase,
+          assistantMessage,
+          sessionId,
+          user.id,
+          modelConfig.id,
+          modelConfig.provider,
+          { reasoningLevel: "low", searchEnabled: false }
+        );
+
         dataStream.writeMessageAnnotation({
           type: "image_generation_complete",
           data: {
@@ -92,11 +102,20 @@ export async function handleImageGenerationRequest(
             },
           },
         });
-      },
-      onError: (error: unknown) => handleStreamError(error, "ImageGeneration"),
-    });
-  } catch (error) {
-    console.error("❌ Direct image generation failed:", error);
-    throw error;
-  }
+      } catch (error) {
+        console.error("❌ Direct image generation failed:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Image generation failed. Please try again.";
+        dataStream.writeMessageAnnotation({
+          type: "image_generation_error",
+          data: {
+            messageId: messageId,
+            error: errorMessage,
+          },
+        });
+        handleStreamError(error, "ImageGeneration");
+      }
+    },
+    onError: (error: unknown) => handleStreamError(error, "ImageGeneration"),
+  });
 }
