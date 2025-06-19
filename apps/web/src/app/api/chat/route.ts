@@ -256,7 +256,7 @@ export async function POST(req: Request): Promise<Response> {
                           fullContent += String(contentPart.text);
                         } else if (contentPart.type === "tool-call") {
                           // Find tool result for this tool call by looking in tool messages
-                          let toolResult = "";
+                          let toolResult: unknown = "";
                           for (const toolMessage of response.messages) {
                             if (toolMessage.role === "tool" && Array.isArray(toolMessage.content)) {
                               for (const toolPart of toolMessage.content) {
@@ -264,7 +264,7 @@ export async function POST(req: Request): Promise<Response> {
                                   toolPart.type === "tool-result" &&
                                   toolPart.toolCallId === contentPart.toolCallId
                                 ) {
-                                  toolResult = String(toolPart.result);
+                                  toolResult = toolPart.result;
                                   break;
                                 }
                               }

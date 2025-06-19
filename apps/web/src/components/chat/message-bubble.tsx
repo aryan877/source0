@@ -1,7 +1,7 @@
 "use client";
 
 import { type GroundingMetadata } from "@/types/provider-metadata";
-import { handleToolInvocation } from "@/types/tools";
+import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
   ArrowPathIcon,
@@ -16,7 +16,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
-import type { JSONValue, Message } from "ai";
+import type { JSONValue, Message, ToolInvocation } from "ai";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { ExpandableSection } from "./expandable-section";
@@ -44,6 +44,27 @@ interface MessageCompleteData {
   modelUsed?: string;
   modelProvider?: string;
   grounding?: GroundingMetadata;
+}
+
+/**
+ * Safely extracts WebSearchToolData from a tool invocation.
+ */
+function getWebSearchData(toolInvocation: ToolInvocation): WebSearchToolData | null {
+  if (
+    toolInvocation.state === "result" &&
+    toolInvocation.toolName === "webSearch" &&
+    toolInvocation.result
+  ) {
+    const result = toolInvocation.result as WebSearchToolData;
+    if (
+      result.toolName === "webSearch" &&
+      typeof result.originalQuery === "string" &&
+      Array.isArray(result.searchResults)
+    ) {
+      return result as WebSearchToolData;
+    }
+  }
+  return null;
 }
 
 function getMessageCompleteData(
@@ -87,7 +108,7 @@ function getCitationsFromMessage(message: Message): TavilySearchResult[] {
 
   for (const part of message.parts) {
     if (part.type === "tool-invocation" && part.toolInvocation.toolName === "webSearch") {
-      const searchData = handleToolInvocation(part.toolInvocation, "webSearch");
+      const searchData = getWebSearchData(part.toolInvocation);
       if (searchData) {
         // The searchData contains an array of search results, each with its own array of sources.
         // We need to flatten this into a single list of citable sources.
@@ -278,7 +299,7 @@ const MessageBubble = memo(
 
             if (toolName === "webSearch") {
               if (toolInvocation.state === "result") {
-                const searchData = handleToolInvocation(toolInvocation, "webSearch");
+                const searchData = getWebSearchData(toolInvocation);
                 return (
                   <WebSearchDisplay key={index} state={toolInvocation.state} data={searchData} />
                 );

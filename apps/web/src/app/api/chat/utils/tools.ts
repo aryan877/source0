@@ -144,7 +144,7 @@ export const memorySaveToolDefinition = {
 
     // Validate that we have a user ID
     if (!userId || userId.trim() === "") {
-      return JSON.stringify({
+      return {
         toolName: "memorySave",
         memoryId: "",
         content,
@@ -153,7 +153,7 @@ export const memorySaveToolDefinition = {
         sessionId,
         success: false,
         message: "❌ Cannot save memory: User ID is required but not provided.",
-      });
+      };
     }
 
     // Create messages array for mem0
@@ -176,7 +176,7 @@ export const memorySaveToolDefinition = {
     });
 
     console.log(`Memory save result:`, result);
-    return JSON.stringify(result);
+    return result;
   },
 };
 export const memorySaveTool = tool(memorySaveToolDefinition);
@@ -219,7 +219,7 @@ export const memoryRetrieveToolDefinition = {
 
     // Validate that we have a user ID
     if (!userId || userId.trim() === "") {
-      return JSON.stringify({
+      return {
         toolName: "memoryRetrieve",
         query,
         memories: [],
@@ -227,7 +227,7 @@ export const memoryRetrieveToolDefinition = {
         strategy: "error",
         success: false,
         message: "❌ Cannot retrieve memories: User ID is required but not provided.",
-      });
+      };
     }
 
     // Retrieve memories
@@ -240,7 +240,7 @@ export const memoryRetrieveToolDefinition = {
     });
 
     console.log(`Memory retrieval result:`, result);
-    return JSON.stringify(result);
+    return result;
   },
 };
 export const memoryRetrieveTool = tool(memoryRetrieveToolDefinition);

@@ -67,7 +67,7 @@ export const ModelControls = ({
     }
 
     const hasReasoning = modelConfig.capabilities.includes("reasoning");
-    const hasSearch = modelConfig.supportsFunctions && modelConfig.capabilities.includes("search");
+    const hasSearch = modelConfig.supportsFunctions || modelConfig.capabilities.includes("search");
     const supportsImages = modelConfig.capabilities.includes("image");
     const supportsPdf = modelConfig.capabilities.includes("pdf");
     const availableReasoningLevels = modelConfig.reasoningLevels || [];
