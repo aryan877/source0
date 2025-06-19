@@ -89,7 +89,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
           </div>
         </ModalHeader>
         <ModalBody className="p-0">
-          <div className="relative h-[450px] w-full overflow-hidden">
+          <div className="relative h-[400px] w-full overflow-hidden">
             {features.map((feature, index) => (
               <div
                 key={feature.title}

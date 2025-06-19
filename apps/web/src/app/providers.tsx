@@ -11,7 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
     <HeroUIProvider>
       <NextThemesProvider
         attribute="class"
-        defaultTheme="forest"
+        defaultTheme="lavender"
         themes={themeOptions.map((t) => t.key)}
       >
         <QueryProvider>

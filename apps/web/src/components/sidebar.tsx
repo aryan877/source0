@@ -128,7 +128,7 @@ const useSidebarState = () => {
     [setTheme]
   );
 
-  const currentTheme = resolvedTheme || theme || "forest";
+  const currentTheme = resolvedTheme || theme || "lavender";
 
   return {
     user,

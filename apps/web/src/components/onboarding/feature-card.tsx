@@ -762,14 +762,14 @@ export function FeatureCard({ title, description, visual }: Feature) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className="flex h-full w-full flex-col bg-gradient-to-br from-content1 via-content1 to-content2/50 p-8 text-center backdrop-blur-sm"
+      className="flex h-full w-full flex-col bg-gradient-to-br from-content1 via-content1 to-content2/50 px-8 py-6 text-center backdrop-blur-sm"
     >
-      <div className="flex flex-grow flex-col items-center justify-center">
+      <div className="flex flex-col items-center justify-start">
         <motion.h3
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
-          className="mb-4 text-2xl font-bold text-foreground"
+          className="mb-3 text-xl font-bold text-foreground"
         >
           {title}
         </motion.h3>
@@ -777,7 +777,7 @@ export function FeatureCard({ title, description, visual }: Feature) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.5 }}
-          className="max-w-md text-base leading-relaxed text-default-600"
+          className="max-w-md text-sm leading-relaxed text-default-600"
         >
           {description}
         </motion.p>
@@ -787,7 +787,7 @@ export function FeatureCard({ title, description, visual }: Feature) {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.5, duration: 0.6 }}
-        className="mt-8 flex h-32 w-full items-center justify-center"
+        className="mt-8 flex flex-grow items-center justify-center"
       >
         <VisualComponent />
       </motion.div>
