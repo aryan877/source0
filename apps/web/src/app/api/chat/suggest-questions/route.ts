@@ -39,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
     const result = await generateObject({
       model: openai("gpt-4o-mini"),
       schema: SuggestedQuestionsSchema,
-      prompt: `Generate 3-4 thoughtful follow-up questions a user might ask to continue this conversation. Make them relevant, engaging, and avoid yes/no questions.
+      prompt: `Generate 3-4 thoughtful follow-up questions a user might ask to continue this conversation with an AI assistant. The questions should be relevant to the topic discussed, engaging, and appropriate for asking an AI (avoid questions about personal experiences, feelings, or human-specific situations). Focus on clarification, deeper exploration of concepts, practical applications, or related topics.
 
 User: ${userMessage}
 Assistant: ${assistantMessage}
