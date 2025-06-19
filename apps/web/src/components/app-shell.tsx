@@ -1,10 +1,13 @@
 "use client";
 
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
-import { Button } from "@heroui/react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button, useDisclosure } from "@heroui/react";
 import { PanelRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { OnboardingModal } from "./onboarding";
 import { Sidebar } from "./sidebar";
 
 interface AppShellProps {
@@ -16,6 +19,19 @@ export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const windowObj = useWindow();
+  const { user } = useAuth();
+  const {
+    isOpen: isOnboardingOpen,
+    onOpen: onOnboardingOpen,
+    onClose: onOnboardingClose,
+  } = useDisclosure();
+  const { hasCompletedOnboarding, isLoading, markOnboardingAsCompleted } = useOnboarding();
+
+  useEffect(() => {
+    if (user && !isLoading && !hasCompletedOnboarding) {
+      onOnboardingOpen();
+    }
+  }, [user, isLoading, hasCompletedOnboarding, onOnboardingOpen]);
 
   // Initialize sidebar state based on screen size
   useEffect(() => {
@@ -65,6 +81,11 @@ export function AppShell({ children }: AppShellProps) {
     return "";
   }, [pathname]);
 
+  const handleCloseOnboarding = () => {
+    markOnboardingAsCompleted();
+    onOnboardingClose();
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Button
@@ -91,6 +112,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         {children}
       </main>
+      <OnboardingModal isOpen={isOnboardingOpen} onClose={handleCloseOnboarding} />
     </div>
   );
 }

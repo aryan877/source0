@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Chat - Source0",
-  description: "AI chat conversation",
-};
+"use client";
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <>{children}</>;
 }
