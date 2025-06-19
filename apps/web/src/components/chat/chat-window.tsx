@@ -402,7 +402,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   }, [messages, stop, updateState, append]);
 
   useAutoResume({
-    autoResume: !isLoadingMessages && chatId !== "new",
+    autoResume: !isLoadingMessages && chatId !== "new" && !isSharedView,
     initialMessages: messagesToUse,
     experimental_resume,
     data,
