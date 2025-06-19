@@ -1,5 +1,5 @@
 import { type ReasoningLevel, getModelById } from "@/config/models";
-import { type ChatMessage, type MessagePart } from "@/services/chat-messages";
+import { type ChatMessage, type MessagePart, type ReasoningDetail } from "@/services/chat-messages";
 import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json } from "@/types/supabase-types";
 import { type JSONValue, type Message } from "ai";
@@ -351,7 +351,7 @@ export function convertPartsForDb(
         if ("reasoning" in part) {
           const reasoningPart = part as unknown as {
             reasoning: string;
-            details: Array<{ type: "text"; text: string; signature?: string }>;
+            details: ReasoningDetail[];
           };
           if (reasoningPart.reasoning && !existingReasoning.has(reasoningPart.reasoning)) {
             dbParts.push({

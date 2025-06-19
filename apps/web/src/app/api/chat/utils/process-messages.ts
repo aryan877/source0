@@ -1,5 +1,5 @@
 import { PROVIDER_MAPPING, type ModelConfig } from "@/config/models";
-import { type MessagePart } from "@/services";
+import { type MessagePart, type ReasoningDetail } from "@/services";
 import { convertPartsForDb } from "@/utils/message-utils";
 import {
   ToolResultPart,
@@ -29,15 +29,17 @@ interface CustomFileUIPart {
 interface CustomReasoningUIPart {
   type: "reasoning";
   reasoning: string;
-  details?: Array<{ type: "text"; text: string; signature?: string }>;
+  details?: ReasoningDetail[];
+}
+
+interface AssistantReasoningPart {
+  type: "reasoning";
+  text: string;
+  signature?: string;
 }
 
 type UserContentPart = TextPart | ImagePart | FilePart;
-type AssistantContentPart =
-  | TextPart
-  | FilePart
-  | ToolCallPart
-  | { type: "reasoning"; text: string; signature?: string };
+type AssistantContentPart = TextPart | FilePart | ToolCallPart | AssistantReasoningPart;
 type ToolContentPart = ToolResultPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
