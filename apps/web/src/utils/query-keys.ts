@@ -11,3 +11,8 @@ export const chatSessionsKeys = {
     [...chatSessionsKeys.byUser(userId), "search", searchTerm] as const,
   byId: (sessionId: string) => [...chatSessionsKeys.all, "session", sessionId] as const,
 };
+
+export const messageSummariesKeys = {
+  all: ["message-summaries"] as const,
+  bySessionId: (sessionId: string) => [...messageSummariesKeys.all, "session", sessionId] as const,
+};

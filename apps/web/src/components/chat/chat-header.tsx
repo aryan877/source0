@@ -1,14 +1,23 @@
 import { type ChatSession } from "@/services/chat-sessions";
-import { Chip } from "@heroui/react";
+import { Button, Chip } from "@heroui/react";
+import { FileText } from "lucide-react";
 import { ShareButton } from "./share-button";
 
 interface ChatHeaderProps {
   chatId: string;
   sessionData?: ChatSession;
   isSharedView?: boolean;
+  showNavigatorButton?: boolean;
+  onToggleNavigator?: () => void;
 }
 
-export function ChatHeader({ chatId, sessionData, isSharedView = false }: ChatHeaderProps) {
+export function ChatHeader({
+  chatId,
+  sessionData,
+  isSharedView = false,
+  showNavigatorButton = false,
+  onToggleNavigator,
+}: ChatHeaderProps) {
   if (chatId === "new" || !sessionData) {
     return null;
   }
@@ -34,6 +43,17 @@ export function ChatHeader({ chatId, sessionData, isSharedView = false }: ChatHe
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {showNavigatorButton && (
+          <Button
+            isIconOnly
+            variant="light"
+            className="ml-2 data-[hover=true]:bg-default-200"
+            onPress={onToggleNavigator}
+            data-testid="chat-navigator-toggle"
+          >
+            <FileText className="h-5 w-5 text-default-600" />
+          </Button>
+        )}
         {!isSharedView && <ShareButton session={sessionData} />}
       </div>
     </div>

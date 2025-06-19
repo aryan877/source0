@@ -6,7 +6,7 @@ import { z } from "zod";
 const SuggestedQuestionsSchema = z.object({
   questions: z
     .array(z.string())
-    .describe("Array of 3-4 thoughtful follow-up questions based on the conversation context"),
+    .describe("Array of 3-4 thoughtful follow-up questions that a user might want to ask"),
 });
 
 interface SuggestRequest {
@@ -39,17 +39,12 @@ export async function POST(req: Request): Promise<Response> {
     const result = await generateObject({
       model: openai("gpt-4o-mini"),
       schema: SuggestedQuestionsSchema,
-      prompt: `Based on this conversation exchange, generate 3-4 thoughtful follow-up questions that would naturally continue the discussion. The questions should be:
-- Relevant to the topic discussed
-- Encourage deeper exploration
-- Be conversational and engaging
-- Avoid yes/no questions
+      prompt: `Generate 3-4 thoughtful follow-up questions a user might ask to continue this conversation. Make them relevant, engaging, and avoid yes/no questions.
 
-User message: ${userMessage}
+User: ${userMessage}
+Assistant: ${assistantMessage}
 
-Assistant response: ${assistantMessage}
-
-Generate questions that build upon this exchange:`,
+Questions:`,
     });
 
     return Response.json({ questions: result.object.questions });

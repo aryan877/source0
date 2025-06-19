@@ -115,19 +115,25 @@ export type Database = {
       }
       chat_stream_ids: {
         Row: {
+          cancelled: boolean | null
           chat_id: string
+          complete: boolean | null
           created_at: string | null
           id: string
           stream_id: string
         }
         Insert: {
+          cancelled?: boolean | null
           chat_id: string
+          complete?: boolean | null
           created_at?: string | null
           id?: string
           stream_id: string
         }
         Update: {
+          cancelled?: boolean | null
           chat_id?: string
+          complete?: boolean | null
           created_at?: string | null
           id?: string
           stream_id?: string
@@ -136,6 +142,48 @@ export type Database = {
           {
             foreignKeyName: "chat_stream_ids_chat_id_fkey"
             columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_summaries: {
+        Row: {
+          created_at: string | null
+          id: string
+          message_id: string
+          session_id: string
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message_id: string
+          session_id: string
+          summary: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message_id?: string
+          session_id?: string
+          summary?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_summaries_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_summaries_session_id_fkey"
+            columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "chat_sessions"
             referencedColumns: ["id"]
@@ -181,6 +229,26 @@ export type Database = {
           branch_point_message: Json
           branch_point_time: string
         }[]
+      }
+      gtrgm_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      gtrgm_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      gtrgm_out: {
+        Args: { "": unknown }
+        Returns: unknown
       }
       halfvec_avg: {
         Args: { "": number[] }
@@ -233,6 +301,34 @@ export type Database = {
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: unknown
+      }
+      search_user_sessions: {
+        Args: { p_search_term: string }
+        Returns: {
+          branched_from_message_id: string | null
+          branched_from_session_id: string | null
+          created_at: string | null
+          id: string
+          is_public: boolean | null
+          metadata: Json | null
+          share_slug: string | null
+          system_prompt: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }[]
+      }
+      set_limit: {
+        Args: { "": number }
+        Returns: number
+      }
+      show_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      show_trgm: {
+        Args: { "": string }
+        Returns: string[]
       }
       sparsevec_out: {
         Args: { "": unknown }

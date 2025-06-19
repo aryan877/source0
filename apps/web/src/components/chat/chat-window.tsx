@@ -4,6 +4,7 @@ import { getModelById } from "@/config/models";
 import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSession } from "@/hooks/queries/use-chat-session";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
+import { useMessageSummaries } from "@/hooks/queries/use-message-summaries";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
@@ -24,12 +25,14 @@ import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
+import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatHeader } from "./chat-header";
 import { ChatInput, type ChatInputRef } from "./chat-input";
+import { ChatNavigator } from "./chat-navigator";
 import { MessagesList } from "./messages-list";
 import { SamplePrompts } from "./sample-prompts";
 
@@ -56,7 +59,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
-  const { assistantName, userTraits, memoryEnabled } = useUserPreferencesStore();
+  const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
   const justSubmittedMessageId = useRef<string | null>(null);
   const isInitialLoad = useRef(true);
@@ -64,6 +67,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const programmaticScroll = useRef(false);
   const lastUserMessageForSuggestions = useRef<Message | null>(null);
   const [isBranching, setIsBranching] = useState(false);
+  const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
+  const navigatorRef = useRef<HTMLDivElement>(null);
 
   const {
     messages: queryMessages,
@@ -71,6 +76,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     invalidateMessages,
   } = useChatMessages(chatId);
   const { updateSessionInCache, invalidateSessions } = useChatSessions();
+  const { summaries, invalidateSummaries } = useMessageSummaries(chatId);
 
   const messagesToUse = useMemo(() => {
     return chatId !== "new" ? queryMessages : [];
@@ -120,6 +126,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         reasoningLevel: reasoningLevel,
         searchEnabled: searchEnabled,
         memoryEnabled: memoryEnabled,
+        showChatNavigator: showChatNavigator,
         id: chatId === "new" ? undefined : chatId,
         isFirstMessage: chatId !== "new" && messagesToUse.length === 0,
         apiKey,
@@ -344,6 +351,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         setTimeout(() => {
           invalidateMessages();
         }, delay);
+      }
+
+      if (showChatNavigator) {
+        invalidateSummaries();
       }
     },
   });
@@ -872,12 +883,56 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     setIsBranching(isOpen);
   }, []);
 
+  const handleToggleNavigator = useCallback(() => {
+    setIsNavigatorOpen((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const targetElement = event.target as HTMLElement;
+      if (targetElement.closest('[data-testid="chat-navigator-toggle"]')) {
+        return;
+      }
+
+      if (navigatorRef.current && !navigatorRef.current.contains(event.target as Node)) {
+        setIsNavigatorOpen(false);
+      }
+    };
+
+    if (isNavigatorOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isNavigatorOpen]);
+
+  const handleSummaryClick = useCallback((messageId: string) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement && messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const messageRect = messageElement.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      const scrollTop =
+        container.scrollTop + messageRect.top - containerRect.top - SCROLL_TOP_MARGIN;
+
+      container.scrollTo({
+        top: scrollTop,
+        behavior: "smooth",
+      });
+    }
+  }, []);
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <ChatHeader
         chatId={chatId}
         sessionData={sessionData || undefined}
         isSharedView={isSharedView}
+        showNavigatorButton={showChatNavigator && messages.length > 0}
+        onToggleNavigator={handleToggleNavigator}
       />
 
       {showSamplePrompts ? (
@@ -981,6 +1036,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           ref={chatInputRef}
         />
       )}
+
+      <AnimatePresence>
+        {isNavigatorOpen && (
+          <ChatNavigator
+            ref={navigatorRef}
+            summaries={summaries}
+            onSummaryClick={handleSummaryClick}
+            isOpen={isNavigatorOpen}
+          />
+        )}
+      </AnimatePresence>
 
       {isSharedView && (
         <div className="border-t border-divider bg-content1/50 px-4 py-4">

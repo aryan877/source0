@@ -9,16 +9,19 @@ import {
   serverGetLatestStreamIdWithStatus,
   serverMarkStreamAsComplete,
 } from "@/services";
+import { saveMessageSummary } from "@/services/message-summaries";
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
 import { createClient } from "@/utils/supabase/server";
-import { createDataStream, streamText, type JSONValue, type Message } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { createDataStream, generateObject, streamText, type JSONValue, type Message } from "ai";
 import { after } from "next/server";
 import {
   createResumableStreamContext,
   type ResumableStreamContext,
 } from "resumable-stream/ioredis";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { handleImageGenerationRequest } from "./utils/image-generation";
 import {
@@ -29,6 +32,14 @@ import {
 } from "./utils/models";
 import { processMessages } from "./utils/process-messages";
 import { getToolsForModel } from "./utils/tools";
+
+const MessageSummarySchema = z.object({
+  summary: z
+    .string()
+    .describe(
+      "A very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message."
+    ),
+});
 
 let streamContext: ResumableStreamContext | undefined;
 if (pub && sub) {
@@ -47,6 +58,7 @@ interface ChatRequest {
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
   memoryEnabled?: boolean;
+  showChatNavigator?: boolean;
   id?: string;
   isFirstMessage?: boolean;
   apiKey?: string;
@@ -131,6 +143,7 @@ export async function POST(req: Request): Promise<Response> {
       reasoningLevel = "medium",
       searchEnabled = false,
       memoryEnabled = true,
+      showChatNavigator = false,
       id,
       isFirstMessage = false,
       apiKey,
@@ -163,7 +176,38 @@ export async function POST(req: Request): Promise<Response> {
     const { coreMessages, userMessageToSave } = await processMessages(messages, modelConfig);
 
     if (userMessageToSave) {
-      await saveUserMessageServer(supabase, userMessageToSave, finalSessionId, user.id);
+      const savedUserMessage = await saveUserMessageServer(
+        supabase,
+        userMessageToSave,
+        finalSessionId,
+        user.id
+      );
+
+      if (showChatNavigator) {
+        try {
+          const userMessageContent =
+            typeof userMessageToSave.content === "string"
+              ? userMessageToSave.content
+              : userMessageToSave.parts?.map((p) => (p.type === "text" ? p.text : "")).join("\n") ||
+                "";
+
+          if (userMessageContent) {
+            const { object } = await generateObject({
+              model: openai("gpt-4o-mini"),
+              schema: MessageSummarySchema,
+              prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${userMessageContent}\n---`,
+            });
+            await saveMessageSummary(supabase, {
+              message_id: savedUserMessage.id,
+              session_id: finalSessionId,
+              user_id: user.id,
+              summary: object.summary,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to generate/save user message summary", e);
+        }
+      }
     }
 
     if (modelConfig.capabilities.includes("image-generation")) {
@@ -317,7 +361,7 @@ export async function POST(req: Request): Promise<Response> {
                     parts,
                   };
 
-                  await saveAssistantMessageServer(
+                  const savedAssistantMessage = await saveAssistantMessageServer(
                     supabase,
                     assistantMessage,
                     finalSessionId,
@@ -327,6 +371,24 @@ export async function POST(req: Request): Promise<Response> {
                     { reasoningLevel, searchEnabled },
                     providerMetadata
                   );
+
+                  if (showChatNavigator && assistantMessage.content) {
+                    try {
+                      const { object } = await generateObject({
+                        model: openai("gpt-4o-mini"),
+                        schema: MessageSummarySchema,
+                        prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
+                      });
+                      await saveMessageSummary(supabase, {
+                        message_id: savedAssistantMessage.id,
+                        session_id: finalSessionId,
+                        user_id: user.id,
+                        summary: object.summary,
+                      });
+                    } catch (e) {
+                      console.error("Failed to generate/save assistant message summary", e);
+                    }
+                  }
 
                   messageSaved = true;
                 } catch (error) {
@@ -345,7 +407,7 @@ export async function POST(req: Request): Promise<Response> {
                     content: text,
                   };
 
-                  await saveAssistantMessageServer(
+                  const savedAssistantMessage = await saveAssistantMessageServer(
                     supabase,
                     assistantMessage,
                     finalSessionId,
@@ -355,6 +417,24 @@ export async function POST(req: Request): Promise<Response> {
                     { reasoningLevel, searchEnabled },
                     providerMetadata
                   );
+
+                  if (showChatNavigator && assistantMessage.content) {
+                    try {
+                      const { object } = await generateObject({
+                        model: openai("gpt-4o-mini"),
+                        schema: MessageSummarySchema,
+                        prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
+                      });
+                      await saveMessageSummary(supabase, {
+                        message_id: savedAssistantMessage.id,
+                        session_id: finalSessionId,
+                        user_id: user.id,
+                        summary: object.summary,
+                      });
+                    } catch (e) {
+                      console.error("Failed to generate/save assistant message summary", e);
+                    }
+                  }
 
                   messageSaved = true;
                   console.log("Message saved successfully with ID:", messageId);

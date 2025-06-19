@@ -80,6 +80,8 @@ function SettingsContent() {
     setMemoryEnabled,
     suggestQuestions,
     setSuggestQuestions,
+    showChatNavigator,
+    setShowChatNavigator,
   } = useUserPreferencesStore();
   const { theme, setTheme } = useTheme();
 
@@ -870,6 +872,32 @@ function SettingsContent() {
                       addToast({
                         title: "Setting Changed",
                         description: `Question suggestions are now ${isSelected ? "enabled" : "disabled"}.`,
+                        color: "primary",
+                      });
+                    }}
+                  />
+                </div>
+
+                <Divider />
+
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
+                  <div>
+                    <label className="text-sm font-semibold text-foreground">
+                      Enable Chat Navigator
+                    </label>
+                    <p className="mt-1 text-sm text-default-600">
+                      Show a navigator to quickly jump between key points in the conversation.
+                    </p>
+                  </div>
+                  <Switch
+                    isSelected={showChatNavigator}
+                    onValueChange={(isSelected) => {
+                      setShowChatNavigator(isSelected);
+                      addToast({
+                        title: "Setting Changed",
+                        description: `Chat Navigator is now ${
+                          isSelected ? "enabled" : "disabled"
+                        }.`,
                         color: "primary",
                       });
                     }}
