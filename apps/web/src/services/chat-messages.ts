@@ -23,7 +23,7 @@ export interface MessagePart {
   toolInvocation?: Record<string, unknown>;
   toolResult?: Record<string, unknown>;
   reasoning?: string;
-  details?: Array<{ type: "text"; text: string }>;
+  details?: Array<{ type: "text"; text: string; signature?: string }>;
 }
 
 // App-level ChatMessage type with strongly-typed 'parts' and 'role'

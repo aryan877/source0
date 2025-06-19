@@ -351,7 +351,7 @@ export function convertPartsForDb(
         if ("reasoning" in part) {
           const reasoningPart = part as unknown as {
             reasoning: string;
-            details: Array<{ type: "text"; text: string }>;
+            details: Array<{ type: "text"; text: string; signature?: string }>;
           };
           if (reasoningPart.reasoning && !existingReasoning.has(reasoningPart.reasoning)) {
             dbParts.push({

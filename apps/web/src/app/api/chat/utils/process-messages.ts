@@ -29,7 +29,7 @@ interface CustomFileUIPart {
 interface CustomReasoningUIPart {
   type: "reasoning";
   reasoning: string;
-  details?: Array<{ type: "text"; text: string }>;
+  details?: Array<{ type: "text"; text: string; signature?: string }>;
 }
 
 type UserContentPart = TextPart | ImagePart | FilePart;
@@ -37,7 +37,7 @@ type AssistantContentPart =
   | TextPart
   | FilePart
   | ToolCallPart
-  | { type: "reasoning"; text: string };
+  | { type: "reasoning"; text: string; signature?: string };
 type ToolContentPart = ToolResultPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
@@ -237,10 +237,27 @@ async function processAssistantMessage(
       case "reasoning": {
         const reasoningPart = part as unknown as CustomReasoningUIPart;
         if (reasoningPart.reasoning) {
-          assistantCoreParts.push({
-            type: "reasoning",
-            text: reasoningPart.reasoning,
-          });
+          // For Claude reasoning models, check if we have signature data in details
+          const signature = reasoningPart.details?.[0]?.signature;
+
+          if (
+            modelConfig.provider === "Anthropic" &&
+            modelConfig.capabilities.includes("reasoning") &&
+            signature
+          ) {
+            // Create a reasoning part with a signature for Claude models
+            assistantCoreParts.push({
+              type: "reasoning",
+              text: reasoningPart.reasoning,
+              signature: signature,
+            });
+          } else {
+            // For non-reasoning models or when signature is not available
+            assistantCoreParts.push({
+              type: "reasoning",
+              text: reasoningPart.reasoning,
+            });
+          }
         }
         break;
       }

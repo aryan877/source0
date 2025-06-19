@@ -287,14 +287,18 @@ export async function POST(req: Request): Promise<Response> {
                           });
                           stepCount++;
                         } else if (contentPart.type === "reasoning") {
-                          const { text } = contentPart;
+                          const reasoningContentPart = contentPart as {
+                            text: string;
+                            signature?: string;
+                          };
                           parts.push({
                             type: "reasoning",
-                            reasoning: text,
+                            reasoning: reasoningContentPart.text,
                             details: [
                               {
                                 type: "text",
-                                text: String(text),
+                                text: String(reasoningContentPart.text),
+                                signature: reasoningContentPart.signature, // Store signature for Claude reasoning models
                               },
                             ],
                           });
