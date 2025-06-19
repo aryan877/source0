@@ -61,6 +61,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const isInitialLoad = useRef(true);
   const userScrolled = useRef(false);
   const programmaticScroll = useRef(false);
+  const lastUserMessageForSuggestions = useRef<Message | null>(null);
 
   const {
     messages: queryMessages,
@@ -292,14 +293,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
 
       if (message.role === "assistant" && message.content) {
-        // The 'messages' array from useChat's return is what we need.
-        // It's guaranteed to be part of the hook's state and up-to-date.
-        // Let's find the last user message before this assistant message.
-        const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-
-        if (lastUserMessage && lastUserMessage.content) {
-          fetchSuggestions(lastUserMessage.content, message.content);
+        const userMessage = lastUserMessageForSuggestions.current;
+        if (userMessage && userMessage.content) {
+          fetchSuggestions(userMessage.content, message.content);
         }
+        // Clear the ref after use
+        lastUserMessageForSuggestions.current = null;
       }
 
       if (chatId && chatId !== "new") {
@@ -542,6 +541,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         clearSuggestions();
         setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
+        lastUserMessageForSuggestions.current = userMessageToRetry;
         append(userMessageToRetry);
       } catch (error) {
         console.error("Error during message retry:", error);
@@ -604,6 +604,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         justSubmittedMessageId.current = editedMessage.id;
         userScrolled.current = false;
 
+        lastUserMessageForSuggestions.current = editedMessage;
         append(editedMessage);
       } catch (error) {
         console.error("Error during message edit:", error);
@@ -673,6 +674,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       } as Message;
 
       justSubmittedMessageId.current = messageToAppend.id;
+      lastUserMessageForSuggestions.current = messageToAppend;
 
       const chatRequestOptions =
         attachments.length > 0
@@ -719,6 +721,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       justSubmittedMessageId.current = messageToAppend.id;
       userScrolled.current = false;
 
+      lastUserMessageForSuggestions.current = messageToAppend;
       append(messageToAppend, chatRequestOptions);
 
       setInput("");
@@ -785,6 +788,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         handleModelChange(storedModel);
       }
 
+      lastUserMessageForSuggestions.current = message;
       append(message, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
