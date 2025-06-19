@@ -19,11 +19,13 @@ interface UserPreferencesState {
   hidePersonalInfo: boolean;
   showSamplePrompts: boolean;
   memoryEnabled: boolean;
+  suggestQuestions: boolean;
   setAssistantName: (name: string) => void;
   setUserTraits: (traits: string) => void;
   setHidePersonalInfo: (hide: boolean) => void;
   setShowSamplePrompts: (show: boolean) => void;
   setMemoryEnabled: (enabled: boolean) => void;
+  setSuggestQuestions: (enabled: boolean) => void;
 }
 
 export const useUserPreferencesStore = create<UserPreferencesState>()(
@@ -34,11 +36,13 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       hidePersonalInfo: false,
       showSamplePrompts: true,
       memoryEnabled: true,
+      suggestQuestions: false,
       setAssistantName: (name) => set({ assistantName: name }),
       setUserTraits: (traits) => set({ userTraits: traits }),
       setHidePersonalInfo: (hide) => set({ hidePersonalInfo: hide }),
       setShowSamplePrompts: (show) => set({ showSamplePrompts: show }),
       setMemoryEnabled: (enabled) => set({ memoryEnabled: enabled }),
+      setSuggestQuestions: (enabled) => set({ suggestQuestions: enabled }),
     }),
     {
       name: "user-preferences-storage",

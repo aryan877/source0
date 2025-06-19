@@ -235,6 +235,12 @@ async function processAssistantMessage(
         break;
 
       case "reasoning": {
+        // Anthropic has its own 'thinking' block format and does not accept
+        // generic 'reasoning' parts in history, which can cause a 'signature' error.
+        // We filter this out when preparing messages for an Anthropic model.
+        if (modelConfig.provider === "Anthropic") {
+          break;
+        }
         const reasoningPart = part as unknown as CustomReasoningUIPart;
         if (reasoningPart.reasoning) {
           assistantCoreParts.push({

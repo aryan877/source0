@@ -8,6 +8,7 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
+import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { useAuth } from "@/hooks/useAuth";
 import {
   createSession,
@@ -290,6 +291,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         });
       }
 
+      if (message.role === "assistant" && message.content) {
+        // The 'messages' array from useChat's return is what we need.
+        // It's guaranteed to be part of the hook's state and up-to-date.
+        // Let's find the last user message before this assistant message.
+        const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+
+        if (lastUserMessage && lastUserMessage.content) {
+          fetchSuggestions(lastUserMessage.content, message.content);
+        }
+      }
+
       if (chatId && chatId !== "new") {
         const delay = hasGrounding ? 200 : 100;
         console.log(
@@ -302,6 +314,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
     },
   });
+
+  // Add suggested questions hook after useChat
+  const {
+    questions,
+    isLoading: isLoadingQuestions,
+    error: questionsError,
+    fetchSuggestions,
+    clearSuggestions,
+  } = useSuggestedQuestions();
 
   const { showScrollToBottom, scrollToBottom } = useScrollToBottom({
     containerRef: messagesContainerRef,
@@ -519,6 +540,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           invalidateMessages();
         }
 
+        clearSuggestions();
         setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
         append(userMessageToRetry);
       } catch (error) {
@@ -531,7 +553,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append, clearSuggestions]
   );
 
   const handleEditMessage = useCallback(
@@ -569,6 +591,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           invalidateMessages();
         }
 
+        clearSuggestions();
         setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
 
         const editedMessage: Message = {
@@ -592,7 +615,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append, clearSuggestions]
   );
 
   // Form handling
@@ -689,6 +712,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         setInput("");
         updateState({ attachedFiles: [] });
+        clearSuggestions();
         return;
       }
 
@@ -699,6 +723,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       setInput("");
       updateState({ attachedFiles: [] });
+      clearSuggestions();
       setTimeout(() => chatInputRef.current?.focus(), 0);
     },
     [
@@ -717,6 +742,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       transferModelSelection,
       setMessages,
       status,
+      clearSuggestions,
     ]
   );
 
@@ -776,6 +802,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     setSearchEnabled,
     handleModelChange,
     selectedModel,
+    clearSuggestions,
   ]);
 
   const isLoading = status === "submitted" || status === "streaming";
@@ -871,6 +898,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           uiError={state.uiError}
           onDismissUiError={handleDismissUiError}
           onRetry={handleRetryFailedRequest}
+          suggestedQuestions={questions}
+          isLoadingQuestions={isLoadingQuestions}
+          questionsError={questionsError}
+          onQuestionSelect={handlePromptSelect}
         />
       )}
 

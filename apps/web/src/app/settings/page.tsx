@@ -78,6 +78,8 @@ function SettingsContent() {
     setShowSamplePrompts,
     memoryEnabled,
     setMemoryEnabled,
+    suggestQuestions,
+    setSuggestQuestions,
   } = useUserPreferencesStore();
   const { theme, setTheme } = useTheme();
 
@@ -844,6 +846,30 @@ function SettingsContent() {
                       addToast({
                         title: "Setting Changed",
                         description: `Memory is now ${isSelected ? "enabled" : "disabled"}.`,
+                        color: "primary",
+                      });
+                    }}
+                  />
+                </div>
+
+                <Divider />
+
+                <div className="flex items-center justify-between rounded-xl border border-divider p-4">
+                  <div>
+                    <label className="text-sm font-semibold text-foreground">
+                      Suggest Questions
+                    </label>
+                    <p className="mt-1 text-sm text-default-600">
+                      Show AI-suggested follow-up questions after responses
+                    </p>
+                  </div>
+                  <Switch
+                    isSelected={suggestQuestions}
+                    onValueChange={(isSelected) => {
+                      setSuggestQuestions(isSelected);
+                      addToast({
+                        title: "Setting Changed",
+                        description: `Question suggestions are now ${isSelected ? "enabled" : "disabled"}.`,
                         color: "primary",
                       });
                     }}

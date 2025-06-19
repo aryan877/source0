@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { memo, useMemo } from "react";
 import { MessageBubble } from "..";
 import { ErrorDisplay } from "./error-display";
+import { SuggestedQuestions } from "./suggested-questions";
 
 const LoadingMessages = memo(() => (
   <div className="space-y-4">
@@ -70,6 +71,10 @@ interface MessagesListProps {
   uiError?: string | null;
   onDismissUiError: () => void;
   onRetry?: () => void;
+  suggestedQuestions: string[];
+  isLoadingQuestions: boolean;
+  questionsError: string | null;
+  onQuestionSelect: (question: string) => void;
 }
 
 export const MessagesList = memo(
@@ -86,6 +91,10 @@ export const MessagesList = memo(
     uiError,
     onDismissUiError,
     onRetry,
+    suggestedQuestions,
+    isLoadingQuestions,
+    questionsError,
+    onQuestionSelect,
   }: MessagesListProps) => {
     const containerStyle = useMemo(
       () => ({
@@ -124,6 +133,15 @@ export const MessagesList = memo(
             onDismissUiError={onDismissUiError}
             onRetry={onRetry}
           />
+
+          {!isLoading && !isLoadingMessages && (
+            <SuggestedQuestions
+              questions={suggestedQuestions}
+              isLoading={isLoadingQuestions}
+              error={questionsError}
+              onQuestionSelect={onQuestionSelect}
+            />
+          )}
 
           <div data-messages-end="true" />
         </div>
