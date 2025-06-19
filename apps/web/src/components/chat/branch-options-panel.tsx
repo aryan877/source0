@@ -112,7 +112,7 @@ export const BranchOptionsPanel = memo(
     return (
       <div
         ref={panelRef}
-        className={`absolute right-0 z-20 w-80 overflow-hidden rounded-xl border border-divider bg-content1 p-2 shadow-2xl transition-opacity ${positionClass}`}
+        className={`absolute right-0 z-[9999] w-80 overflow-hidden rounded-xl border border-divider bg-content1 p-2 shadow-2xl transition-opacity ${positionClass}`}
         style={style}
       >
         <AnimatePresence initial={false} custom={direction} mode="wait">

@@ -31,8 +31,8 @@ interface UserPreferencesState {
 export const useUserPreferencesStore = create<UserPreferencesState>()(
   persist(
     (set) => ({
-      assistantName: "AI Assistant",
-      userTraits: "I prefer concise responses and enjoy technical discussions.",
+      assistantName: "Source0",
+      userTraits: "",
       hidePersonalInfo: false,
       showSamplePrompts: true,
       memoryEnabled: true,

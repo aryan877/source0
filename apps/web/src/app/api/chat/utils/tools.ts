@@ -129,7 +129,7 @@ const memorySaveParameters = z.object({
 });
 
 export const memorySaveToolDefinition = {
-  description: `Save important user information for personalized future interactions. Use when users share personal info, preferences, goals, constraints, or important context. Don't save generic responses or temporary information.`,
+  description: `Save important user information for personalized future interactions. Use when users share personal info, preferences, goals, constraints, or important context. Do not save generic responses, temporary information, or the assistant's own name.`,
 
   parameters: memorySaveParameters,
 

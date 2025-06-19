@@ -92,6 +92,8 @@ interface MessagesListProps {
   questionsError: string | null;
   onQuestionSelect: (question: string) => void;
   selectedModel: string;
+  isBranching: boolean;
+  onBranchOptionsToggle: (isOpen: boolean) => void;
 }
 
 export const MessagesList = memo(
@@ -112,6 +114,8 @@ export const MessagesList = memo(
     isLoadingQuestions,
     questionsError,
     onQuestionSelect,
+    isBranching,
+    onBranchOptionsToggle,
   }: MessagesListProps) => {
     const containerStyle = useMemo(
       () => ({
@@ -134,7 +138,7 @@ export const MessagesList = memo(
     return (
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto"
+        className={`flex-1 overflow-y-auto ${isBranching ? "overflow-y-hidden" : ""}`}
         data-messages-container="true"
       >
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" style={containerStyle}>
@@ -156,6 +160,7 @@ export const MessagesList = memo(
                       onEdit={onEditMessage}
                       isLoading={isLoading && index === messages.length - 1}
                       chatId={chatId}
+                      onBranchOptionsToggle={onBranchOptionsToggle}
                     />
                   </div>
                 );
@@ -204,6 +209,7 @@ export const MessagesList = memo(
                     onEdit={onEditMessage}
                     isLoading={isLoading && index === messages.length - 1}
                     chatId={chatId}
+                    onBranchOptionsToggle={onBranchOptionsToggle}
                   />
                 </div>
               );

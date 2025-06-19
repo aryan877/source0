@@ -26,7 +26,7 @@ import { prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatHeader } from "./chat-header";
 import { ChatInput, type ChatInputRef } from "./chat-input";
@@ -63,6 +63,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const userScrolled = useRef(false);
   const programmaticScroll = useRef(false);
   const lastUserMessageForSuggestions = useRef<Message | null>(null);
+  const [isBranching, setIsBranching] = useState(false);
 
   const {
     messages: queryMessages,
@@ -867,6 +868,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   const showSamplePrompts = !isLoadingMessages && !messages.length && chatId === "new";
 
+  const handleBranchOptionsToggle = useCallback((isOpen: boolean) => {
+    setIsBranching(isOpen);
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       <ChatHeader
@@ -945,6 +950,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           questionsError={questionsError}
           onQuestionSelect={handlePromptSelect}
           selectedModel={selectedModel}
+          isBranching={isBranching}
+          onBranchOptionsToggle={handleBranchOptionsToggle}
         />
       )}
 

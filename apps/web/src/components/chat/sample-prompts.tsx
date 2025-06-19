@@ -254,7 +254,9 @@ export const SamplePrompts = memo(({ onPromptSelect, className = "" }: SamplePro
                     {prompt.icon}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium leading-relaxed text-foreground">{prompt.text}</p>
+                    <p className="text-sm font-medium leading-relaxed text-foreground">
+                      {prompt.text}
+                    </p>
                   </div>
                   <div className="flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10">

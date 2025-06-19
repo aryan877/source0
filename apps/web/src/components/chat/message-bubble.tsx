@@ -93,6 +93,7 @@ interface MessageBubbleProps {
   onEdit?: (messageId: string, newContent: string) => void;
   isLoading?: boolean;
   chatId: string;
+  onBranchOptionsToggle?: (isOpen: boolean) => void;
 }
 
 /**
@@ -122,7 +123,15 @@ function getCitationsFromMessage(message: Message): TavilySearchResult[] {
 }
 
 const MessageBubble = memo(
-  ({ message, onRetry, onBranch, onEdit, isLoading = false, chatId }: MessageBubbleProps) => {
+  ({
+    message,
+    onRetry,
+    onBranch,
+    onEdit,
+    isLoading = false,
+    chatId,
+    onBranchOptionsToggle,
+  }: MessageBubbleProps) => {
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -136,6 +145,10 @@ const MessageBubble = memo(
       message,
       isLoading,
     });
+
+    useEffect(() => {
+      onBranchOptionsToggle?.(showBranchOptions);
+    }, [showBranchOptions, onBranchOptionsToggle]);
 
     // Auto-resize textarea and focus when editing starts
     useEffect(() => {
