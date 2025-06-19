@@ -109,7 +109,7 @@ export const useChatHandlers = (
   );
 
   const handleBranchChat = useCallback(
-    async (messageId: string) => {
+    async (messageId: string, modelId?: string) => {
       if (!user || !updateSessionInCache || !transferModelSelection || !router) {
         console.error("Missing required dependencies for branching");
         updateState({ uiError: "Unable to branch chat. Please try again." });
@@ -151,8 +151,11 @@ export const useChatHandlers = (
         // Update the session cache
         updateSessionInCache(branchedSession, user.id);
 
-        // Transfer model selection to the new chat
+        // Transfer model selection to the new chat, and update if a new model was chosen
         transferModelSelection(chatId, newSessionId);
+        if (modelId) {
+          setSelectedModel(newSessionId, modelId);
+        }
 
         // Navigate to the new chat
         router.push(`/chat/${newSessionId}`);
@@ -163,7 +166,15 @@ export const useChatHandlers = (
         });
       }
     },
-    [chatId, user, updateSessionInCache, transferModelSelection, router, updateState]
+    [
+      chatId,
+      user,
+      updateSessionInCache,
+      transferModelSelection,
+      router,
+      updateState,
+      setSelectedModel,
+    ]
   );
 
   const handleModelChange = useCallback(

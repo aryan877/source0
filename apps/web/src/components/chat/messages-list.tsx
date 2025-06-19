@@ -63,7 +63,7 @@ interface MessagesListProps {
   isLoading: boolean;
   isLoadingMessages: boolean;
   chatId: string;
-  onBranchChat: (messageId: string) => void;
+  onBranchChat: (messageId: string, modelId?: string) => void;
   onRetryMessage: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -120,6 +120,7 @@ export const MessagesList = memo(
                   onBranch={onBranchChat}
                   onEdit={onEditMessage}
                   isLoading={isLoading && index === messages.length - 1}
+                  chatId={chatId}
                 />
               </div>
             ))

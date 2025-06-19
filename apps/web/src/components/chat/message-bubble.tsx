@@ -19,6 +19,7 @@ import { Avatar, Button, Tooltip } from "@heroui/react";
 import type { JSONValue, Message, ToolInvocation } from "ai";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
+import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
@@ -93,9 +94,10 @@ function getMessageCompleteData(
 interface MessageBubbleProps {
   message: Message;
   onRetry: (messageId: string) => void;
-  onBranch: (messageId: string) => void;
+  onBranch: (messageId: string, modelId?: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
   isLoading?: boolean;
+  chatId: string;
 }
 
 /**
@@ -125,12 +127,14 @@ function getCitationsFromMessage(message: Message): TavilySearchResult[] {
 }
 
 const MessageBubble = memo(
-  ({ message, onRetry, onBranch, onEdit, isLoading = false }: MessageBubbleProps) => {
+  ({ message, onRetry, onBranch, onEdit, isLoading = false, chatId }: MessageBubbleProps) => {
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(message.content || "");
+    const [showBranchOptions, setShowBranchOptions] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const branchButtonRef = useRef<HTMLDivElement>(null);
     const isUser = message.role === "user";
 
     const { isReasoningStreaming } = useReasoningSpinner({
@@ -175,8 +179,16 @@ const MessageBubble = memo(
     }, [onRetry, message.id]);
 
     const handleBranch = useCallback(() => {
-      onBranch(message.id);
-    }, [onBranch, message.id]);
+      setShowBranchOptions((prev) => !prev);
+    }, []);
+
+    const handleBranchWithModel = useCallback(
+      (modelId: string) => {
+        onBranch(message.id, modelId);
+        setShowBranchOptions(false);
+      },
+      [onBranch, message.id]
+    );
 
     const handleStartEdit = useCallback(() => {
       setEditContent(message.content || "");
@@ -541,7 +553,7 @@ const MessageBubble = memo(
 
           {!isUser && (
             <Tooltip content="Branch from here" placement="top" delay={300}>
-              <div>
+              <div ref={branchButtonRef}>
                 <Button
                   variant="light"
                   size="sm"
@@ -611,11 +623,26 @@ const MessageBubble = memo(
           </div>
 
           {/* Action buttons and model info */}
-          <div className={`flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}>
+          <div
+            className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}
+          >
             {actionButtons}
+
+            {/* Branch options panel */}
+            {showBranchOptions && (
+              <BranchOptionsPanel
+                chatId={chatId}
+                onBranchWithModel={handleBranchWithModel}
+                onClose={() => setShowBranchOptions(false)}
+                anchorRef={branchButtonRef}
+              />
+            )}
+
             {modelMetadata && !isUser && (
               <div
-                className={`transition-opacity duration-200 ${showActions && !isLoading && !isEditing ? "opacity-100" : "opacity-0"}`}
+                className={`transition-opacity duration-200 ${
+                  showActions && !isLoading && !isEditing ? "opacity-100" : "opacity-0"
+                }`}
               >
                 <Tooltip
                   content={`Provider: ${modelMetadata.modelProvider || "Unknown"}`}
