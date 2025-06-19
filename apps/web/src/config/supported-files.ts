@@ -39,11 +39,6 @@ export const PDF_EXTENSIONS = SUPPORTED_PDF_TYPES.map((t) => t.extension);
 export const SUPPORTED_TEXT_TYPES: FileType[] = [
   { mimeType: "text/plain", extension: ".txt" },
   { mimeType: "text/markdown", extension: ".md" },
-  { mimeType: "text/csv", extension: ".csv" },
-  {
-    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    extension: ".docx",
-  },
   { mimeType: "application/json", extension: ".json" },
   { mimeType: "text/html", extension: ".html" },
   { mimeType: "application/sql", extension: ".sql" },
@@ -59,4 +54,14 @@ export const ALL_SUPPORTED_EXTENSIONS = [
   ...IMAGE_EXTENSIONS,
   ...PDF_EXTENSIONS,
   ...TEXT_EXTENSIONS,
+];
+
+/**
+ * A comprehensive list of all MIME types supported for upload,
+ * derived from the specific types above.
+ */
+export const ALL_SUPPORTED_MIME_TYPES = [
+  ...IMAGE_MIME_TYPES,
+  ...PDF_MIME_TYPES,
+  ...TEXT_MIME_TYPES,
 ];

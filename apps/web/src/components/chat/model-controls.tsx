@@ -1,14 +1,7 @@
 "use client";
 
 import { getModelById, type ReasoningLevel } from "@/config/models";
-import {
-  IMAGE_EXTENSIONS,
-  IMAGE_MIME_TYPES,
-  PDF_EXTENSIONS,
-  PDF_MIME_TYPES,
-  TEXT_EXTENSIONS,
-  TEXT_MIME_TYPES,
-} from "@/config/supported-files";
+import { ALL_SUPPORTED_EXTENSIONS, ALL_SUPPORTED_MIME_TYPES } from "@/config/supported-files";
 import { ChevronDownIcon, MagnifyingGlassIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import {
   CpuChipIcon as CpuChipIconSolid,
@@ -59,17 +52,13 @@ export const ModelControls = ({
       return {
         hasReasoning: false,
         hasSearch: false,
-        supportsImages: false,
-        supportsPdf: false,
-        availableReasoningLevels: [],
         showControls: false,
+        availableReasoningLevels: [],
       };
     }
 
     const hasReasoning = modelConfig.capabilities.includes("reasoning");
     const hasSearch = modelConfig.supportsFunctions || modelConfig.capabilities.includes("search");
-    const supportsImages = modelConfig.capabilities.includes("image");
-    const supportsPdf = modelConfig.capabilities.includes("pdf");
     const availableReasoningLevels = modelConfig.reasoningLevels || [];
     const showAttachment = true;
     const showControls = hasReasoning || hasSearch || showAttachment;
@@ -77,37 +66,16 @@ export const ModelControls = ({
     return {
       hasReasoning,
       hasSearch,
-      supportsImages,
-      supportsPdf,
       availableReasoningLevels,
       showControls,
     };
   }, [modelConfig]);
 
-  // Memoize tooltip content
-  const attachmentTooltip = useMemo(() => {
-    const supportedTypes: string[] = [];
-    if (computedValues.supportsImages) {
-      supportedTypes.push("Images");
-    }
-    if (computedValues.supportsPdf) {
-      supportedTypes.push("PDFs");
-    }
-    supportedTypes.push("Documents");
-    return `Attach: ${supportedTypes.join(", ")}`;
-  }, [computedValues.supportsImages, computedValues.supportsPdf]);
+  // Static tooltip for attachments
+  const attachmentTooltip = "Attach images, PDFs, or text files";
 
-  // Memoize file accept string
-  const fileAccept = useMemo(() => {
-    const accepts = [...TEXT_MIME_TYPES, ...TEXT_EXTENSIONS];
-    if (computedValues.supportsImages) {
-      accepts.push(...IMAGE_MIME_TYPES, ...IMAGE_EXTENSIONS);
-    }
-    if (computedValues.supportsPdf) {
-      accepts.push(...PDF_MIME_TYPES, ...PDF_EXTENSIONS);
-    }
-    return Array.from(new Set(accepts)).join(",");
-  }, [computedValues.supportsImages, computedValues.supportsPdf]);
+  // Static file accept string from centralized config
+  const fileAccept = [...ALL_SUPPORTED_MIME_TYPES, ...ALL_SUPPORTED_EXTENSIONS].join(",");
 
   // Memoize search button classes to prevent hydration issues
   const searchButtonClasses = useMemo(() => {

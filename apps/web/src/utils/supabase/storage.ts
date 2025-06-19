@@ -1,3 +1,4 @@
+import { ALL_SUPPORTED_MIME_TYPES } from "@/config/supported-files";
 import { createClient } from "./client";
 
 const supabase = createClient();
@@ -32,43 +33,12 @@ export interface FileInfo {
   metadata: Record<string, unknown>;
 }
 
-const ALLOWED_TYPES = [
-  // Images
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-  // Videos
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  // Audio
-  "audio/mpeg",
-  "audio/wav",
-  "audio/mp4",
-  "audio/webm",
-  // Documents
-  "text/plain",
-  "text/markdown",
-  "text/csv",
-  "text/html",
-  "application/pdf",
-  "application/json",
-  "application/xml",
-  // Office Documents
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-];
-
 const validateFile = (file: File): { valid: boolean; error?: string } => {
   if (file.size > MAX_FILE_SIZE) {
     return { valid: false, error: "File size must be less than 50MB" };
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!ALL_SUPPORTED_MIME_TYPES.includes(file.type)) {
     return {
       valid: false,
       error: "File type not supported",
