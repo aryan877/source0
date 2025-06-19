@@ -1044,6 +1044,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             summaries={summaries}
             onSummaryClick={handleSummaryClick}
             isOpen={isNavigatorOpen}
+            onClose={handleToggleNavigator}
           />
         )}
       </AnimatePresence>

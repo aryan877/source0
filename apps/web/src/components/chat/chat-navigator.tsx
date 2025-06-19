@@ -1,17 +1,19 @@
 "use client";
 
 import { type MessageSummary } from "@/services/message-summaries";
-import { FileText } from "lucide-react";
+import { Button } from "@heroui/react";
+import { FileText, X } from "lucide-react";
 import { forwardRef } from "react";
 
 interface ChatNavigatorProps {
   summaries: MessageSummary[];
   onSummaryClick: (messageId: string) => void;
   isOpen: boolean;
+  onClose: () => void;
 }
 
 export const ChatNavigator = forwardRef<HTMLDivElement, ChatNavigatorProps>(function ChatNavigator(
-  { summaries, onSummaryClick, isOpen },
+  { summaries, onSummaryClick, isOpen, onClose },
   ref
 ) {
   if (!isOpen) {
@@ -28,9 +30,20 @@ export const ChatNavigator = forwardRef<HTMLDivElement, ChatNavigatorProps>(func
       }}
     >
       <div className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b border-divider p-4">
-          <FileText className="h-5 w-5 text-default-600" />
-          <h2 className="text-lg font-semibold text-foreground">Chat Navigator</h2>
+        <header className="flex items-center justify-between border-b border-divider p-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-default-600" />
+            <h2 className="text-lg font-semibold text-foreground">Chat Navigator</h2>
+          </div>
+          <Button
+            isIconOnly
+            variant="light"
+            onPress={onClose}
+            aria-label="Close chat navigator"
+            className="data-[hover=true]:bg-default-200"
+          >
+            <X className="h-5 w-5 text-default-600" />
+          </Button>
         </header>
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
