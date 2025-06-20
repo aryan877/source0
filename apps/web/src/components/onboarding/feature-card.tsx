@@ -40,13 +40,13 @@ const providerList: ModelConfig["provider"][] = [
 ];
 
 const modelNames = [
+  "Gemini 2.5 Flash",
+  "Claude 3.5 Sonnet",
   "GPT-4o",
-  "Claude-3.5 Sonnet",
-  "Gemini 1.5 Pro",
-  "Grok-2",
-  "Llama 3.1 70B",
-  "DeepSeek-V3",
-  "GPT-4 Turbo",
+  "Llama 3.3 70B",
+  "DeepSeek R1",
+  "DeepSeek V3",
+  "Claude 4 Sonnet",
 ];
 
 // Map theme colors for the visual showcase
