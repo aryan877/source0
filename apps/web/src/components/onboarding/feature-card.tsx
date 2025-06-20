@@ -276,11 +276,20 @@ const StreamingAnimation = () => {
 
 const SettingsAnimation = () => {
   const [settings, setSettings] = useState({
-    darkMode: false,
+    hidePersonalInfo: false,
+    showSamplePrompts: true,
     memoryEnabled: true,
-    notifications: false,
-    aiSuggestions: true,
+    suggestQuestions: true,
+    showChatNavigator: false,
   });
+
+  const settingLabels = {
+    hidePersonalInfo: "Hide Personal Info",
+    showSamplePrompts: "Sample Prompts",
+    memoryEnabled: "Memory Enabled",
+    suggestQuestions: "Suggest Questions",
+    showChatNavigator: "Chat Navigator",
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -314,8 +323,8 @@ const SettingsAnimation = () => {
           <div className="space-y-3">
             {Object.entries(settings).map(([key, value]) => (
               <motion.div key={key} layout className="flex items-center justify-between gap-4">
-                <span className="text-xs capitalize text-default-600">
-                  {key.replace(/([A-Z])/g, " $1").trim()}
+                <span className="text-xs text-default-600">
+                  {settingLabels[key as keyof typeof settingLabels]}
                 </span>
                 <motion.div
                   className={`relative h-4 w-7 cursor-pointer rounded-full transition-colors ${
