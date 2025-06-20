@@ -236,7 +236,7 @@ const SearchBar = memo(
         <div className="relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
-              className="h-4 w-4 text-default-400"
+              className="h-4 w-4 text-foreground/60"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -263,7 +263,7 @@ const SearchBar = memo(
                 {searchShortcut.display.map((key, index) => (
                   <kbd
                     key={index}
-                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-default-300/30 bg-default-100/50 px-1 text-xs font-medium text-default-600 dark:border-default-600/30 dark:bg-default-800/30 dark:text-default-400"
+                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-foreground/20 bg-content3 px-1 text-xs font-medium text-foreground/70"
                   >
                     {key}
                   </kbd>
