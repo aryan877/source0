@@ -17,7 +17,7 @@ const features: Feature[] = [
     id: "image-generation",
     title: "AI-Aware Image Generation",
     description:
-      "Generate stunning images with DALL-E and continue the conversation about them. The AI understands your generated images for seamless multimodal chats.",
+      "Generate stunning images with GPT-Image-1 and continue the conversation about them. The AI understands your generated images for seamless multimodal chats.",
     visual: "imageGeneration",
   },
   {
