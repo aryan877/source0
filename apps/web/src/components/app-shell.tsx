@@ -3,6 +3,7 @@
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
+import { useUiStore } from "@/stores/ui-store";
 import { Button, useDisclosure } from "@heroui/react";
 import { PanelRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,12 +21,58 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const windowObj = useWindow();
   const { user } = useAuth();
+  const { focusSearch } = useUiStore();
   const {
     isOpen: isOnboardingOpen,
     onOpen: onOnboardingOpen,
     onClose: onOnboardingClose,
   } = useDisclosure();
   const { hasCompletedOnboarding, isLoading, markOnboardingAsCompleted } = useOnboarding();
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore shortcuts when an input, textarea, or select is focused, or in contentEditable
+      const target = event.target as HTMLElement;
+      if (
+        target.isContentEditable ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      const isMac = /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform);
+      const isModifier = isMac ? event.metaKey : event.ctrlKey;
+
+      // Toggle Sidebar: Cmd/Ctrl+B
+      if (isModifier && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        setIsSidebarOpen((prev) => !prev);
+      }
+
+      // New Chat: Cmd/Ctrl+Shift+O
+      if (isModifier && event.shiftKey && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        router.push("/");
+      }
+
+      // Search: Cmd/Ctrl+K
+      if (isModifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (!isSidebarOpen) {
+          setIsSidebarOpen(true);
+        }
+        focusSearch();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [router, focusSearch, isSidebarOpen]);
 
   useEffect(() => {
     if (user && !isLoading && !hasCompletedOnboarding) {

@@ -5,6 +5,7 @@ import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
+import { useUiStore } from "@/stores/ui-store";
 import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences-store";
 import {
   ArrowRightEndOnRectangleIcon,
@@ -35,7 +36,7 @@ import { format, formatDistanceToNow, isThisWeek, isToday, isYesterday } from "d
 import { GitBranchIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 
 // ========================================
@@ -217,19 +218,32 @@ const SearchBar = memo(
   }: {
     searchQuery: string;
     setSearchQuery: (query: string) => void;
-  }) => (
-    <div className="border-b border-divider p-3">
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="Search your threads..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
+  }) => {
+    const { isSearchFocused, blurSearch } = useUiStore();
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+      if (isSearchFocused) {
+        inputRef.current?.focus();
+        blurSearch(); // Reset the trigger
+      }
+    }, [isSearchFocused, blurSearch]);
+
+    return (
+      <div className="border-b border-divider p-3">
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search your threads..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
       </div>
-    </div>
-  )
+    );
+  }
 );
 
 SearchBar.displayName = "SearchBar";

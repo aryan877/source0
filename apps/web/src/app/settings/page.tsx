@@ -49,6 +49,31 @@ import { useTheme } from "next-themes";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type Key } from "react";
 
+const Kbd = ({ children }: { children: React.ReactNode }) => {
+  const isMac = typeof window !== "undefined" ? /Mac/i.test(window.navigator.platform) : false;
+  const symbol =
+    typeof children === "string"
+      ? {
+          "⌘": isMac,
+          Ctrl: !isMac,
+        }[children]
+        ? "⌘"
+        : !isMac && children === "⌘"
+          ? "Ctrl"
+          : children
+      : children;
+
+  if ((children === "⌘" && !isMac) || (children === "Ctrl" && isMac)) {
+    return null;
+  }
+
+  return (
+    <kbd className="rounded-md border border-divider bg-content2 px-2.5 py-1.5 text-xs font-semibold">
+      {symbol}
+    </kbd>
+  );
+};
+
 function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -216,6 +241,12 @@ function SettingsContent() {
       color: "warning",
     });
   };
+
+  const shortcuts = [
+    { name: "Search", keys: ["⌘", "K"] },
+    { name: "New Chat", keys: ["⌘", "Shift", "O"] },
+    { name: "Toggle Sidebar", keys: ["⌘", "B"] },
+  ];
 
   const filteredModels = useModelFiltering(
     MODELS,
@@ -902,6 +933,30 @@ function SettingsContent() {
                       });
                     }}
                   />
+                </div>
+              </div>
+
+              <Divider className="my-8" />
+
+              <div>
+                <h3 className="mb-2 text-xl font-bold text-foreground">Keyboard Shortcuts</h3>
+                <p className="mb-6 text-sm text-default-600">
+                  Quickly navigate and perform actions throughout the app.
+                </p>
+                <div className="space-y-4">
+                  {shortcuts.map((shortcut) => (
+                    <div
+                      key={shortcut.name}
+                      className="flex items-center justify-between rounded-xl border border-divider p-4"
+                    >
+                      <p className="text-sm font-semibold text-foreground">{shortcut.name}</p>
+                      <div className="flex items-center gap-2">
+                        {shortcut.keys.map((key) => (
+                          <Kbd key={key}>{key}</Kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </Tab>
