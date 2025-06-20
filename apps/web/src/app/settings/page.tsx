@@ -4,6 +4,7 @@ import { SecureFileDisplay } from "@/components/chat";
 import { CapabilityIcon } from "@/components/chat/capability-icons";
 import { ProviderIcon } from "@/components/chat/provider-icon";
 import { CAPABILITY_LABELS, ModelCapability, MODELS, type ModelConfig } from "@/config/models";
+import { SHORTCUTS } from "@/config/shortcuts";
 import { useModelFiltering } from "@/hooks/use-model-filtering";
 import { useUserFiles } from "@/hooks/use-user-files";
 import { getApiKeySchema } from "@/lib/validations/api-keys";
@@ -241,12 +242,6 @@ function SettingsContent() {
       color: "warning",
     });
   };
-
-  const shortcuts = [
-    { name: "Search", keys: ["⌘", "K"] },
-    { name: "New Chat", keys: ["⌘", "Shift", "O"] },
-    { name: "Toggle Sidebar", keys: ["⌘", "B"] },
-  ];
 
   const filteredModels = useModelFiltering(
     MODELS,
@@ -944,14 +939,14 @@ function SettingsContent() {
                   Quickly navigate and perform actions throughout the app.
                 </p>
                 <div className="space-y-4">
-                  {shortcuts.map((shortcut) => (
+                  {SHORTCUTS.map((shortcut) => (
                     <div
-                      key={shortcut.name}
+                      key={shortcut.id}
                       className="flex items-center justify-between rounded-xl border border-divider p-4"
                     >
                       <p className="text-sm font-semibold text-foreground">{shortcut.name}</p>
                       <div className="flex items-center gap-2">
-                        {shortcut.keys.map((key) => (
+                        {shortcut.display.map((key) => (
                           <Kbd key={key}>{key}</Kbd>
                         ))}
                       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { SHORTCUTS } from "@/config/shortcuts";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,25 +46,27 @@ export function AppShell({ children }: AppShellProps) {
       const isMac = /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform);
       const isModifier = isMac ? event.metaKey : event.ctrlKey;
 
-      // Toggle Sidebar: Cmd/Ctrl+B
-      if (isModifier && event.key.toLowerCase() === "b") {
-        event.preventDefault();
-        setIsSidebarOpen((prev) => !prev);
-      }
+      const pressedShortcut = SHORTCUTS.find(
+        (s) =>
+          s.mod === isModifier && s.shift === event.shiftKey && s.key === event.key.toLowerCase()
+      );
 
-      // New Chat: Cmd/Ctrl+Shift+O
-      if (isModifier && event.shiftKey && event.key.toLowerCase() === "o") {
+      if (pressedShortcut) {
         event.preventDefault();
-        router.push("/");
-      }
-
-      // Search: Cmd/Ctrl+K
-      if (isModifier && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        if (!isSidebarOpen) {
-          setIsSidebarOpen(true);
+        switch (pressedShortcut.id) {
+          case "search":
+            if (!isSidebarOpen) {
+              setIsSidebarOpen(true);
+            }
+            focusSearch();
+            break;
+          case "new-chat":
+            router.push("/");
+            break;
+          case "toggle-sidebar":
+            setIsSidebarOpen((prev) => !prev);
+            break;
         }
-        focusSearch();
       }
     };
 

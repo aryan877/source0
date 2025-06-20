@@ -1,5 +1,6 @@
 "use client";
 
+import { SHORTCUTS } from "@/config/shortcuts";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
@@ -221,6 +222,7 @@ const SearchBar = memo(
   }) => {
     const { isSearchFocused, blurSearch } = useUiStore();
     const inputRef = useRef<HTMLInputElement>(null);
+    const searchShortcut = SHORTCUTS.find((s) => s.id === "search");
 
     useEffect(() => {
       if (isSearchFocused) {
@@ -232,14 +234,43 @@ const SearchBar = memo(
     return (
       <div className="border-b border-divider p-3">
         <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg
+              className="h-4 w-4 text-default-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
           <input
             ref={inputRef}
             type="text"
             placeholder="Search your threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-divider bg-content2 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border border-divider bg-content2 py-2 pl-10 pr-16 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
+          {searchShortcut && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <div className="flex items-center gap-1">
+                {searchShortcut.display.map((key, index) => (
+                  <kbd
+                    key={index}
+                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-default-300/30 bg-default-100/50 px-1 text-xs font-medium text-default-600 dark:border-default-600/30 dark:bg-default-800/30 dark:text-default-400"
+                  >
+                    {key}
+                  </kbd>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

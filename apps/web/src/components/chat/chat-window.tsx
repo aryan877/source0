@@ -33,8 +33,8 @@ import { v4 as uuidv4 } from "uuid";
 import { ChatHeader } from "./chat-header";
 import { ChatInput, type ChatInputRef } from "./chat-input";
 import { ChatNavigator } from "./chat-navigator";
+import { HeroSection } from "./hero-section";
 import { MessagesList } from "./messages-list";
-import { SamplePrompts } from "./sample-prompts";
 
 const SCROLL_TOP_MARGIN = 120;
 const SCROLL_TO_BOTTOM_THRESHOLD = 100;
@@ -936,56 +936,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       />
 
       {showSamplePrompts ? (
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="mx-auto w-full max-w-3xl">
-            {/* Personal Greeting */}
-            {!useUserPreferencesStore.getState().hidePersonalInfo &&
-              (() => {
-                // Get user's display name from various sources
-                const getUserDisplayName = () => {
-                  if (!user) return null;
-
-                  // Try to get name from user metadata first
-                  const displayName =
-                    user.user_metadata?.display_name ||
-                    user.user_metadata?.full_name ||
-                    user.user_metadata?.name;
-
-                  if (displayName) return displayName;
-
-                  // Fall back to email username (part before @)
-                  if (user.email) {
-                    const emailUsername = user.email.split("@")[0];
-                    if (emailUsername) {
-                      // Capitalize first letter and replace dots/underscores with spaces
-                      return emailUsername
-                        .split(/[._-]/)
-                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                        .join(" ");
-                    }
-                  }
-
-                  return null;
-                };
-
-                const displayName = getUserDisplayName();
-
-                return (
-                  <div className="mb-8 text-center">
-                    <div className="rounded-lg bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-6">
-                      <h2 className="mb-2 text-2xl font-semibold text-foreground">
-                        {displayName
-                          ? `Hello ${displayName}! How are you doing? 👋`
-                          : "Hello! How are you doing? 👋"}
-                      </h2>
-                    </div>
-                  </div>
-                );
-              })()}
-
-            <SamplePrompts onPromptSelect={handlePromptSelect} className="" />
-          </div>
-        </div>
+        <HeroSection onPromptSelect={handlePromptSelect} />
       ) : (
         <MessagesList
           messages={messages}
