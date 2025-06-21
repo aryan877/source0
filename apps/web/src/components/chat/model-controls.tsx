@@ -2,10 +2,10 @@
 
 import { getModelById, type ReasoningLevel } from "@/config/models";
 import { ALL_SUPPORTED_EXTENSIONS, ALL_SUPPORTED_MIME_TYPES } from "@/config/supported-files";
-import { ChevronDownIcon, MagnifyingGlassIcon, PaperClipIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, GlobeAltIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import {
   CpuChipIcon as CpuChipIconSolid,
-  MagnifyingGlassIcon as MagnifyingGlassIconSolid,
+  GlobeAltIcon as GlobeAltIconSolid,
 } from "@heroicons/react/24/solid";
 import {
   Button,
@@ -77,15 +77,6 @@ export const ModelControls = ({
   // Static file accept string from centralized config
   const fileAccept = [...ALL_SUPPORTED_MIME_TYPES, ...ALL_SUPPORTED_EXTENSIONS].join(",");
 
-  // Memoize search button classes to prevent hydration issues
-  const searchButtonClasses = useMemo(() => {
-    const baseClasses = "h-8 min-w-0 px-3 transition-all duration-200 border-2";
-    if (searchEnabled) {
-      return `${baseClasses} border-success bg-success/10 text-success hover:bg-success/20`;
-    }
-    return `${baseClasses} border-default-200 bg-content2 hover:border-default-300 hover:bg-content3`;
-  }, [searchEnabled]);
-
   // Don't render anything until mounted to prevent hydration mismatch
   if (!isMounted) {
     return null;
@@ -109,7 +100,7 @@ export const ModelControls = ({
   } as const;
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       {/* Hidden file input */}
       <input
         type="file"
@@ -122,14 +113,14 @@ export const ModelControls = ({
 
       {/* Reasoning Level Selector */}
       {computedValues.hasReasoning && computedValues.availableReasoningLevels.length > 0 && (
-        <Dropdown>
+        <Dropdown placement="top-start">
           <DropdownTrigger>
             <Button
               variant="flat"
               size="sm"
-              className="h-8 min-w-0 border-2 border-primary/20 bg-content2 px-3 transition-all duration-200 hover:border-primary/40 hover:bg-content3"
-              startContent={<CpuChipIconSolid className="h-3.5 w-3.5 text-primary" />}
-              endContent={<ChevronDownIcon className="h-3 w-3 text-default-500" />}
+              className="h-8 min-w-0 rounded-lg border border-primary/20 bg-content2/60 px-3 text-primary transition-all duration-200 hover:border-primary/40 hover:bg-content2"
+              startContent={<CpuChipIconSolid className="h-4 w-4 text-primary" />}
+              endContent={<ChevronDownIcon className="h-3 w-3 text-primary/70" />}
             >
               <span className="hidden text-xs font-medium sm:inline">
                 {reasoningLevelLabels[reasoningLevel]}
@@ -143,21 +134,24 @@ export const ModelControls = ({
               const selectedKey = Array.from(keys)[0] as ReasoningLevel;
               onReasoningLevelChange(selectedKey);
             }}
-            className="w-56"
+            className="w-64"
           >
             {computedValues.availableReasoningLevels.map((level) => (
               <DropdownItem
                 key={level}
                 textValue={level}
                 classNames={{
-                  base: "p-3",
+                  base: "p-3 hover:bg-content2 transition-colors duration-200",
                 }}
               >
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">
-                    {reasoningLevelLabels[level]} Reasoning
-                  </span>
-                  <span className="text-xs text-default-500">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <CpuChipIconSolid className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">
+                      {reasoningLevelLabels[level]} Reasoning
+                    </span>
+                  </div>
+                  <span className="pl-6 text-xs leading-relaxed text-foreground/70">
                     {reasoningLevelDescriptions[level]}
                   </span>
                 </div>
@@ -171,49 +165,76 @@ export const ModelControls = ({
       {computedValues.hasSearch && (
         <Tooltip
           content={
-            <div className="flex flex-col gap-1 p-1">
-              <span className="font-medium">
-                {searchEnabled ? "Web Search: ON" : "Web Search: OFF"}
-              </span>
-              <span className="text-xs text-default-400">
+            <div className="flex max-w-xs flex-col gap-2 p-2">
+              <div className="flex items-center gap-2">
+                {searchEnabled ? (
+                  <GlobeAltIconSolid className="h-4 w-4 text-success" />
+                ) : (
+                  <GlobeAltIcon className="h-4 w-4 text-foreground/60" />
+                )}
+                <span className="text-sm font-medium">
+                  {searchEnabled ? "Web Search: ON" : "Web Search: OFF"}
+                </span>
+              </div>
+              <span className="text-xs leading-relaxed text-foreground/70">
                 {searchEnabled
                   ? modelConfig?.capabilities.includes("search")
-                    ? "Using built-in search grounding"
-                    : "Using web search tool for real-time information"
-                  : "Click to enable web search for current information"}
+                    ? "Using built-in search grounding for real-time information"
+                    : "Using web search tool for current and accurate data"
+                  : "Enable web search to get current information and real-time data"}
               </span>
             </div>
           }
           placement="top"
-          delay={300}
+          delay={200}
+          closeDelay={100}
+          showArrow
         >
           <Button
             variant="flat"
             size="sm"
-            className={searchButtonClasses}
+            className={`h-8 min-w-0 rounded-lg border px-3 text-xs font-medium transition-all duration-200 hover:scale-105 ${
+              searchEnabled
+                ? "border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/20"
+                : "border-content2 bg-content2/60 text-foreground/70 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
+            }`}
             startContent={
               searchEnabled ? (
-                <MagnifyingGlassIconSolid className="h-3.5 w-3.5" />
+                <GlobeAltIconSolid className="h-4 w-4" />
               ) : (
-                <MagnifyingGlassIcon className="h-3.5 w-3.5" />
+                <GlobeAltIcon className="h-4 w-4" />
               )
             }
             onPress={() => onSearchToggle(!searchEnabled)}
           >
-            <span className="hidden text-xs font-medium sm:inline">
-              {searchEnabled ? "Search ON" : "Search"}
-            </span>
+            <span className="hidden sm:inline">{searchEnabled ? "Search ON" : "Search"}</span>
           </Button>
         </Tooltip>
       )}
 
       {/* Attachment Button */}
-      <Tooltip content={attachmentTooltip} placement="top" delay={500}>
+      <Tooltip
+        content={
+          <div className="flex flex-col gap-2 p-2">
+            <div className="flex items-center gap-2">
+              <PaperClipIcon className="h-4 w-4 text-foreground/80" />
+              <span className="text-sm font-medium">Attach Files</span>
+            </div>
+            <span className="text-xs leading-relaxed text-foreground/70">
+              Attach images, PDFs, or text files to enhance your conversation
+            </span>
+          </div>
+        }
+        placement="top"
+        delay={200}
+        closeDelay={100}
+        showArrow
+      >
         <Button
           variant="flat"
           size="sm"
           isIconOnly
-          className="h-8 w-8 flex-shrink-0 border-2 border-default-200 bg-content2 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content3"
+          className="h-8 w-8 flex-shrink-0 rounded-lg border border-content2 bg-content2/60 text-foreground/70 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
           onPress={() => fileInputRef.current?.click()}
           isDisabled={isLoading}
         >
