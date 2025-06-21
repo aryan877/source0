@@ -25,6 +25,7 @@ import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
 import { SecureFileDisplay } from "./secure-file-display";
+import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
 
 export interface ImagePendingData {
@@ -591,7 +592,7 @@ const MessageBubble = memo(
 
     return (
       <div
-        className={`group flex gap-6 ${isUser ? "flex-row-reverse" : "flex-row"} transition-all duration-200`}
+        className={`group flex h-full gap-6 ${isUser ? "flex-row-reverse" : "flex-row"} transition-all duration-200`}
         onMouseEnter={() => !isEditing && setShowActions(true)}
         onMouseLeave={() => !isEditing && setShowActions(false)}
       >
@@ -609,7 +610,7 @@ const MessageBubble = memo(
         )}
 
         <div
-          className={`flex flex-col gap-3 ${
+          className={`flex h-full flex-col gap-3 ${
             isEditing && isUser
               ? "w-full items-end"
               : isUser
@@ -618,7 +619,7 @@ const MessageBubble = memo(
           }`}
         >
           <div
-            className={`flex flex-col gap-4 ${
+            className={`flex h-full flex-col gap-4 ${
               isEditing && isUser
                 ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
                 : isUser
@@ -627,6 +628,7 @@ const MessageBubble = memo(
             }`}
           >
             {renderMessageParts}
+            {isLoading && !isUser && <StreamingIndicator />}
             {!isUser && renderGroundingMetadata}
           </div>
 

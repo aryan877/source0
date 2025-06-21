@@ -71,9 +71,6 @@ export const ModelControls = ({
     };
   }, [modelConfig]);
 
-  // Static tooltip for attachments
-  const attachmentTooltip = "Attach images, PDFs, or text files";
-
   // Static file accept string from centralized config
   const fileAccept = [...ALL_SUPPORTED_MIME_TYPES, ...ALL_SUPPORTED_EXTENSIONS].join(",");
 

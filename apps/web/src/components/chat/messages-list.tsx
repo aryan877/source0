@@ -2,14 +2,13 @@
 
 import { type Message } from "@ai-sdk/react";
 import { motion } from "framer-motion";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import {
   type TypedImageErrorAnnotation,
   type TypedImagePendingAnnotation,
 } from "../../types/annotations";
 import { ErrorDisplay } from "./error-display";
 import MessageBubble from "./message-bubble";
-import { StreamingIndicator } from "./streaming-indicator";
 import { SuggestedQuestions } from "./suggested-questions";
 
 const LoadingMessages = memo(() => (
@@ -195,7 +194,6 @@ interface MessagesListProps {
   onBranchChat: (messageId: string, modelId?: string) => void;
   onRetryMessage: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
-  messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   error?: Error;
   uiError?: string | null;
   onDismissUiError: () => void;
@@ -204,9 +202,9 @@ interface MessagesListProps {
   isLoadingQuestions: boolean;
   questionsError: string | null;
   onQuestionSelect: (question: string) => void;
-  selectedModel: string;
   isBranching: boolean;
   onBranchOptionsToggle: (isOpen: boolean) => void;
+  messagesContainerMinHeight?: number;
 }
 
 export const MessagesList = memo(
@@ -218,7 +216,6 @@ export const MessagesList = memo(
     onBranchChat,
     onRetryMessage,
     onEditMessage,
-    messagesContainerRef,
     error,
     uiError,
     onDismissUiError,
@@ -229,32 +226,11 @@ export const MessagesList = memo(
     onQuestionSelect,
     isBranching,
     onBranchOptionsToggle,
+    messagesContainerMinHeight,
   }: MessagesListProps) => {
-    const containerStyle = useMemo(
-      () => ({
-        paddingBottom: "2rem", // Space for the chat input and some buffer
-      }),
-      []
-    );
-
-    const isStreamingText =
-      isLoading &&
-      !messages.some((m) =>
-        m.annotations?.some(
-          (a) =>
-            typeof a === "object" &&
-            a !== null &&
-            (a as { type?: unknown }).type === "image_generation_pending"
-        )
-      );
-
     return (
-      <div
-        ref={messagesContainerRef}
-        className={`flex-1 overflow-y-auto ${isBranching ? "overflow-y-hidden" : ""}`}
-        data-messages-container="true"
-      >
-        <div className="mx-auto max-w-3xl space-y-6 px-4 py-8" style={containerStyle}>
+      <div className={`${isBranching ? "overflow-y-hidden" : ""}`} data-messages-container="true">
+        <div className="mx-auto flex h-full max-w-3xl flex-col gap-6 px-4 pb-12 pt-8">
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
           ) : (
@@ -263,9 +239,20 @@ export const MessagesList = memo(
                 (p) => p.type === "file" && p.mimeType?.startsWith("image/")
               );
 
+              const isLastMessage = index === messages.length - 1;
+
               if (hasImage) {
                 return (
-                  <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
+                  <div
+                    key={message.id}
+                    data-message-id={message.id}
+                    className="w-full max-w-full"
+                    style={
+                      isLastMessage && isLoading
+                        ? { minHeight: messagesContainerMinHeight }
+                        : undefined
+                    }
+                  >
                     <MessageBubble
                       message={message}
                       onRetry={onRetryMessage}
@@ -314,7 +301,16 @@ export const MessagesList = memo(
 
               // Default case: render a normal message bubble for text, tools, etc.
               return (
-                <div key={message.id} data-message-id={message.id} className="w-full max-w-full">
+                <div
+                  key={message.id}
+                  data-message-id={message.id}
+                  className="w-full max-w-full"
+                  style={
+                    isLastMessage && isLoading
+                      ? { minHeight: messagesContainerMinHeight }
+                      : undefined
+                  }
+                >
                   <MessageBubble
                     message={message}
                     onRetry={onRetryMessage}
@@ -328,8 +324,6 @@ export const MessagesList = memo(
               );
             })
           )}
-
-          {isStreamingText && <StreamingIndicator />}
 
           <ErrorDisplay
             error={error}
