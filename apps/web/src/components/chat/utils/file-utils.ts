@@ -1,4 +1,4 @@
-import { type UploadResult } from "@/utils/supabase/storage";
+import { type UploadResult } from "@/services/storage";
 
 export interface AttachedFileWithUrl {
   file: File;

@@ -16,3 +16,8 @@ export const messageSummariesKeys = {
   all: ["message-summaries"] as const,
   bySessionId: (sessionId: string) => [...messageSummariesKeys.all, "session", sessionId] as const,
 };
+
+export const userFilesKeys = {
+  all: ["user-files"] as const,
+  byUser: (userId: string) => [...userFilesKeys.all, "user", userId] as const,
+};

@@ -1,5 +1,5 @@
 import { ALL_SUPPORTED_MIME_TYPES } from "@/config/supported-files";
-import { createClient } from "./client";
+import { createClient } from "../utils/supabase/client";
 
 const supabase = createClient();
 const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";

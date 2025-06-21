@@ -1,7 +1,7 @@
 import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
 import { getModelById } from "@/config/models";
 import { type ChatState } from "@/hooks/use-chat-state";
-import { useFileUpload } from "@/hooks/use-file-upload";
+import { useStorage } from "@/hooks/use-storage";
 import { branchSession, ChatSession, getSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useCallback } from "react";
@@ -19,9 +19,10 @@ export const useChatHandlers = (
 ) => {
   const { setSelectedModel, getSelectedReasoningLevel, setSelectedReasoningLevel } =
     useModelSelectorStore();
-  const { uploadFilesToStorage } = useFileUpload(chatId, (error) =>
-    updateState({ uiError: error })
-  );
+  const { uploadFiles: uploadFilesToStorage } = useStorage({
+    chatId,
+    onUploadError: (error) => updateState({ uiError: error }),
+  });
 
   const getImageDimensions = useCallback(
     (file: File): Promise<{ width: number; height: number } | null> => {
