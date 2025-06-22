@@ -623,7 +623,7 @@ const MessageBubble = memo(
               isEditing && isUser
                 ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
                 : isUser
-                  ? "rounded-2xl bg-content2 px-5 py-4"
+                  ? "w-full rounded-2xl bg-content2 px-5 py-4"
                   : "w-full px-1"
             }`}
           >
