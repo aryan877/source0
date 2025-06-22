@@ -854,7 +854,13 @@ export const Sidebar = memo(
         >
           <SidebarHeader onNewChat={handleNewChat} />
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-          {isLoadingChats ? (
+          {!user ? (
+            <div className="flex-1 p-2">
+              <div className="rounded-lg bg-content2 p-3 text-center">
+                <p className="text-sm text-default-500">Sign in to view your chats</p>
+              </div>
+            </div>
+          ) : isLoadingChats ? (
             <div className="flex-1 p-2">
               <LoadingSkeleton />
             </div>
