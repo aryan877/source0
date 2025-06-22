@@ -5,11 +5,13 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import { useUiStore } from "@/stores/ui-store";
+import { MagnifyingGlassIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, useDisclosure } from "@heroui/react";
 import { PanelRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { OnboardingModal } from "./onboarding";
+import { SearchModal } from "./search/search-modal";
 import { Sidebar } from "./sidebar";
 
 interface AppShellProps {
@@ -23,6 +25,11 @@ export function AppShell({ children }: AppShellProps) {
   const windowObj = useWindow();
   const { user } = useAuth();
   const { focusSearch } = useUiStore();
+  const {
+    isOpen: isSearchModalOpen,
+    onOpen: onSearchModalOpen,
+    onClose: onSearchModalClose,
+  } = useDisclosure();
   const {
     isOpen: isOnboardingOpen,
     onOpen: onOnboardingOpen,
@@ -55,10 +62,7 @@ export function AppShell({ children }: AppShellProps) {
         event.preventDefault();
         switch (pressedShortcut.id) {
           case "search":
-            if (!isSidebarOpen) {
-              setIsSidebarOpen(true);
-            }
-            focusSearch();
+            onSearchModalOpen();
             break;
           case "new-chat":
             router.push("/");
@@ -75,7 +79,7 @@ export function AppShell({ children }: AppShellProps) {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [router, focusSearch, isSidebarOpen]);
+  }, [router, focusSearch, isSidebarOpen, onSearchModalOpen]);
 
   useEffect(() => {
     if (user && !isLoading && !hasCompletedOnboarding) {
@@ -138,16 +142,55 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
-      <Button
-        variant="flat"
-        size="sm"
-        isIconOnly
-        onPress={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed left-4 top-4 z-[60] h-10 w-10"
-        aria-label="Toggle menu"
-      >
-        <PanelRight className="h-5 w-5" />
-      </Button>
+      <div className="fixed left-4 top-4 z-[60]">
+        {isSidebarOpen ? (
+          <Button
+            variant="flat"
+            size="sm"
+            isIconOnly
+            onPress={() => setIsSidebarOpen(false)}
+            className="h-10 w-10"
+            aria-label="Close menu"
+          >
+            <PanelRight className="h-5 w-5" />
+          </Button>
+        ) : (
+          <div className="flex flex-row rounded-md bg-content2 p-1">
+            <Button
+              variant="light"
+              size="sm"
+              isIconOnly
+              onPress={() => setIsSidebarOpen(true)}
+              className="h-8 w-8"
+              aria-label="Open menu"
+            >
+              <PanelRight className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="light"
+              size="sm"
+              isIconOnly
+              onPress={() => {
+                onSearchModalOpen();
+              }}
+              className="h-8 w-8"
+              aria-label="Search"
+            >
+              <MagnifyingGlassIcon className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="light"
+              size="sm"
+              isIconOnly
+              onPress={() => router.push("/")}
+              className="h-8 w-8"
+              aria-label="New Chat"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+      </div>
       <Sidebar
         selectedChatId={currentChatId}
         onSelectChat={handleSelectChat}
@@ -163,6 +206,7 @@ export function AppShell({ children }: AppShellProps) {
         {children}
       </main>
       <OnboardingModal isOpen={isOnboardingOpen} onClose={handleCloseOnboarding} />
+      <SearchModal isOpen={isSearchModalOpen} onClose={onSearchModalClose} />
     </div>
   );
 }
