@@ -1,6 +1,11 @@
 "use client";
 
-import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences-store";
+import {
+  themeColorMap,
+  themeOptions,
+  useUserPreferencesStore,
+} from "@/stores/user-preferences-store";
+import { CheckIcon } from "@heroicons/react/24/outline";
 import { Button, Input, Textarea } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -88,24 +93,48 @@ export function CustomizationTab({ isMounted }: CustomizationTabProps) {
       <div className="space-y-6">
         <div>
           <label className="mb-4 block text-sm font-semibold text-foreground">Theme</label>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-4">
             {!isMounted &&
               themeOptions.map((option) => (
-                <div key={option.key} className="h-10 w-24 animate-pulse rounded-lg bg-content2" />
+                <div key={option.key} className="h-24 w-16 animate-pulse rounded-lg bg-content2" />
               ))}
             {isMounted &&
-              themeOptions.map((themeOption) => (
-                <Button
-                  key={themeOption.key}
-                  variant={theme === themeOption.key ? "solid" : "bordered"}
-                  onPress={() => setTheme(themeOption.key)}
-                  color={theme === themeOption.key ? "primary" : "default"}
-                  className="capitalize"
-                  startContent={<span className="text-lg">{themeOption.icon}</span>}
-                >
-                  {themeOption.label}
-                </Button>
-              ))}
+              themeOptions.map((themeOption) => {
+                const colors = themeColorMap[themeOption.key];
+                const isSelected = theme === themeOption.key;
+                return (
+                  <div
+                    key={themeOption.key}
+                    onClick={() => setTheme(themeOption.key)}
+                    className="flex cursor-pointer flex-col items-center gap-2"
+                  >
+                    <div className="relative">
+                      <div
+                        className="h-24 w-16 rounded-xl shadow-lg transition-all duration-300"
+                        style={{
+                          backgroundColor: colors[0],
+                          boxShadow: isSelected
+                            ? `0 6px 20px ${colors[0]}50, 0 0 0 3px ${colors[0]}70`
+                            : "0 4px 12px rgba(0,0,0,0.1)",
+                          transform: isSelected ? "translateY(-4px)" : "none",
+                        }}
+                      />
+                      {isSelected && (
+                        <div className="absolute -right-1.5 -top-1.5 rounded-full bg-success p-1 ring-2 ring-content1">
+                          <CheckIcon className="h-3 w-3 text-success-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={`text-sm font-medium transition-colors ${
+                        isSelected ? "text-primary" : "text-default-600"
+                      }`}
+                    >
+                      {themeOption.label}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>

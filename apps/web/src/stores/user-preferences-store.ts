@@ -2,14 +2,24 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export const themeOptions = [
-  { key: "light", label: "Light", icon: "☀️", base: "light" },
-  { key: "dark", label: "Dark", icon: "🌙", base: "dark" },
-  { key: "ocean", label: "Ocean", icon: "🌊", base: "light" },
-  { key: "forest", label: "Forest", icon: "🌲", base: "dark" },
-  { key: "sunset", label: "Sunset", icon: "🌅", base: "light" },
-  { key: "lavender", label: "Lavender", icon: "💜", base: "dark" },
-  { key: "rose", label: "Rose", icon: "🌹", base: "light" },
+  { key: "light", label: "Light", base: "light" },
+  { key: "dark", label: "Dark", base: "dark" },
+  { key: "ocean", label: "Ocean", base: "light" },
+  { key: "forest", label: "Forest", base: "dark" },
+  { key: "sunset", label: "Sunset", base: "light" },
+  { key: "lavender", label: "Lavender", base: "dark" },
+  { key: "rose", label: "Rose", base: "light" },
 ] as const;
+
+export const themeColorMap = {
+  light: ["#737373", "#525252"],
+  dark: ["#a3a3a3", "#737373"],
+  ocean: ["#06b6d4", "#0891b2"],
+  forest: ["#22c55e", "#16a34a"],
+  sunset: ["#ef4444", "#dc2626"],
+  lavender: ["#a855f7", "#9333ea"],
+  rose: ["#f43f5e", "#e11d48"],
+} as const;
 
 export type ThemeKey = (typeof themeOptions)[number]["key"];
 

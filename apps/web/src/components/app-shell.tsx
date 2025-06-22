@@ -149,22 +149,22 @@ export function AppShell({ children }: AppShellProps) {
             size="sm"
             isIconOnly
             onPress={() => setIsSidebarOpen(false)}
-            className="h-10 w-10"
+            className="h-10 w-10 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-md active:scale-95"
             aria-label="Close menu"
           >
-            <PanelRight className="h-5 w-5" />
+            <PanelRight className="h-5 w-5 transition-transform duration-200" />
           </Button>
         ) : (
-          <div className="flex flex-row rounded-md bg-content2 p-1">
+          <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm backdrop-blur-sm">
             <Button
               variant="light"
               size="sm"
               isIconOnly
               onPress={() => setIsSidebarOpen(true)}
-              className="h-8 w-8"
+              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-sm active:scale-95"
               aria-label="Open menu"
             >
-              <PanelRight className="h-5 w-5" />
+              <PanelRight className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
             </Button>
             <Button
               variant="light"
@@ -173,20 +173,20 @@ export function AppShell({ children }: AppShellProps) {
               onPress={() => {
                 onSearchModalOpen();
               }}
-              className="h-8 w-8"
+              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-primary/10 hover:text-primary hover:shadow-sm active:scale-95"
               aria-label="Search"
             >
-              <MagnifyingGlassIcon className="h-5 w-5" />
+              <MagnifyingGlassIcon className="h-5 w-5 transition-all duration-200 hover:rotate-12" />
             </Button>
             <Button
               variant="light"
               size="sm"
               isIconOnly
               onPress={() => router.push("/")}
-              className="h-8 w-8"
+              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-success/10 hover:text-success hover:shadow-sm active:scale-95"
               aria-label="New Chat"
             >
-              <PlusIcon className="h-5 w-5" />
+              <PlusIcon className="h-5 w-5 transition-all duration-200 hover:rotate-90" />
             </Button>
           </div>
         )}

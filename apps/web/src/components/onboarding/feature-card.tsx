@@ -1,5 +1,5 @@
 import { ModelConfig } from "@/config/models";
-import { themeOptions } from "@/stores/user-preferences-store";
+import { themeColorMap, themeOptions } from "@/stores/user-preferences-store";
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -48,15 +48,6 @@ const modelNames = [
   "DeepSeek V3",
   "Claude 4 Sonnet",
 ];
-
-// Map theme colors for the visual showcase
-const themeColorMap = {
-  ocean: ["#0ea5e9", "#0284c7"],
-  forest: ["#059669", "#047857"],
-  sunset: ["#f59e0b", "#d97706"],
-  lavender: ["#8b5cf6", "#7c3aed"],
-  rose: ["#ec4899", "#db2777"],
-} as const;
 
 const ProviderShowcase = () => {
   const [currentProvider, setCurrentProvider] = useState(0);

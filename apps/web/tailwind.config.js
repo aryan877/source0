@@ -16,8 +16,10 @@ export default {
       fontFamily: {
         montserrat: ["Montserrat", "sans-serif"],
         palanquin: ["Palanquin", "sans-serif"],
-        geistmono: ["Geist Mono", "monospace"],
+        geistmono: ["var(--font-geist-mono)", "monospace"],
         inter: ["Inter", "system-ui", "sans-serif"],
+        orbitron: ["var(--font-orbitron)", "monospace"],
+        brand: ["var(--font-brand)", "monospace"],
       },
       colors: {
         accent: {

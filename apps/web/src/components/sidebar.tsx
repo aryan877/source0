@@ -7,7 +7,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import { useUiStore } from "@/stores/ui-store";
-import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences-store";
+import {
+  themeColorMap,
+  themeOptions,
+  useUserPreferencesStore,
+} from "@/stores/user-preferences-store";
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -201,8 +205,8 @@ SidebarOverlay.displayName = "SidebarOverlay";
 
 const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
   <div className="border-b border-divider p-4">
-    <div className="mb-4 flex h-10 items-center">
-      <h2 className="ml-14 text-lg font-bold text-foreground">Source0</h2>
+    <div className="mb-4 flex h-10 items-center justify-center">
+      <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">SOURCE0</h1>
     </div>
 
     <Button
@@ -585,7 +589,12 @@ const ThemeSelector = memo(
           {themeOptions.map((theme) => (
             <SelectItem
               key={theme.key}
-              startContent={<span className="text-sm">{theme.icon}</span>}
+              startContent={
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: themeColorMap[theme.key][0] }}
+                />
+              }
             >
               {theme.label}
             </SelectItem>
@@ -612,14 +621,25 @@ const ThemeSelector = memo(
           const currentThemeOption = themeOptions.find((theme) => theme.key === currentTheme);
           return currentThemeOption ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm">{currentThemeOption.icon}</span>
+              <span
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: themeColorMap[currentThemeOption.key][0] }}
+              />
               <span className="text-sm font-medium">{currentThemeOption.label}</span>
             </div>
           ) : null;
         }}
       >
         {themeOptions.map((theme) => (
-          <SelectItem key={theme.key} startContent={<span className="text-sm">{theme.icon}</span>}>
+          <SelectItem
+            key={theme.key}
+            startContent={
+              <span
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: themeColorMap[theme.key][0] }}
+              />
+            }
+          >
             {theme.label}
           </SelectItem>
         ))}
