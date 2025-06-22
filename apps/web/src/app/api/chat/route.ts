@@ -1,14 +1,13 @@
 import { getModelById, type ReasoningLevel } from "@/config/models";
+import { getMessages } from "@/services/chat-messages";
+import { saveAssistantMessageServer, saveUserMessageServer } from "@/services/chat-messages.server";
+import { createOrGetSession } from "@/services/chat-sessions.server";
 import {
-  createOrGetSession,
-  generateTitleOnly,
-  getMessages,
-  saveAssistantMessageServer,
-  saveUserMessageServer,
   serverAppendStreamId,
   serverGetLatestStreamIdWithStatus,
   serverMarkStreamAsComplete,
-} from "@/services";
+} from "@/services/chat-streams";
+import { generateTitleOnly } from "@/services/generate-chat-title";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
@@ -233,7 +232,15 @@ export async function POST(req: Request): Promise<Response> {
       await serverAppendStreamId(supabase, finalSessionId, streamId);
 
       const stream = createDataStream({
-        execute: async (dataStream) => {
+        execute: (dataStream) => {
+          console.log("Starting streamText for session:", {
+            sessionId: finalSessionId,
+            userId: user.id,
+            model,
+            streamId,
+            messageCount: finalMessages.length,
+          });
+
           const result = streamText({
             model: modelInstance,
             messages: finalMessages,
@@ -244,7 +251,25 @@ export async function POST(req: Request): Promise<Response> {
             }),
             // abortSignal: req.signal,
             ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+            onError: (error) => {
+              console.error("streamText error:", {
+                sessionId: finalSessionId,
+                userId: user.id,
+                model,
+                streamId,
+                error: error.error,
+                stack: error.error instanceof Error ? error.error.stack : undefined,
+              });
+            },
             onFinish: async ({ text, providerMetadata, response }) => {
+              console.log("streamText completed for session:", {
+                sessionId: finalSessionId,
+                userId: user.id,
+                model,
+                streamId,
+                textLength: text.length,
+              });
+
               const logContext: {
                 sessionId: string;
                 userId: string;
@@ -528,31 +553,36 @@ export async function POST(req: Request): Promise<Response> {
                 console.error("Failed to mark stream as complete", { ...logContext, error: e });
               }
             },
-            onError: ({ error }) => {
-              // Log LLM-specific errors (not abort errors)
-              handleStreamError(error, "LLMStream", {
-                sessionId: finalSessionId,
-                userId: user.id,
-                model,
-                streamId,
-              });
-            },
           });
 
           result.mergeIntoDataStream(dataStream, {
             sendReasoning: modelConfig.capabilities.includes("reasoning"),
             sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
           });
+
+          // Consume the stream to ensure it runs to completion & triggers onFinish
+          // even when the client response is aborted:
+          result.consumeStream();
         },
         onError: (error: unknown) => {
-          console.error("DataStream error", error);
-          const errorResponse = handleStreamError(error, "DataStream", {
+          console.error("createDataStream error:", {
+            sessionId: finalSessionId,
+            userId: user.id,
+            model,
+            streamId,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+
+          // Log LLM-specific errors (not abort errors)
+          handleStreamError(error, "DataStream", {
             sessionId: finalSessionId,
             userId: user.id,
             model,
             streamId,
           });
-          return errorResponse;
+
+          return error instanceof Error ? error.message : "An error occurred during streaming";
         },
       });
       return new Response(await streamContext.resumableStream(streamId, () => stream), {

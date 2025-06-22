@@ -240,11 +240,12 @@ export const MessagesList = memo(
               );
 
               const isLastMessage = index === messages.length - 1;
+              const uniqueKey = `${message.id}-${index}`;
 
               if (hasImage) {
                 return (
                   <div
-                    key={message.id}
+                    key={uniqueKey}
                     data-message-id={message.id}
                     className="w-full max-w-full"
                     style={
@@ -278,7 +279,7 @@ export const MessagesList = memo(
               if (imageGenErrorAnnotation) {
                 return (
                   <ErrorDisplay
-                    key={`error-${message.id}`}
+                    key={`error-${uniqueKey}`}
                     uiError={imageGenErrorAnnotation.data.error}
                     onDismissUiError={() => {
                       /* Cannot dismiss this error */
@@ -296,13 +297,13 @@ export const MessagesList = memo(
               );
 
               if (imageGenPendingAnnotation) {
-                return <ImageLoadingSkeleton key={`pending-${message.id}`} />;
+                return <ImageLoadingSkeleton key={`pending-${uniqueKey}`} />;
               }
 
               // Default case: render a normal message bubble for text, tools, etc.
               return (
                 <div
-                  key={message.id}
+                  key={uniqueKey}
                   data-message-id={message.id}
                   className="w-full max-w-full"
                   style={

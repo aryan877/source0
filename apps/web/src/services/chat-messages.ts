@@ -1,9 +1,7 @@
 import { ReasoningLevel } from "@/config/models";
-import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/message-utils";
 import { createClient } from "@/utils/supabase/client";
-import { type SupabaseClient } from "@supabase/supabase-js";
 import { type Message } from "ai";
 
 // Types
@@ -336,65 +334,4 @@ export async function saveAssistantMessage(
     return;
   }
   return addMessage(preparedMessage);
-}
-
-/**
- * Server-side function to save a user message.
- * It uses the new `prepareMessageForDb` helper.
- */
-export async function saveUserMessageServer(
-  supabase: SupabaseClient,
-  userMessage: Message,
-  sessionId: string,
-  userId: string
-): Promise<DBChatMessage> {
-  const preparedMessage = prepareMessageForDb({
-    message: userMessage,
-    sessionId,
-    userId,
-  });
-  return addMessageServer(supabase, preparedMessage);
-}
-
-/**
- * Server-side function to save an assistant message.
- * It uses the new `prepareMessageForDb` helper.
- */
-export async function saveAssistantMessageServer(
-  supabase: SupabaseClient,
-  message: Message,
-  sessionId: string,
-  userId: string,
-  model: string,
-  modelProvider: string,
-  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
-  providerMetadata?: ProviderMetadata
-): Promise<DBChatMessage> {
-  const preparedMessage = prepareMessageForDb({
-    message,
-    sessionId,
-    userId,
-    model,
-    modelProvider,
-    reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
-    searchEnabled: modelConfig.searchEnabled,
-    providerMetadata,
-  });
-  return addMessageServer(supabase, preparedMessage);
-}
-
-/**
- * Add a message to the database (server-side version)
- */
-export async function addMessageServer(
-  supabase: SupabaseClient,
-  message: Omit<ChatMessage, "created_at">
-): Promise<DBChatMessage> {
-  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
-
-  if (error) {
-    console.error("Error upserting message:", error);
-    throw new Error(`Failed to upsert message: ${error.message}`);
-  }
-  return data;
 }

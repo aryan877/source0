@@ -629,6 +629,11 @@ const MessageBubble = memo(
           >
             {renderMessageParts}
             {isLoading && !isUser && <StreamingIndicator />}
+            {isLoading && isUser && (
+              <div className="mt-2">
+                <StreamingIndicator />
+              </div>
+            )}
             {!isUser && renderGroundingMetadata}
           </div>
 

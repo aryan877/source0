@@ -1,5 +1,5 @@
 import { ModelConfig } from "@/config/models";
-import { saveAssistantMessageServer } from "@/services";
+import { saveAssistantMessageServer } from "@/services/chat-messages.server";
 import { openai } from "@ai-sdk/openai";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
 import {

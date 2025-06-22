@@ -39,7 +39,7 @@ export function useChatScrollManager({
     const handleScroll = () => {
       const isAtBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight < SCROLL_THRESHOLD;
-      setShowScrollToBottom(!isAtBottom && container.scrollTop > 0);
+      setShowScrollToBottom(!isAtBottom);
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });

@@ -16,7 +16,7 @@ export function useChatMessages(sessionId: string) {
       return convertToAiMessages(dbMessages);
     },
     enabled: !!sessionId && sessionId !== "new",
-    staleTime: 1000 * 60 * 5, // 5 minutes - messages change frequently during conversations
+    staleTime: 0, // Refetch on mount
     refetchOnWindowFocus: true,
   });
 

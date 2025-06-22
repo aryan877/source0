@@ -136,20 +136,6 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 /**
- * Create or get session ID
- */
-export async function createOrGetSession(
-  userId: string,
-  sessionId?: string
-): Promise<{ sessionId: string; isNewSession: boolean }> {
-  if (!sessionId || sessionId === "new") {
-    const newSession = await createSession(userId, "New Chat");
-    return { sessionId: newSession.id, isNewSession: true };
-  }
-  return { sessionId, isNewSession: false };
-}
-
-/**
  * Generate a unique share slug
  */
 export function generateShareSlug(): string {
@@ -299,6 +285,25 @@ export async function searchUserSessions(searchTerm: string): Promise<ChatSessio
   if (error) {
     console.error("Error searching chat sessions:", error);
     return [];
+  }
+  return data;
+}
+
+/**
+ * Update a chat session's title
+ */
+export async function updateSessionTitle(sessionId: string, title: string): Promise<ChatSession> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update({ title })
+    .eq("id", sessionId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating chat session title:", error);
+    throw new Error(`Failed to update chat session title: ${error.message}`);
   }
   return data;
 }

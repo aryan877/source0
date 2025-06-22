@@ -3,13 +3,14 @@
 import { getLatestStreamIdWithStatus } from "@/services";
 import { type UseChatHelpers } from "@ai-sdk/react";
 import { type Message as UIMessage } from "ai";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 
 export type DataPart = { type: "append-message"; message: string };
 
 export interface Props {
   autoResume: boolean;
   initialMessages: UIMessage[];
+  messages: UIMessage[];
   experimental_resume: UseChatHelpers["experimental_resume"];
   data: UseChatHelpers["data"];
   setMessages: UseChatHelpers["setMessages"];
@@ -19,12 +20,25 @@ export interface Props {
 export function useAutoResume({
   autoResume,
   initialMessages,
+  messages,
   experimental_resume,
   data,
   setMessages,
   chatId,
 }: Props) {
-  const tryResume = useCallback(() => {
+  useEffect(() => {
+    if (!autoResume) return;
+
+    // Don't resume if useChat hook hasn't initialized its messages yet
+    // We check if messages length matches initialMessages (useChat has loaded them)
+    if (messages.length === 0 && initialMessages.length > 0) return;
+
+    const mostRecentMessage = messages.at(-1);
+
+    if (mostRecentMessage?.role !== "user") {
+      return;
+    }
+
     if (!chatId) {
       console.log("Auto-resume skipped: no chatId");
       return;
@@ -57,20 +71,10 @@ export function useAutoResume({
         console.log("Attempting to resume chat stream (fallback)...");
         experimental_resume();
       });
-  }, [chatId, experimental_resume]);
 
-  // Auto-execute resume logic once on mount when autoResume is true
-  useEffect(() => {
-    if (!autoResume) {
-      console.log("Auto-resume disabled");
-      return;
-    }
-
-    tryResume();
-
-    // we intentionally run this once with empty dependency array
+    // we include messages.length to re-run when useChat initializes its messages
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [messages.length]);
 
   // Handle append-message data parts for resumable streams
   useEffect(() => {
@@ -81,7 +85,9 @@ export function useAutoResume({
     if (dataPart.type === "append-message") {
       console.log("Processing append-message data part");
       const message = JSON.parse(dataPart.message) as UIMessage;
-      setMessages([...initialMessages, message]);
+      if (!messages.find((m) => m.id === message.id)) {
+        setMessages([...messages, message]);
+      }
     }
-  }, [data, initialMessages, setMessages]);
+  }, [data, messages, setMessages]);
 }

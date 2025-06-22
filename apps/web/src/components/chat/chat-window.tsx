@@ -23,7 +23,7 @@ import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { prepareMessageForDb } from "@/utils/message-utils";
+import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/message-utils";
 import { useChat, type Message } from "@ai-sdk/react";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -69,14 +69,48 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   >();
 
   const {
-    messages: queryMessages,
-    isLoading: isLoadingMessages,
+    messages: initialMessages,
+    isLoading: isLoadingInitialMessages,
     invalidateMessages,
   } = useChatMessages(chatId);
+
+  const isLoadingMessages = isLoadingInitialMessages;
   const { updateSessionInCache, invalidateSessions } = useChatSessions();
   const { summaries, invalidateSummaries } = useMessageSummaries(chatId);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const chatBody = useMemo(() => {
+    const modelConfig = getModelById(selectedModel);
+    const provider = modelConfig?.provider;
+    const apiKey =
+      provider && useApiKeysStore.getState().shouldUseProviderKey(provider)
+        ? useApiKeysStore.getState().getApiKey(provider)
+        : undefined;
+
+    return {
+      model: selectedModel,
+      reasoningLevel: reasoningLevel,
+      searchEnabled: searchEnabled,
+      memoryEnabled: memoryEnabled,
+      showChatNavigator: showChatNavigator,
+      id: chatId === "new" ? undefined : chatId,
+      isFirstMessage: chatId !== "new" && initialMessages.length === 0,
+      apiKey,
+      assistantName,
+      userTraits,
+    };
+  }, [
+    selectedModel,
+    reasoningLevel,
+    searchEnabled,
+    memoryEnabled,
+    showChatNavigator,
+    chatId,
+    initialMessages.length,
+    assistantName,
+    userTraits,
+  ]);
 
   const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
     useChatHandlers(
@@ -103,31 +137,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   } = useChat({
     api: "/api/chat",
     id: chatId === "new" ? undefined : chatId,
-    initialMessages: queryMessages,
+    initialMessages: [],
     sendExtraMessageFields: true,
     generateId: () => uuidv4(),
     experimental_throttle: 100,
-    body: (() => {
-      const modelConfig = getModelById(selectedModel);
-      const provider = modelConfig?.provider;
-      const apiKey =
-        provider && useApiKeysStore.getState().shouldUseProviderKey(provider)
-          ? useApiKeysStore.getState().getApiKey(provider)
-          : undefined;
-
-      return {
-        model: selectedModel,
-        reasoningLevel: reasoningLevel,
-        searchEnabled: searchEnabled,
-        memoryEnabled: memoryEnabled,
-        showChatNavigator: showChatNavigator,
-        id: chatId === "new" ? undefined : chatId,
-        isFirstMessage: chatId !== "new" && queryMessages.length === 0,
-        apiKey,
-        assistantName,
-        userTraits,
-      };
-    })(),
+    body: chatBody,
     onError: (error) => {
       console.error("useChat Hook Error", error, {
         chatId,
@@ -257,9 +271,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             createdAt: new Date(),
           };
 
-          setMessages((currentMessages) =>
-            currentMessages.map((msg) => (msg.id === message.id ? finalMessage : msg))
-          );
+          setMessages((currentMessages) => {
+            const updatedMessages = currentMessages.map((msg) =>
+              msg.id === message.id ? finalMessage : msg
+            );
+            return ensureUniqueMessages(updatedMessages);
+          });
         }
       }
 
@@ -297,11 +314,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
           if (annotationData.messageSaved && annotationData.databaseId) {
             const databaseId = annotationData.databaseId;
-            setMessages((currentMessages) =>
-              currentMessages.map((msg) =>
+            setMessages((currentMessages) => {
+              const updatedMessages = currentMessages.map((msg) =>
                 msg.id === message.id ? { ...msg, id: databaseId } : msg
-              )
-            );
+              );
+              return ensureUniqueMessages(updatedMessages);
+            });
           }
 
           if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
@@ -353,6 +371,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     },
   });
 
+  useEffect(() => {
+    if (status === "ready" && initialMessages.length > 0 && messages.length === 0) {
+      setMessages(ensureUniqueMessages(initialMessages));
+    }
+  }, [initialMessages, messages.length, setMessages, status]);
+
   // Add suggested questions hook after useChat
   const {
     questions,
@@ -377,6 +401,21 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
+    // Always mark the stream as cancelled on explicit stop
+    if (chatId && chatId !== "new") {
+      getLatestStreamIdWithStatus(chatId)
+        .then((latestStream) => {
+          if (latestStream && !latestStream.cancelled) {
+            console.log(`Marking stream ${latestStream.streamId} as cancelled`);
+            return markStreamAsCancelled(latestStream.streamId);
+          }
+        })
+        .catch((error) => {
+          console.error("Error marking stream as cancelled:", error);
+        });
+    }
+
+    // Then, if a partial message exists, save it
     if (lastAssistantMessage && chatId !== "new" && user) {
       console.log("Saving partial message due to user stop:", lastAssistantMessage);
 
@@ -404,19 +443,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           { fireAndForget: true, existingParts: preparedMessage.parts }
         );
       }
-
-      if (chatId && chatId !== "new") {
-        getLatestStreamIdWithStatus(chatId)
-          .then((latestStream) => {
-            if (latestStream && !latestStream.cancelled) {
-              console.log(`Marking stream ${latestStream.streamId} as cancelled`);
-              return markStreamAsCancelled(latestStream.streamId);
-            }
-          })
-          .catch((error) => {
-            console.error("Error marking stream as cancelled:", error);
-          });
-      }
     }
   }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
 
@@ -442,8 +468,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   }, [messages, stop, updateState, append]);
 
   useAutoResume({
-    autoResume: !isLoadingMessages && chatId !== "new" && !isSharedView,
-    initialMessages: queryMessages,
+    autoResume: chatId !== "new" && !isSharedView,
+    initialMessages,
+    messages,
     experimental_resume,
     data,
     setMessages,
@@ -671,7 +698,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         const newSessionId = uuidv4();
-        setMessages([messageToAppend]);
+        setMessages(ensureUniqueMessages([messageToAppend]));
         setJustSubmittedMessageId(messageToAppend.id);
         router.push(`/chat/${newSessionId}`);
 
@@ -689,7 +716,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             invalidateSessions();
             transferModelSelection("new", newSessionId);
           })
-          .catch((error) => {
+          .catch((error: unknown) => {
             console.error("Failed to create new session in background:", error);
           });
 
