@@ -28,10 +28,11 @@ const S0Logo = ({ className = "h-14 w-14" }: { className?: string }) => (
       <text
         x="32"
         y="42"
-        fontFamily="system-ui, -apple-system, sans-serif"
+        fontFamily="Orbitron, monospace"
         fontSize="20"
-        fontWeight="700"
+        fontWeight="900"
         textAnchor="middle"
+        letterSpacing="2px"
         className="fill-background"
       >
         S0

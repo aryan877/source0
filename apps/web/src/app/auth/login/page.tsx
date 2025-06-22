@@ -81,7 +81,7 @@ const BrandLogo = () => (
     />
     <div className="relative flex h-14 w-14 items-center justify-center rounded-xl bg-background">
       <motion.span
-        className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-xl font-bold text-transparent"
+        className="font-orbitron bg-gradient-to-r from-primary to-secondary bg-clip-text text-xl font-black tracking-widest text-transparent"
         animate={{
           scale: [1, 1.05, 1],
         }}
@@ -148,8 +148,8 @@ export default function LoginPage() {
               >
                 <h1 className="text-4xl font-bold text-foreground lg:text-5xl">
                   Welcome to{" "}
-                  <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                    Source0
+                  <span className="font-orbitron bg-gradient-to-r from-primary to-secondary bg-clip-text font-black tracking-widest text-transparent">
+                    SOURCE0
                   </span>
                 </h1>
                 <motion.div

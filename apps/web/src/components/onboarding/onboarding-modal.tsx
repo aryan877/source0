@@ -78,7 +78,10 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
         <ModalHeader className="border-b border-divider">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold">Welcome to Source0!</h2>
+              <h2 className="text-2xl font-bold">
+                Welcome to <span className="font-orbitron font-black tracking-widest">SOURCE0</span>
+                !
+              </h2>
               <span className="rounded-full bg-gradient-to-r from-primary to-secondary px-3 py-1 text-xs font-semibold text-primary-foreground">
                 Built for T3 Cloneathon
               </span>
