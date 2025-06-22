@@ -129,7 +129,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
       <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"}`}>
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
           {/* Line Numbers Column */}
-          <div className="flex min-w-[3rem] select-none flex-col border-r border-divider bg-content2 px-3 py-3">
+          <div className="flex min-w-[3rem] select-none flex-col border-r border-divider bg-content2 py-3 pl-3 pr-2">
             {lineNumbers.map((lineNum) => (
               <div
                 key={lineNum}
@@ -142,7 +142,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
           {/* Code Column */}
           <div className="min-w-0 flex-1 bg-content1">
             {isLanguageSupported ? (
-              <div className="px-3 py-3 font-mono text-sm leading-6">
+              <div className="py-3 pl-2 pr-3 font-mono text-sm leading-6">
                 <ShikiHighlighter
                   theme={shikiTheme}
                   language={language}
@@ -152,7 +152,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
                     isWrapped
                       ? "[&>pre]:overflow-hidden [&>pre]:whitespace-pre-wrap [&>pre]:break-words"
                       : "[&>pre]:overflow-x-auto [&>pre]:whitespace-pre"
-                  } !m-0 !bg-transparent !p-0 [&>pre]:!bg-transparent`}
+                  } !m-0 !bg-transparent !p-0 [&>pre]:!bg-transparent [&>pre]:!p-0`}
                 >
                   {code}
                 </ShikiHighlighter>
