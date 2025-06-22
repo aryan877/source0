@@ -887,7 +887,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     const calculateMinHeight = () => {
       const headerHeight = headerRef.current?.offsetHeight || 0;
       const chatInputHeight = chatInputContainerRef.current?.offsetHeight || 0;
-      const messagesContainerVerticalPadding = 80;
+      const messagesContainerVerticalPadding = 100;
       const minHeight =
         window.innerHeight - headerHeight - chatInputHeight - messagesContainerVerticalPadding;
       setMessagesContainerMinHeight(minHeight > 0 ? minHeight : 0);
