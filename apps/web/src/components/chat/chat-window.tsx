@@ -143,51 +143,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     experimental_throttle: 100,
     body: chatBody,
     onError: (error) => {
-      console.error("useChat Hook Error", error, {
-        chatId,
-        selectedModel: selectedModel,
-        reasoningLevel: reasoningLevel,
-        searchEnabled: searchEnabled,
-        memoryEnabled: memoryEnabled,
-        messageCount: messages.length,
-        status,
-        input: input?.substring(0, 100),
-        attachedFilesCount: state.attachedFiles.length,
-      });
-
       const errorMessage = error.message || String(error);
 
-      if (
-        errorMessage.includes("CONTEXT_LENGTH_EXCEEDED") ||
-        errorMessage.includes("TOKEN_LIMIT_EXCEEDED") ||
-        errorMessage.includes("REQUEST_TOO_LARGE") ||
-        (errorMessage.includes("context") && errorMessage.includes("length")) ||
-        (errorMessage.includes("token") && errorMessage.includes("limit"))
-      ) {
-        updateState({
-          uiError:
-            "💬 Conversation is too long! Please start a new chat or try a shorter message. You can also try enabling web search to get more concise responses.",
-        });
-        return;
-      }
-
-      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-        updateState({
-          uiError: "⏱️ Rate limit exceeded. Please wait a moment before sending another message.",
-        });
-        return;
-      }
-
-      if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-        updateState({
-          uiError: "🌐 Network error. Please check your connection and try again.",
-        });
-        return;
-      }
-
-      updateState({
-        uiError: "❌ Something went wrong. Please try again or start a new chat.",
-      });
+      updateState({ uiError: errorMessage });
     },
     onResponse: (response) => {
       if (!response.ok) {
