@@ -210,10 +210,10 @@ const sanitizeSchema = {
     code: [...(defaultSchema.attributes?.code || []), ["className", /^language-./]],
     span: [
       ...(defaultSchema.attributes?.span || []),
-      ["className", /^(hljs-|shiki|line)/],
+      ["className", /^(hljs-|shiki|line|katex|katex-display|mord|vlist|pstrut|strut|base)/],
       "style",
     ],
-    div: [...(defaultSchema.attributes?.div || []), "className"],
+    div: [...(defaultSchema.attributes?.div || []), "className", "style"],
     pre: [...(defaultSchema.attributes?.pre || []), "className"],
   },
 };

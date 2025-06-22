@@ -179,6 +179,7 @@ export const buildSystemMessage = (
     config.capabilities.includes("image") && "You can analyze images.",
     config.capabilities.includes("pdf") && "You can read PDFs.",
     "When providing code examples, use markdown code blocks with appropriate language specifiers: ```python code ```",
+    "For mathematical expressions, use LaTeX syntax enclosed in `$$...$$` for block-level equations and `$...$` for inline equations. The output will be rendered using KaTeX.",
   ];
 
   return parts.filter(Boolean).join(" ");
