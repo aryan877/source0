@@ -20,6 +20,7 @@ interface SidebarState {
   removePinnedSession: (sessionId: string) => void;
   isPinnedSession: (sessionId: string) => boolean;
   categorizeSessions: (sessions: ChatSession[]) => CategorizedSessions;
+  resetStore: () => void;
 }
 
 export const useSidebarStore = create<SidebarState>()(
@@ -91,6 +92,13 @@ export const useSidebarStore = create<SidebarState>()(
         });
 
         return categorized;
+      },
+
+      // Reset all data for logout
+      resetStore: () => {
+        set({
+          pinnedSessions: [],
+        });
       },
     }),
     {

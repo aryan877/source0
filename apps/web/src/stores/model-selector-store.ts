@@ -54,6 +54,7 @@ interface ModelSelectorState {
   resetState: () => void;
   closeAndReset: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
+  resetStore: () => void;
 }
 
 export const useModelSelectorStore = create<ModelSelectorState>()(
@@ -216,6 +217,23 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           searchQuery: "",
           selectedCapabilities: [],
           selectedProvider: null,
+        });
+      },
+
+      // Reset all data for logout
+      resetStore: () => {
+        set({
+          isOpen: false,
+          viewMode: "normal",
+          searchQuery: "",
+          selectedCapabilities: [],
+          selectedProvider: null,
+          favorites: [...DEFAULT_FAVORITES],
+          enabledModels: MODELS.map((m) => m.id),
+          selectedModels: {},
+          selectedReasoningLevels: {},
+          selectedSearchEnabled: {},
+          hasHydrated: false,
         });
       },
     }),

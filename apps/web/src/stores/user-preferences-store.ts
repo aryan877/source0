@@ -38,6 +38,7 @@ interface UserPreferencesState {
   setMemoryEnabled: (enabled: boolean) => void;
   setSuggestQuestions: (enabled: boolean) => void;
   setShowChatNavigator: (show: boolean) => void;
+  resetStore: () => void;
 }
 
 export const useUserPreferencesStore = create<UserPreferencesState>()(
@@ -57,6 +58,17 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       setMemoryEnabled: (enabled) => set({ memoryEnabled: enabled }),
       setSuggestQuestions: (enabled) => set({ suggestQuestions: enabled }),
       setShowChatNavigator: (show) => set({ showChatNavigator: show }),
+      resetStore: () => {
+        set({
+          assistantName: "Source0",
+          userTraits: "",
+          hidePersonalInfo: false,
+          showSamplePrompts: true,
+          memoryEnabled: true,
+          suggestQuestions: true,
+          showChatNavigator: true,
+        });
+      },
     }),
     {
       name: "user-preferences-storage",

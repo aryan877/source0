@@ -5,6 +5,8 @@ import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useWindow } from "@/hooks/use-window";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
+import { useApiKeysStore } from "@/stores/api-keys-store";
+import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import { useUiStore } from "@/stores/ui-store";
 import {
@@ -38,6 +40,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, isThisWeek, isToday, isYesterday } from "date-fns";
 import { GitBranchIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -122,6 +125,14 @@ const useSidebarState = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
+  const queryClient = useQueryClient();
+
+  // Store reset functions
+  const resetApiKeysStore = useApiKeysStore((state) => state.resetStore);
+  const resetModelSelectorStore = useModelSelectorStore((state) => state.resetStore);
+  const resetSidebarStore = useSidebarStore((state) => state.resetStore);
+  const resetUiStore = useUiStore((state) => state.resetStore);
+  const resetUserPreferencesStore = useUserPreferencesStore((state) => state.resetStore);
 
   // Prevent hydration mismatch by only rendering theme switcher after mount
   useEffect(() => {
@@ -135,11 +146,43 @@ const useSidebarState = () => {
     [setTheme]
   );
 
+  const handleSignOut = useCallback(() => {
+    // Clear all stores before signing out
+    resetApiKeysStore();
+    resetModelSelectorStore();
+    resetSidebarStore();
+    resetUiStore();
+    resetUserPreferencesStore();
+
+    // Clear React Query cache - defer to next microtask to avoid race conditions
+    // This ensures components finish unmounting before cache is cleared
+    Promise.resolve().then(() => {
+      queryClient.clear();
+    });
+
+    // Then sign out
+    signOut();
+  }, [
+    resetApiKeysStore,
+    resetModelSelectorStore,
+    resetSidebarStore,
+    resetUiStore,
+    resetUserPreferencesStore,
+    queryClient,
+    signOut,
+  ]);
+
+  const handleSignOutConfirm = useCallback(() => {
+    onModalClose();
+    handleSignOut();
+  }, [onModalClose, handleSignOut]);
+
   const currentTheme = resolvedTheme || theme || "lavender";
 
   return {
     user,
-    signOut,
+    signOut: handleSignOut,
+    signOutConfirm: handleSignOutConfirm,
     isModalOpen,
     onModalOpen,
     onModalClose,
@@ -750,7 +793,7 @@ export const Sidebar = memo(
   ({ selectedChatId, onSelectChat, onOpenSettings, isOpen, onClose }: SidebarProps) => {
     const {
       user,
-      signOut,
+      signOutConfirm,
       isModalOpen,
       onModalOpen,
       onModalClose,
@@ -794,11 +837,6 @@ export const Sidebar = memo(
     );
 
     const categorizedSessions = categorizeSessions(chats);
-
-    const handleSignOut = useCallback(() => {
-      onModalClose();
-      signOut();
-    }, [onModalClose, signOut]);
 
     const handleLogin = useCallback(() => {
       router.push("/auth/login");
@@ -849,7 +887,7 @@ export const Sidebar = memo(
           />
         </div>
 
-        <SignOutModal isOpen={isModalOpen} onClose={onModalClose} onConfirm={handleSignOut} />
+        <SignOutModal isOpen={isModalOpen} onClose={onModalClose} onConfirm={signOutConfirm} />
       </>
     );
   }

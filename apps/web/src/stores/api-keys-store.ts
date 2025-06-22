@@ -20,6 +20,7 @@ interface ApiKeysState {
   getSupportedProviders: () => SupportedProvider[];
   clearAllKeys: () => void;
   shouldUseProviderKey: (provider: SupportedProvider) => boolean;
+  resetStore: () => void;
 }
 
 export const useApiKeysStore = create<ApiKeysState>()(
@@ -71,6 +72,14 @@ export const useApiKeysStore = create<ApiKeysState>()(
       shouldUseProviderKey: (provider) => {
         const { globalByokEnabled, apiKeys } = get();
         return globalByokEnabled && !!apiKeys[provider]?.trim();
+      },
+
+      // Reset all data for logout
+      resetStore: () => {
+        set({
+          apiKeys: {} as Record<SupportedProvider, string>,
+          globalByokEnabled: false,
+        });
       },
     }),
     {
