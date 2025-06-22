@@ -1,5 +1,6 @@
 "use client";
 
+import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import type { TavilySearchResult } from "@/types/web-search";
 import { Chip, Tooltip } from "@heroui/react";
 import "katex/dist/katex.min.css";
@@ -221,6 +222,8 @@ const sanitizeSchema = {
 const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
+  const { fontSize } = useUserPreferencesStore();
+
   const components: Components = useMemo(
     () => ({
       p: ({ children }) => {
@@ -276,7 +279,23 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   );
 
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert">
+    <div
+      className={`prose max-w-none prose-${fontSize} dark:prose-invert`}
+      style={{
+        // Correctly map the abstract size to a pixel value for the container.
+        // Tailwind's prose plugin uses this to scale all children.
+        fontSize:
+          fontSize === "xs"
+            ? "0.75rem"
+            : fontSize === "sm"
+              ? "0.875rem"
+              : fontSize === "base"
+                ? "1rem"
+                : fontSize === "lg"
+                  ? "1.125rem"
+                  : "1.25rem",
+      }}
+    >
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

@@ -23,6 +23,16 @@ export const themeColorMap = {
 
 export type ThemeKey = (typeof themeOptions)[number]["key"];
 
+export const fontSizes = [
+  { key: "xs", label: "X-Small" },
+  { key: "sm", label: "Small" },
+  { key: "base", label: "Medium" },
+  { key: "lg", label: "Large" },
+  { key: "xl", label: "X-Large" },
+] as const;
+
+export type FontSizeKey = (typeof fontSizes)[number]["key"];
+
 interface UserPreferencesState {
   assistantName: string;
   userTraits: string;
@@ -31,6 +41,7 @@ interface UserPreferencesState {
   memoryEnabled: boolean;
   suggestQuestions: boolean;
   showChatNavigator: boolean;
+  fontSize: FontSizeKey;
   setAssistantName: (name: string) => void;
   setUserTraits: (traits: string) => void;
   setHidePersonalInfo: (hide: boolean) => void;
@@ -38,6 +49,7 @@ interface UserPreferencesState {
   setMemoryEnabled: (enabled: boolean) => void;
   setSuggestQuestions: (enabled: boolean) => void;
   setShowChatNavigator: (show: boolean) => void;
+  setFontSize: (size: FontSizeKey) => void;
   resetStore: () => void;
 }
 
@@ -51,6 +63,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       memoryEnabled: true,
       suggestQuestions: true,
       showChatNavigator: true,
+      fontSize: "sm",
       setAssistantName: (name) => set({ assistantName: name }),
       setUserTraits: (traits) => set({ userTraits: traits }),
       setHidePersonalInfo: (hide) => set({ hidePersonalInfo: hide }),
@@ -58,6 +71,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       setMemoryEnabled: (enabled) => set({ memoryEnabled: enabled }),
       setSuggestQuestions: (enabled) => set({ suggestQuestions: enabled }),
       setShowChatNavigator: (show) => set({ showChatNavigator: show }),
+      setFontSize: (size) => set({ fontSize: size }),
       resetStore: () => {
         set({
           assistantName: "Source0",
@@ -67,6 +81,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
           memoryEnabled: true,
           suggestQuestions: true,
           showChatNavigator: true,
+          fontSize: "sm",
         });
       },
     }),

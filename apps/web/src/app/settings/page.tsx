@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreviousRoute } from "@/hooks/use-previous-route";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { Button, Spinner, Tab, Tabs } from "@heroui/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +15,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { getBackPath } = usePreviousRoute();
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -29,16 +31,24 @@ function SettingsContent() {
   };
 
   const handleBack = () => {
-    router.push("/");
+    const backPath = getBackPath();
+    router.push(backPath);
   };
 
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center gap-4 border-b border-divider bg-content1/80 p-6 backdrop-blur-md">
-        <Button variant="light" isIconOnly onPress={handleBack}>
-          <ArrowLeftIcon className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="light"
+            isIconOnly
+            onPress={handleBack}
+            className="transition-all hover:scale-105"
+          >
+            <ArrowLeftIcon className="h-5 w-5" />
+          </Button>
+        </div>
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
       </div>
 

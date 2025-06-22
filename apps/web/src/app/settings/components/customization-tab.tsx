@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  FontSizeKey,
+  fontSizes,
   themeColorMap,
   themeOptions,
   useUserPreferencesStore,
 } from "@/stores/user-preferences-store";
 import { CheckIcon } from "@heroicons/react/24/outline";
-import { Button, Input, Textarea } from "@heroui/react";
+import { Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
@@ -16,7 +18,8 @@ interface CustomizationTabProps {
 
 export function CustomizationTab({ isMounted }: CustomizationTabProps) {
   const { theme, setTheme } = useTheme();
-  const { assistantName, setAssistantName, userTraits, setUserTraits } = useUserPreferencesStore();
+  const { assistantName, setAssistantName, userTraits, setUserTraits, fontSize, setFontSize } =
+    useUserPreferencesStore();
   const [localAssistantName, setLocalAssistantName] = useState(assistantName);
   const [localUserTraits, setLocalUserTraits] = useState(userTraits);
 
@@ -91,6 +94,28 @@ export function CustomizationTab({ isMounted }: CustomizationTabProps) {
 
       <h3 className="mb-6 mt-12 text-xl font-bold text-foreground">Appearance</h3>
       <div className="space-y-6">
+        <div>
+          <label className="mb-4 block text-sm font-semibold text-foreground">Font Size</label>
+          <div className="max-w-xs">
+            <Select
+              selectedKeys={[fontSize]}
+              onSelectionChange={(keys) => {
+                const selectedKey = Array.from(keys)[0] as FontSizeKey;
+                if (selectedKey) {
+                  setFontSize(selectedKey);
+                }
+              }}
+              aria-label="Font size selector"
+            >
+              {fontSizes.map((size) => (
+                <SelectItem key={size.key}>{size.label}</SelectItem>
+              ))}
+            </Select>
+          </div>
+          <p className="mt-2 text-sm text-default-600">
+            Adjusts the font size for the content of chat messages.
+          </p>
+        </div>
         <div>
           <label className="mb-4 block text-sm font-semibold text-foreground">Theme</label>
           <div className="flex flex-wrap gap-4">

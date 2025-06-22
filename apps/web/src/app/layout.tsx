@@ -1,4 +1,5 @@
 import { ConditionalAppShell } from "@/components";
+import { RouteTracker } from "@/components/route-tracker";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono, Orbitron } from "next/font/google";
 import "./globals.css";
@@ -46,6 +47,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Providers>
+          <RouteTracker />
           <ConditionalAppShell>{children}</ConditionalAppShell>
         </Providers>
       </body>
