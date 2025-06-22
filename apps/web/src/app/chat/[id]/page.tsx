@@ -1,13 +1,13 @@
 import { ChatWindow } from "@/components";
 
 interface ChatPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export const dynamic = "force-dynamic";
 
-export default function ChatPage({ params }: ChatPageProps) {
-  const { id } = params;
+export default async function ChatPage({ params }: ChatPageProps) {
+  const { id } = await params;
 
   return <ChatWindow key={id} chatId={id} />;
 }
