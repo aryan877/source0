@@ -13,6 +13,7 @@ import {
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
+  PlusIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -199,13 +200,19 @@ const SidebarOverlay = memo(({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 SidebarOverlay.displayName = "SidebarOverlay";
 
 const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
-  <div className="border-b border-divider p-3">
-    <div className="mb-3 flex h-10 items-center">
+  <div className="border-b border-divider p-4">
+    <div className="mb-4 flex h-10 items-center">
       <h2 className="ml-14 text-lg font-bold text-foreground">Source0</h2>
     </div>
 
-    <Button onPress={onNewChat} color="primary" size="sm" className="h-8 w-full">
-      <span className="text-sm font-medium">New Chat</span>
+    <Button
+      onPress={onNewChat}
+      color="primary"
+      size="md"
+      className="h-10 w-full font-semibold shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
+      startContent={<PlusIcon className="h-4 w-4" />}
+    >
+      New Chat
     </Button>
   </div>
 ));
