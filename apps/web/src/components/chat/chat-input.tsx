@@ -114,7 +114,7 @@ export const ChatInput = memo(
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="via-secondary/4 to-primary/8 hover:shadow-primary/8 relative overflow-hidden rounded-t-2xl border-l border-r border-t border-primary/10 bg-gradient-to-br from-primary/5 px-2 pt-2 shadow-lg shadow-primary/5 backdrop-blur-lg transition-all duration-500 hover:border-primary/15 hover:shadow-xl"
+                className="relative overflow-hidden rounded-t-2xl border-l border-r border-t border-default-200 bg-content1 px-2 pt-2"
               >
                 <div
                   className={`relative w-full border-l border-r border-t border-primary/10 bg-content2 pb-5 pl-4 pr-4 pt-5 ${
