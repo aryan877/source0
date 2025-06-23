@@ -41,7 +41,6 @@ import {
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { format, formatDistanceToNow, isThisWeek, isToday, isYesterday } from "date-fns";
 import { GitBranchIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -63,7 +62,6 @@ interface SidebarProps {
 interface ChatItemProps {
   chatId: string;
   title: string;
-  updatedAt: string;
   isSelected: boolean;
   isBranched: boolean;
   isPinned: boolean;
@@ -76,41 +74,6 @@ interface ChatItemProps {
 // ========================================
 // UTILITY FUNCTIONS
 // ========================================
-
-const formatTimestamp = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-
-  // For very recent messages (less than 1 hour), show relative time
-  if (diffInMinutes < 60) {
-    if (diffInMinutes < 1) return "just now";
-    return formatDistanceToNow(date, { addSuffix: true });
-  }
-
-  // For today's messages, show time
-  if (isToday(date)) {
-    return format(date, "h:mm a");
-  }
-
-  // For yesterday's messages
-  if (isYesterday(date)) {
-    return "Yesterday";
-  }
-
-  // For this week's messages
-  if (isThisWeek(date)) {
-    return format(date, "EEEE"); // Day name like "Monday"
-  }
-
-  // For older messages, show formatted date
-  if (date.getFullYear() === now.getFullYear()) {
-    return format(date, "MMMM do"); // "June 17th"
-  }
-
-  // For messages from different years
-  return format(date, "MMM do, yyyy"); // "Jun 17th, 2023"
-};
 
 // ========================================
 // CUSTOM HOOKS
@@ -370,7 +333,6 @@ const ChatItem = memo(
   ({
     chatId,
     title,
-    updatedAt,
     isSelected,
     isBranched,
     isPinned,
@@ -388,7 +350,7 @@ const ChatItem = memo(
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               {isBranched && (
                 <div className="rounded-md bg-content2 p-1">
                   <GitBranchIcon className="h-3 w-3 text-warning-600" />
@@ -401,7 +363,6 @@ const ChatItem = memo(
                 </div>
               )}
             </div>
-            <p className="text-xs text-default-400">{formatTimestamp(updatedAt)}</p>
           </div>
 
           <div className="opacity-0 transition-opacity group-hover:opacity-100">
@@ -478,9 +439,28 @@ const CategorySection = memo(
 
     if (sessions.length === 0) return null;
 
+    const getTitleColor = (title: string) => {
+      switch (title) {
+        case "Pinned":
+          return "text-warning-600 dark:text-warning-400";
+        case "Today":
+          return "text-primary-600 dark:text-primary-400";
+        case "Yesterday":
+          return "text-secondary-600 dark:text-secondary-400";
+        case "Last 7 Days":
+          return "text-success-600 dark:text-success-400";
+        case "Older":
+          return "text-default-600 dark:text-default-500";
+        default:
+          return "text-foreground-600 dark:text-foreground-500";
+      }
+    };
+
     return (
       <div className="mb-4">
-        <h4 className="text-foreground-600 dark:text-foreground-500 mb-2 flex items-center gap-1 px-2 text-xs font-bold uppercase tracking-wider">
+        <h4
+          className={`${getTitleColor(title)} mb-2 flex items-center gap-1 px-2 text-xs font-bold uppercase tracking-wider`}
+        >
           {title === "Pinned" && <Pin className="h-3 w-3" />}
           {title}
         </h4>
@@ -490,7 +470,6 @@ const CategorySection = memo(
               key={chat.id}
               chatId={chat.id}
               title={chat.title}
-              updatedAt={chat.updated_at || new Date().toISOString()}
               isSelected={!isOnNewChat && selectedChatId === chat.id}
               isBranched={!!chat.branched_from_session_id}
               isPinned={isPinnedSession(chat.id)}
