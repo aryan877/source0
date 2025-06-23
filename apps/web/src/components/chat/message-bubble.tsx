@@ -403,6 +403,38 @@ const MessageBubble = memo(
               }
             }
 
+            // Handle MCP tools
+            if (toolName.startsWith("mcp_")) {
+              const displayName = toolName
+                .replace(/^mcp_/, "")
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (l) => l.toUpperCase());
+
+              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
+                  >
+                    <CpuChipIcon className="h-4 w-4 animate-pulse text-primary" />
+                    <span className="text-sm font-medium text-foreground/80">Using tool:</span>
+                    <span className="text-xs text-foreground/60">{displayName}</span>
+                  </div>
+                );
+              } else if (toolInvocation.state === "result") {
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2"
+                  >
+                    <CpuChipIcon className="h-4 w-4 text-success" />
+                    <span className="text-sm font-medium text-success">Tool used:</span>
+                    <span className="text-xs text-success/80">{displayName}</span>
+                  </div>
+                );
+              }
+            }
+
             // No fallback - only show supported tool displays
             return null;
           }

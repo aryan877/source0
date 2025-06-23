@@ -261,6 +261,7 @@ export function getToolsForModel(
   userId: string,
   searchEnabled: boolean,
   memoryEnabled: boolean = true,
+  consolidatedMcpTools: Record<string, Tool> = {},
   modelConfig?: { capabilities: ModelCapability[]; supportsFunctions?: boolean }
 ) {
   const tools: Record<string, Tool> = {};
@@ -301,14 +302,12 @@ export function getToolsForModel(
     });
   }
 
-  // Future tools can be added here with their own logic
-  // Example:
-  // if (codeExecutionEnabled) {
-  //   tools.codeExecution = codeExecutionTool;
-  // }
-  // if (imageGenerationEnabled && !modelConfig?.capabilities.includes("image-generation")) {
-  //   tools.imageGeneration = imageGenerationTool;
-  // }
+  // Merge dynamic MCP tools
+  const finalTools = { ...tools, ...consolidatedMcpTools };
 
-  return tools;
+  console.log(
+    `Assembling tools: ${Object.keys(finalTools).length} tools available for the model. (${Object.keys(consolidatedMcpTools).length} dynamic)`
+  );
+
+  return finalTools;
 }

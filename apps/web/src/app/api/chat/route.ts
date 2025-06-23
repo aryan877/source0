@@ -8,6 +8,7 @@ import {
   serverMarkStreamAsComplete,
 } from "@/services/chat-streams";
 import { generateTitleOnly } from "@/services/generate-chat-title";
+import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { convertToAiMessages } from "@/utils/message-utils";
 import { pub, sub } from "@/utils/redis";
@@ -23,6 +24,7 @@ import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { createErrorResponse, getErrorResponse, handleStreamError } from "./utils/errors";
 import { handleImageGenerationRequest } from "./utils/image-generation";
+import { discoverMcpTools } from "./utils/mcp-tools";
 import {
   buildProviderOptions,
   buildSystemMessage,
@@ -162,6 +164,10 @@ export async function POST(req: Request): Promise<Response> {
 
     const { sessionId: finalSessionId } = await createOrGetSession(user.id, sessionId);
 
+    // Fetch active MCP servers and discover their tools
+    const mcpServerList = await getActiveMcpServersForUser(user.id);
+    const consolidatedMcpTools = await discoverMcpTools(mcpServerList);
+
     const modelConfig = getModelById(model);
     if (!modelConfig) {
       return createErrorResponse(`Model ${model} not found`, 400);
@@ -245,7 +251,7 @@ export async function POST(req: Request): Promise<Response> {
             model: modelInstance,
             messages: finalMessages,
             maxSteps: 5,
-            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, {
+            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
               capabilities: modelConfig.capabilities,
               supportsFunctions: modelConfig.supportsFunctions,
             }),

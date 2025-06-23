@@ -9,6 +9,7 @@ import { ApiKeysTab } from "./components/api-keys-tab";
 import { AttachmentsTab } from "./components/attachments-tab";
 import { CustomizationTab } from "./components/customization-tab";
 import { GeneralTab } from "./components/general-tab";
+import { McpServersTab } from "./components/mcp-servers-tab";
 import { ModelsTab } from "./components/models-tab";
 
 function SettingsContent() {
@@ -82,6 +83,10 @@ function SettingsContent() {
 
             <Tab key="attachments" title="Attachments">
               <AttachmentsTab />
+            </Tab>
+
+            <Tab key="mcp-servers" title="MCP Servers">
+              <McpServersTab />
             </Tab>
 
             <Tab key="api-keys" title="API Keys">

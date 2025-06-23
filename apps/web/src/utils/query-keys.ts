@@ -12,6 +12,10 @@ export const chatSessionsKeys = {
   byId: (sessionId: string) => [...chatSessionsKeys.all, "session", sessionId] as const,
 };
 
+export const mcpServersKeys = {
+  all: ["mcp-servers"] as const,
+};
+
 export const messageSummariesKeys = {
   all: ["message-summaries"] as const,
   bySessionId: (sessionId: string) => [...messageSummariesKeys.all, "session", sessionId] as const,
