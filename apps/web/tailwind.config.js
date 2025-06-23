@@ -720,8 +720,8 @@ export default {
               800: "#bbf7d0",
               900: "#dcfce7",
               950: "#f0fdf4",
-              DEFAULT: "#22c55e",
-              foreground: "#ffffff",
+              DEFAULT: "#4ade80",
+              foreground: "#0a0f0a",
             },
             secondary: {
               50: "#0a0a0a",
@@ -917,8 +917,8 @@ export default {
               800: "#e9d5ff",
               900: "#f3e8ff",
               950: "#faf5ff",
-              DEFAULT: "#a855f7",
-              foreground: "#ffffff",
+              DEFAULT: "#c084fc",
+              foreground: "#0f0a0f",
             },
             secondary: {
               50: "#0a0a0a",

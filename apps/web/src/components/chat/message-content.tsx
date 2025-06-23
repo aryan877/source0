@@ -1,9 +1,10 @@
 "use client";
 
-import { useUserPreferencesStore } from "@/stores/user-preferences-store";
+import { themeOptions, useUserPreferencesStore } from "@/stores/user-preferences-store";
 import type { TavilySearchResult } from "@/types/web-search";
 import { Chip, Tooltip } from "@heroui/react";
 import "katex/dist/katex.min.css";
+import { useTheme } from "next-themes";
 import React, { memo, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -223,6 +224,12 @@ const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   const { fontSize } = useUserPreferencesStore();
+  const { theme } = useTheme();
+
+  const isDarkTheme = useMemo(() => {
+    const themeOption = themeOptions.find((opt) => opt.key === theme);
+    return themeOption?.base === "dark";
+  }, [theme]);
 
   const components: Components = useMemo(
     () => ({
@@ -280,7 +287,7 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
 
   return (
     <div
-      className={`prose max-w-none prose-${fontSize} dark:prose-invert`}
+      className={`prose max-w-none prose-${fontSize} ${isDarkTheme ? "prose-invert" : ""}`}
       style={{
         // Correctly map the abstract size to a pixel value for the container.
         // Tailwind's prose plugin uses this to scale all children.
