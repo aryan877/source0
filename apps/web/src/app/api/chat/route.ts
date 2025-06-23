@@ -166,7 +166,16 @@ export async function POST(req: Request): Promise<Response> {
 
     // Fetch active MCP servers and discover their tools
     const mcpServerList = await getActiveMcpServersForUser(user.id);
-    const consolidatedMcpTools = await discoverMcpTools(mcpServerList);
+    const { tools: consolidatedMcpTools, errors: mcpConnectionErrors } =
+      await discoverMcpTools(mcpServerList);
+
+    if (mcpConnectionErrors.length > 0) {
+      const errorDetails = mcpConnectionErrors
+        .map(({ serverName, message }) => `- ${serverName}: ${message}`)
+        .join("\n");
+      const errorMessage = `[MCP Connection Error] Failed to connect to the following tool servers:\n${errorDetails}\n\nPlease check your MCP server configurations in Settings > MCP Servers.`;
+      return createErrorResponse(errorMessage, 500, "MCP_CONNECTION_ERROR");
+    }
 
     const modelConfig = getModelById(model);
     if (!modelConfig) {

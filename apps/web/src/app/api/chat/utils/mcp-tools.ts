@@ -82,15 +82,19 @@ const processServerConnection = async (server: McpServer): Promise<Record<string
         : { message: String(connectionError) };
 
     console.error(`Connection failed for ${server.name}:`, errorInfo);
+    throw connectionError;
   }
 
   return toolRegistry;
 };
 
 // Main orchestrator function for tool discovery across all servers
-export async function discoverMcpTools(serverList: McpServer[]): Promise<Record<string, Tool>> {
+export async function discoverMcpTools(serverList: McpServer[]): Promise<{
+  tools: Record<string, Tool>;
+  errors: { serverName: string; message: string }[];
+}> {
   if (!serverList?.length) {
-    return {};
+    return { tools: {}, errors: [] };
   }
 
   console.log(`Starting tool discovery across ${serverList.length} servers`);
@@ -99,17 +103,25 @@ export async function discoverMcpTools(serverList: McpServer[]): Promise<Record<
   const toolRegistries = await Promise.allSettled(serverProcessors);
 
   const consolidatedTools: Record<string, Tool> = {};
+  const connectionErrors: { serverName: string; message: string }[] = [];
 
   toolRegistries.forEach((result, index) => {
+    const serverName = serverList[index]?.name ?? "Unknown Server";
     if (result.status === "fulfilled") {
       Object.assign(consolidatedTools, result.value);
     } else {
-      console.error(`Failed to process server ${serverList[index]?.name}:`, result.reason);
+      const error =
+        result.reason instanceof Error ? result.reason : new Error(String(result.reason));
+      console.error(`Failed to process server ${serverName}:`, result.reason);
+      connectionErrors.push({
+        serverName: serverName,
+        message: error.message,
+      });
     }
   });
 
   const discoveredCount = Object.keys(consolidatedTools).length;
   console.log(`Tool discovery completed - ${discoveredCount} tools now available`);
 
-  return consolidatedTools;
+  return { tools: consolidatedTools, errors: connectionErrors };
 }
