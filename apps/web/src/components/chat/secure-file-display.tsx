@@ -104,27 +104,27 @@ const SecureFileDisplay = memo(
       return (
         <>
           <div
-            className={`mb-3 max-w-sm overflow-hidden rounded-lg bg-default-100 dark:bg-default-50 ${
-              isSmall ? "w-32" : "max-w-sm"
+            className={`mb-2 overflow-hidden rounded-xl border border-divider/20 bg-content1 shadow-sm ${
+              isSmall ? "w-32" : "max-w-md"
             } ${className ?? ""}`}
           >
             <div
-              className="cursor-pointer transition-all hover:opacity-80"
+              className="cursor-pointer transition-all hover:scale-[1.02] hover:opacity-90"
               onClick={() => setIsModalOpen(true)}
             >
               <Image
                 src={url}
                 alt={fileName || "Attached image"}
-                width={isSmall ? 128 : 300}
-                height={isSmall ? 96 : 200}
+                width={isSmall ? 128 : 400}
+                height={isSmall ? 96 : 300}
                 className="h-auto w-full object-cover"
                 unoptimized
                 onError={handleImageError}
               />
             </div>
             {fileName && (
-              <div className="px-3 py-2">
-                <span className="text-xs text-default-600">{fileName}</span>
+              <div className="border-t border-divider/10 px-3 py-2">
+                <span className="block truncate text-xs text-foreground/70">{fileName}</span>
               </div>
             )}
           </div>

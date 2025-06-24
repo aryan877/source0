@@ -292,7 +292,7 @@ const MessageBubble = memo(
         switch (part.type) {
           case "text":
             return (
-              <div key={index}>
+              <div key={index} className="flex-1">
                 <MessageContent
                   content={part.text}
                   citations={getCitationsFromMessage(message)}
@@ -307,13 +307,15 @@ const MessageBubble = memo(
             // type to inform TypeScript that this is an intentional conversion.
             const filePart = part as unknown as CustomFileUIPart;
             return (
-              <SecureFileDisplay
-                key={index}
-                url={filePart.url}
-                mimeType={filePart.mimeType}
-                fileName={filePart.filename}
-                isImage={filePart.mimeType?.startsWith("image/")}
-              />
+              <div key={index} className={`${isUser ? "flex justify-end" : "flex justify-start"}`}>
+                <SecureFileDisplay
+                  url={filePart.url}
+                  mimeType={filePart.mimeType}
+                  fileName={filePart.filename}
+                  isImage={filePart.mimeType?.startsWith("image/")}
+                  className={isUser ? "ml-auto" : "mr-auto"}
+                />
+              </div>
             );
           }
 
@@ -655,7 +657,7 @@ const MessageBubble = memo(
           }`}
         >
           <div
-            className={`flex h-full flex-col gap-4 ${
+            className={`flex h-full flex-col gap-3 ${
               isEditing && isUser
                 ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
                 : isUser
@@ -663,7 +665,7 @@ const MessageBubble = memo(
                   : "w-full px-1"
             }`}
           >
-            {renderMessageParts}
+            <div className="space-y-3">{renderMessageParts}</div>
             {isLoading && !isUser && <StreamingIndicator />}
             {isLoading && isUser && (
               <div className="mt-2">

@@ -296,7 +296,7 @@ const MessageContent = memo(({ content, citations, isUser }: MessageContentProps
 
   return (
     <div
-      className={`prose max-w-none prose-${fontSize} ${isDarkTheme ? "prose-invert" : ""} ${isUser ? "text-right" : ""}`}
+      className={`prose max-w-none prose-${fontSize} ${isDarkTheme ? "prose-invert" : ""}`}
       style={{
         // Correctly map the abstract size to a pixel value for the container.
         // Tailwind's prose plugin uses this to scale all children.

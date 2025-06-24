@@ -63,7 +63,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       memoryEnabled: true,
       suggestQuestions: true,
       showChatNavigator: true,
-      fontSize: "base",
+      fontSize: "sm",
       setAssistantName: (name) => set({ assistantName: name }),
       setUserTraits: (traits) => set({ userTraits: traits }),
       setHidePersonalInfo: (hide) => set({ hidePersonalInfo: hide }),
@@ -81,7 +81,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
           memoryEnabled: true,
           suggestQuestions: true,
           showChatNavigator: true,
-          fontSize: "base",
+          fontSize: "sm",
         });
       },
     }),
