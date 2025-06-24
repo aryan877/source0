@@ -141,6 +141,10 @@ export function UsageTab() {
     refetch: refetchStats,
   } = useUsageStats(filters);
 
+  const filteredModels = filters.provider
+    ? MODELS.filter((model) => model.provider === filters.provider)
+    : MODELS;
+
   const handleFilterChange = (
     key: "startDate" | "endDate" | "provider" | "modelId",
     value: string | undefined | null
@@ -152,6 +156,12 @@ export function UsageTab() {
       } else {
         delete newFilters[key];
       }
+
+      // When the provider filter changes, reset the model filter
+      if (key === "provider") {
+        delete newFilters.modelId;
+      }
+
       return newFilters;
     });
   };
@@ -408,7 +418,7 @@ export function UsageTab() {
             size="sm"
             variant="bordered"
           >
-            {MODELS.map((model) => (
+            {filteredModels.map((model) => (
               <SelectItem key={model.id}>{model.name}</SelectItem>
             ))}
           </Select>
