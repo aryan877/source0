@@ -21,6 +21,13 @@ const features: Feature[] = [
     visual: "imageGeneration",
   },
   {
+    id: "token-saving",
+    title: "Smart Token Management",
+    description:
+      "Save costs by instantly canceling AI streams server-side when you press stop. Our Redis-powered architecture ensures no wasted tokens.",
+    visual: "tokenSaving",
+  },
+  {
     id: "settings",
     title: "Highly Configurable",
     description:

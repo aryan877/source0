@@ -26,7 +26,8 @@ export interface Feature {
     | "settings"
     | "sharing"
     | "security"
-    | "imageGeneration";
+    | "imageGeneration"
+    | "tokenSaving";
 }
 
 const showcaseData: { provider: ModelConfig["provider"]; model: string }[] = [
@@ -735,6 +736,170 @@ const ImageGenerationAnimation = () => {
   );
 };
 
+const TokenSavingAnimation = () => {
+  const [step, setStep] = useState(0);
+  const [tokensUsed, setTokensUsed] = useState(0);
+  const [streamText, setStreamText] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingText =
+    "This is a long AI response that would consume many tokens if allowed to complete...";
+
+  useEffect(() => {
+    const sequence = async () => {
+      // Reset state
+      setStep(0);
+      setTokensUsed(0);
+      setStreamText("");
+      setIsStreaming(false);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Start streaming
+      setStep(1);
+      setIsStreaming(true);
+
+      // Simulate token counting and text streaming
+      let currentTokens = 0;
+      let currentText = "";
+      const streamInterval = setInterval(() => {
+        if (currentText.length < streamingText.length) {
+          currentText += streamingText[currentText.length];
+          currentTokens += Math.random() > 0.7 ? 2 : 1; // Simulate token usage
+          setStreamText(currentText);
+          setTokensUsed(currentTokens);
+        }
+      }, 100);
+
+      // Let it stream for a bit
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // User presses stop
+      clearInterval(streamInterval);
+      setStep(2);
+      setIsStreaming(false);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Show savings
+      setStep(3);
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    };
+
+    sequence();
+    const interval = setInterval(sequence, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const estimatedTotalTokens = Math.floor(streamingText.length * 1.3);
+  const tokensSaved = estimatedTotalTokens - tokensUsed;
+
+  return (
+    <div className="flex h-full items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="rounded-2xl bg-content1 p-4 shadow-lg">
+          {/* Header with status */}
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <motion.div
+                animate={{
+                  scale: isStreaming ? [1, 1.2, 1] : 1,
+                  rotate: isStreaming ? 360 : 0,
+                }}
+                transition={{
+                  duration: isStreaming ? 2 : 0.3,
+                  repeat: isStreaming ? Infinity : 0,
+                  ease: "linear",
+                }}
+              >
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    step === 0
+                      ? "bg-default-300"
+                      : step === 1
+                        ? "bg-primary"
+                        : step === 2
+                          ? "bg-warning"
+                          : "bg-success"
+                  }`}
+                />
+              </motion.div>
+              <span className="text-xs font-medium">
+                {step === 0 && "Ready"}
+                {step === 1 && "Streaming..."}
+                {step === 2 && "Stopped"}
+                {step === 3 && "Tokens Saved!"}
+              </span>
+            </div>
+
+            {/* Token counter */}
+            <div className="text-xs text-default-500">{tokensUsed} tokens</div>
+          </div>
+
+          {/* Streaming content */}
+          <div className="mb-4 min-h-[4rem] rounded-lg bg-content2 p-3">
+            <div className="text-xs text-default-700">
+              {streamText}
+              {isStreaming && (
+                <motion.span
+                  animate={{ opacity: [0, 1, 0] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="text-primary"
+                >
+                  |
+                </motion.span>
+              )}
+            </div>
+          </div>
+
+          {/* Action button */}
+          <div className="flex justify-center">
+            <AnimatePresence mode="wait">
+              {step === 1 && (
+                <motion.button
+                  key="stop"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="rounded-lg bg-danger px-4 py-2 text-xs font-medium text-danger-foreground shadow-lg transition-all hover:bg-danger/90"
+                >
+                  Stop Generation
+                </motion.button>
+              )}
+              {step >= 2 && (
+                <motion.div
+                  key="savings"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center"
+                >
+                  <div className="text-xs font-medium text-success">
+                    💰 {tokensSaved} tokens saved!
+                  </div>
+                  <div className="mt-1 text-xs text-default-500">Redis-powered cancellation</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Progress visualization */}
+        <div className="mt-4 flex items-center gap-2">
+          <div className="flex-1 rounded-full bg-content2 p-1">
+            <motion.div
+              className="h-1 rounded-full bg-gradient-to-r from-primary to-success"
+              animate={{
+                width: step >= 3 ? "100%" : `${(tokensUsed / estimatedTotalTokens) * 100}%`,
+              }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+          <span className="text-xs text-default-500">
+            {step >= 3 ? "Optimized!" : `${Math.round((tokensUsed / estimatedTotalTokens) * 100)}%`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const visualComponents = {
   providers: ProviderShowcase,
   themes: ThemeShowcase,
@@ -743,6 +908,7 @@ const visualComponents = {
   sharing: SharingAnimation,
   security: SecurityAnimation,
   imageGeneration: ImageGenerationAnimation,
+  tokenSaving: TokenSavingAnimation,
 };
 
 export function FeatureCard({ title, description, visual }: Feature) {
