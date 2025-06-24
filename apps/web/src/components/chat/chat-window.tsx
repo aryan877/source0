@@ -11,13 +11,18 @@ import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { useAuth } from "@/hooks/useAuth";
-import { createSession, deleteFromPoint, getLatestStreamIdWithStatus } from "@/services";
+import {
+  createSession,
+  deleteFromPoint,
+  getLatestStreamIdWithStatus,
+  saveAssistantMessage,
+} from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { ensureUniqueMessages } from "@/utils/database-message-converter";
+import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/database-message-converter";
 import { useChat, type Message } from "@ai-sdk/react";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -130,6 +135,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     stop,
     error,
     append,
+    reload,
     setMessages,
     experimental_resume,
     data,
@@ -373,7 +379,39 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           console.error("Error retrieving latest stream to cancel:", error);
         });
     }
-  }, [stop, chatId]);
+
+    const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
+
+    // Then, if a partial message exists, save it
+    if (lastAssistantMessage && chatId !== "new" && user) {
+      console.log("Saving partial message due to user stop:", lastAssistantMessage);
+
+      const modelConfig = getModelById(selectedModel);
+      const modelProvider = modelConfig?.provider || "Unknown";
+
+      const preparedMessage = prepareMessageForDb({
+        message: lastAssistantMessage,
+        sessionId: chatId,
+        userId: user.id,
+        model: selectedModel,
+        modelProvider,
+        reasoningLevel: reasoningLevel,
+        searchEnabled: searchEnabled,
+      });
+
+      if (preparedMessage.parts.length > 0) {
+        saveAssistantMessage(
+          lastAssistantMessage,
+          chatId,
+          user.id,
+          selectedModel,
+          modelProvider,
+          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
+          { fireAndForget: true, existingParts: preparedMessage.parts }
+        );
+      }
+    }
+  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
 
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
@@ -458,29 +496,27 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           retryFromIndex = userMessageIndex;
         }
 
+        const messagesToKeep = messages.slice(0, retryFromIndex + 1);
+
         if (chatId && chatId !== "new") {
           await deleteFromPoint(userMessageToRetry.id);
-          invalidateMessages();
         }
 
         clearSuggestions();
-        setMessages((currentMessages) => currentMessages.slice(0, retryFromIndex));
+        setMessages(messagesToKeep);
 
-        setTimeout(() => {
-          lastUserMessageForSuggestions.current = userMessageToRetry;
-          append(userMessageToRetry);
-        }, 50);
+        await reload();
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
           uiError: "Failed to retry message. Please try again.",
         });
         if (chatId && chatId !== "new") {
-          setTimeout(() => invalidateMessages(), 500);
+          invalidateMessages();
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, append, clearSuggestions]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, clearSuggestions, reload]
   );
 
   const handleEditMessage = useCallback(
@@ -514,12 +550,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         if (chatId && chatId !== "new") {
-          await deleteFromPoint(messageToEdit.id);
-          invalidateMessages();
+          const deleteSuccess = await deleteFromPoint(messageToEdit.id);
+          if (deleteSuccess) {
+            await invalidateMessages();
+          }
         }
 
         clearSuggestions();
-        setMessages((currentMessages) => currentMessages.slice(0, messageIndex));
+        const messagesToKeep = messages.slice(0, messageIndex);
+        setMessages(messagesToKeep);
 
         const editedMessage: Message = {
           ...messageToEdit,

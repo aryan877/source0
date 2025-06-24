@@ -131,7 +131,7 @@ export async function deleteFromPoint(messageId: string): Promise<boolean> {
     .from("chat_messages")
     .delete()
     .eq("session_id", message.session_id)
-    .gte("created_at", message.created_at);
+    .gt("created_at", message.created_at);
 
   if (deleteError) {
     console.error(`Error deleting messages from retry point:`, deleteError.message);
