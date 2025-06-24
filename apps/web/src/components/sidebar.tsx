@@ -9,11 +9,7 @@ import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import { useUiStore } from "@/stores/ui-store";
-import {
-  themeColorMap,
-  themeOptions,
-  useUserPreferencesStore,
-} from "@/stores/user-preferences-store";
+import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -35,8 +31,6 @@ import {
   ModalFooter,
   ModalHeader,
   ScrollShadow,
-  Select,
-  SelectItem,
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
@@ -592,107 +586,16 @@ const UserInfo = memo(({ user }: { user: User }) => {
 
 UserInfo.displayName = "UserInfo";
 
-const ThemeSelector = memo(
-  ({
-    mounted,
-    currentTheme,
-    onThemeChange,
-  }: {
-    mounted: boolean;
-    currentTheme: string;
-    onThemeChange: (theme: string) => void;
-  }) => {
-    if (!mounted) {
-      return (
-        <Select
-          size="sm"
-          placeholder="Theme"
-          isDisabled
-          aria-label="Theme selector"
-          classNames={{
-            trigger: "h-8 min-h-unit-8",
-          }}
-        >
-          {themeOptions.map((theme) => (
-            <SelectItem
-              key={theme.key}
-              startContent={
-                <span
-                  className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: themeColorMap[theme.key][0] }}
-                />
-              }
-            >
-              {theme.label}
-            </SelectItem>
-          ))}
-        </Select>
-      );
-    }
-
-    return (
-      <Select
-        size="sm"
-        selectedKeys={[currentTheme]}
-        onSelectionChange={(keys) => {
-          const selectedTheme = Array.from(keys)[0] as string;
-          if (selectedTheme) {
-            onThemeChange(selectedTheme);
-          }
-        }}
-        aria-label="Theme selector"
-        classNames={{
-          trigger: "h-8 min-h-unit-8",
-        }}
-        renderValue={() => {
-          const currentThemeOption = themeOptions.find((theme) => theme.key === currentTheme);
-          return currentThemeOption ? (
-            <div className="flex items-center gap-2">
-              <span
-                className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: themeColorMap[currentThemeOption.key][0] }}
-              />
-              <span className="text-sm font-medium">{currentThemeOption.label}</span>
-            </div>
-          ) : null;
-        }}
-      >
-        {themeOptions.map((theme) => (
-          <SelectItem
-            key={theme.key}
-            startContent={
-              <span
-                className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: themeColorMap[theme.key][0] }}
-              />
-            }
-          >
-            {theme.label}
-          </SelectItem>
-        ))}
-      </Select>
-    );
-  }
-);
-
-ThemeSelector.displayName = "ThemeSelector";
-
 const SidebarBottomActions = memo(
   ({
     user,
     onSignOut,
     onLogin,
-    mounted,
-    currentTheme,
-    onThemeChange,
     onOpenSettings,
   }: {
     user: User | null;
     onSignOut: () => void;
     onLogin: () => void;
-    mounted: boolean;
-    currentTheme: string;
-    onThemeChange: (theme: string) => void;
     onOpenSettings: () => void;
   }) => (
     <div className="space-y-1 border-t border-divider p-2">
@@ -720,8 +623,6 @@ const SidebarBottomActions = memo(
           <span className="text-sm font-medium">Login</span>
         </Button>
       )}
-
-      <ThemeSelector mounted={mounted} currentTheme={currentTheme} onThemeChange={onThemeChange} />
 
       <Button
         variant="light"
@@ -783,9 +684,6 @@ export const Sidebar = memo(
       onModalClose,
       windowObj,
       router,
-      mounted,
-      currentTheme,
-      handleThemeChange,
       searchQuery,
       setSearchQuery,
       debouncedSearchQuery,
@@ -870,9 +768,6 @@ export const Sidebar = memo(
             user={user}
             onSignOut={onModalOpen}
             onLogin={handleLogin}
-            mounted={mounted}
-            currentTheme={currentTheme}
-            onThemeChange={handleThemeChange}
             onOpenSettings={onOpenSettings}
           />
         </div>

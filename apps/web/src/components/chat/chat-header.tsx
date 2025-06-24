@@ -1,7 +1,12 @@
+"use client";
+
 import { type ChatSession } from "@/services/chat-sessions";
+import { Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { Button, Chip, Tooltip } from "@heroui/react";
 import { FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { forwardRef } from "react";
+import { ThemeSelector } from "../theme-selector";
 import { ShareButton } from "./share-button";
 
 interface ChatHeaderProps {
@@ -17,12 +22,29 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
     { chatId, sessionData, isSharedView = false, showNavigatorButton = false, onToggleNavigator },
     ref
   ) => {
+    const router = useRouter();
+    const handleOpenSettings = () => {
+      router.push("/settings");
+    };
+
     if (chatId === "new" || !sessionData) {
       return (
         <header
           ref={ref}
-          className="flex h-16 shrink-0 items-center justify-between border-b border-divider px-4"
-        />
+          className="flex h-16 shrink-0 items-center justify-end gap-2 border-b border-divider px-4"
+        >
+          <ThemeSelector />
+          <Tooltip content="Settings" placement="bottom" delay={300}>
+            <Button
+              isIconOnly
+              variant="light"
+              className="data-[hover=true]:bg-default-200"
+              onPress={handleOpenSettings}
+            >
+              <Cog6ToothIcon className="h-5 w-5 text-default-600" />
+            </Button>
+          </Tooltip>
+        </header>
       );
     }
 
@@ -49,6 +71,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
             )}
           </div>
           <div className="flex items-center gap-2">
+            <ThemeSelector />
             {showNavigatorButton && (
               <Tooltip content="Chat Navigator" placement="bottom" delay={300}>
                 <Button
@@ -67,6 +90,16 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
                 <ShareButton session={sessionData} />
               </Tooltip>
             )}
+            <Tooltip content="Settings" placement="bottom" delay={300}>
+              <Button
+                isIconOnly
+                variant="light"
+                className="data-[hover=true]:bg-default-200"
+                onPress={handleOpenSettings}
+              >
+                <Cog6ToothIcon className="h-5 w-5 text-default-600" />
+              </Button>
+            </Tooltip>
           </div>
         </div>
       </header>
