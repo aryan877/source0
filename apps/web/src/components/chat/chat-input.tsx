@@ -179,12 +179,20 @@ export const ChatInput = memo(
               />
             )}
 
+            {attachedFiles.length > 0 && (
+              <div className="rounded-t-2xl border-l border-r border-t border-default-200 bg-content2 p-4">
+                <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />
+              </div>
+            )}
+
             <form onSubmit={onSubmit}>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="relative overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-sm"
+                className={`relative overflow-hidden border-l border-r border-default-200 bg-content1 px-2 pt-2 ${
+                  attachedFiles.length > 0 ? "border-b border-t-0" : "rounded-t-2xl border-t"
+                }`}
               >
                 <AnimatePresence>
                   {isDragging && (
@@ -193,7 +201,7 @@ export const ChatInput = memo(
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm"
+                      className="absolute inset-0 z-10 flex items-center justify-center rounded-t-2xl border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm"
                     >
                       <motion.div
                         initial={{ y: 10, opacity: 0 }}
@@ -215,13 +223,11 @@ export const ChatInput = memo(
                   )}
                 </AnimatePresence>
 
-                {attachedFiles.length > 0 && (
-                  <div className="border-b border-default-200 bg-content1 p-4">
-                    <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />
-                  </div>
-                )}
-
-                <div className="relative w-full bg-content1 px-4 py-4">
+                <div
+                  className={`relative w-full rounded-t-2xl border-l border-r border-t border-primary/10 bg-content2 pb-5 pl-4 pr-4 pt-5 ${
+                    attachedFiles.length > 0 ? "border-t-0" : ""
+                  }`}
+                >
                   <Textarea
                     ref={textareaRef}
                     value={input}
@@ -240,7 +246,7 @@ export const ChatInput = memo(
                     onKeyDown={onKeyDown}
                   />
 
-                  <div className="flex items-center justify-between gap-2 pt-4">
+                  <div className="flex items-center justify-between gap-2 pt-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <ModelSelector
                         value={selectedModel}
