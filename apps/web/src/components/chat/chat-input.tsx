@@ -3,9 +3,17 @@
 import { type ReasoningLevel } from "@/config/models";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { Button, Textarea } from "@heroui/react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { forwardRef, memo, useCallback, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { FileAttachment } from "./file-attachment";
 import { MicButton } from "./mic-button";
 import { ModelControls } from "./model-controls";
@@ -29,6 +37,7 @@ interface ChatInputProps {
   onReasoningLevelChange: (level: ReasoningLevel) => void;
   onSearchToggle: (enabled: boolean) => void;
   onFileAttach: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onFileDrop: (files: File[]) => void;
   onRemoveFile: (index: number) => void;
   onStop: () => void;
   onClearUiError: () => void;
@@ -60,6 +69,7 @@ export const ChatInput = memo(
         onReasoningLevelChange,
         onSearchToggle,
         onFileAttach,
+        onFileDrop,
         onRemoveFile,
         onStop,
         onClearUiError,
@@ -69,6 +79,8 @@ export const ChatInput = memo(
       ref
     ) => {
       const textareaRef = useRef<HTMLTextAreaElement>(null);
+      const [isDragging, setIsDragging] = useState(false);
+      const dropZoneRef = useRef<HTMLDivElement>(null);
       const { isRecording, isProcessingSpeech, startRecording, stopRecording } =
         useSpeechRecognition();
 
@@ -93,9 +105,73 @@ export const ChatInput = memo(
         }
       }, [stopRecording, setInput, input]);
 
+      useEffect(() => {
+        const handleDocumentDragEnter = (e: DragEvent) => {
+          // Only show drag overlay if files are being dragged
+          if (e.dataTransfer?.types.includes("Files")) {
+            setIsDragging(true);
+          }
+        };
+
+        const handleDocumentDragLeave = (e: DragEvent) => {
+          // Only hide overlay if we're leaving the document entirely
+          // or moving to an element that's not related to our drop zone
+          if (
+            !e.relatedTarget ||
+            (dropZoneRef.current && !dropZoneRef.current.contains(e.relatedTarget as Node))
+          ) {
+            setIsDragging(false);
+          }
+        };
+
+        const handleDocumentDrop = () => {
+          setIsDragging(false);
+        };
+
+        const handleDocumentDragOver = (e: DragEvent) => {
+          e.preventDefault(); // Prevent default to allow drop
+        };
+
+        document.addEventListener("dragenter", handleDocumentDragEnter);
+        document.addEventListener("dragleave", handleDocumentDragLeave);
+        document.addEventListener("drop", handleDocumentDrop);
+        document.addEventListener("dragover", handleDocumentDragOver);
+
+        return () => {
+          document.removeEventListener("dragenter", handleDocumentDragEnter);
+          document.removeEventListener("dragleave", handleDocumentDragLeave);
+          document.removeEventListener("drop", handleDocumentDrop);
+          document.removeEventListener("dragover", handleDocumentDragOver);
+        };
+      }, []);
+
+      const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, []);
+
+      const handleDrop = useCallback(
+        (e: React.DragEvent<HTMLDivElement>) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+
+          const files = Array.from(e.dataTransfer.files);
+          if (files.length > 0) {
+            onFileDrop(files);
+          }
+        },
+        [onFileDrop]
+      );
+
       return (
         <div className="px-4" suppressHydrationWarning>
-          <div className="relative mx-auto max-w-3xl">
+          <div
+            ref={dropZoneRef}
+            className="relative mx-auto max-w-3xl"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             {showScrollToBottom && onScrollToBottom && (
               <ScrollToBottomButton
                 showScrollToBottom={showScrollToBottom}
@@ -110,6 +186,35 @@ export const ChatInput = memo(
                 transition={{ duration: 0.3 }}
                 className="relative overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-sm"
               >
+                <AnimatePresence>
+                  {isDragging && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm"
+                    >
+                      <motion.div
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.1, duration: 0.3 }}
+                        className="flex flex-col items-center gap-3 px-4 text-center"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                          <ArrowRight className="h-5 w-5 rotate-90 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-base font-semibold text-primary">
+                            Drop files here
+                          </div>
+                          <div className="text-xs text-primary/70">Release to attach</div>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {attachedFiles.length > 0 && (
                   <div className="border-b border-default-200 bg-content1 p-4">
                     <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />

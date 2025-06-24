@@ -112,16 +112,21 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     userTraits,
   ]);
 
-  const { handleFileAttach, handleRemoveFile, handleBranchChat, handleModelChange } =
-    useChatHandlers(
-      chatId,
-      state,
-      updateState,
-      updateSessionInCache,
-      transferModelSelection,
-      router,
-      user
-    );
+  const {
+    handleFileAttach,
+    handleFileDrop,
+    handleRemoveFile,
+    handleBranchChat,
+    handleModelChange,
+  } = useChatHandlers(
+    chatId,
+    state,
+    updateState,
+    updateSessionInCache,
+    transferModelSelection,
+    router,
+    user
+  );
 
   const {
     messages,
@@ -918,6 +923,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             onReasoningLevelChange={setReasoningLevel}
             onSearchToggle={setSearchEnabled}
             onFileAttach={handleFileAttach}
+            onFileDrop={handleFileDrop}
             onRemoveFile={handleRemoveFile}
             onStop={handleStop}
             onClearUiError={handleDismissUiError}

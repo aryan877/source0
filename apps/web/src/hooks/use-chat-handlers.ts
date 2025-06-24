@@ -100,6 +100,52 @@ export const useChatHandlers = (
     [updateState, uploadFilesToStorage, getImageDimensions]
   );
 
+  const handleFileDrop = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      const filesWithDimensions = await Promise.all(
+        files.map(async (file) => {
+          const dimensions = await getImageDimensions(file);
+          return { file, dimensions };
+        })
+      );
+
+      const newAttachedFiles: AttachedFileWithUrl[] = filesWithDimensions.map(
+        ({ file, dimensions }) => ({
+          file,
+          uploading: true,
+          ...(dimensions && { width: dimensions.width, height: dimensions.height }),
+        })
+      );
+
+      updateState((prev) => ({
+        attachedFiles: [...prev.attachedFiles, ...newAttachedFiles],
+      }));
+
+      const { successful, failed } = await uploadFilesToStorage(files);
+
+      updateState((prev) => ({
+        attachedFiles: prev.attachedFiles.map((attachedFile) => {
+          if (!attachedFile.uploading) return attachedFile;
+
+          const successfulFile = successful.find((s) => s.name === attachedFile.file.name);
+          if (successfulFile) {
+            return { ...attachedFile, uploadResult: successfulFile, uploading: false };
+          }
+
+          const failedFile = failed.find((f) => f.file === attachedFile.file);
+          if (failedFile) {
+            return { ...attachedFile, error: failedFile.error, uploading: false };
+          }
+
+          return attachedFile;
+        }),
+      }));
+    },
+    [updateState, uploadFilesToStorage, getImageDimensions]
+  );
+
   const handleRemoveFile = useCallback(
     (index: number) => {
       updateState((prev) => ({
@@ -203,6 +249,7 @@ export const useChatHandlers = (
 
   return {
     handleFileAttach,
+    handleFileDrop,
     handleRemoveFile,
     handleBranchChat,
     handleModelChange,
