@@ -16,6 +16,27 @@ import remarkMath from "remark-math";
 import type { PluggableList } from "unified";
 import { CodeBlock } from "./code-block";
 
+/**
+ * Preprocesses markdown content to fix common formatting issues before rendering.
+ */
+const preprocessMarkdownContent = (content: string): string => {
+  // Escape dollar signs in currency amounts (e.g., $100) to prevent KaTeX rendering.
+  // Looks for a dollar sign followed by a number, not preceded by a backslash or another dollar sign.
+  let processed = content.replace(/(?<![\\$])\$(\d)/g, "\\$$$1");
+
+  // Standardize various Unicode bullet points to markdown hyphens.
+  processed = processed.replace(/^(\s*)[•‣▸▪▫◦‧⁃]\s+/gm, "$1- ");
+
+  // Prevent double underscores from incorrectly bolding technical terms or filenames.
+  // This wraps things like `__init__.py` in backticks.
+  processed = processed.replace(
+    /(?<![a-zA-Z0-9`])__([a-zA-Z0-9_./-]+)__(?![a-zA-Z0-9`])/g,
+    "`__$1__`"
+  );
+
+  return processed;
+};
+
 interface MessageContentProps {
   content: string;
   citations?: TavilySearchResult[];
@@ -317,7 +338,7 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
         rehypePlugins={rehypePlugins}
         components={components}
       >
-        {content}
+        {preprocessMarkdownContent(content)}
       </ReactMarkdown>
     </div>
   );

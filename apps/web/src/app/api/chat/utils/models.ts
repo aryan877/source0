@@ -149,38 +149,33 @@ export const buildSystemMessage = (
   userTraits?: string,
   assistantName?: string
 ): string => {
-  const currentTime = new Date().toLocaleString("en-US", {
-    timeZone: "UTC",
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-
-  // Only mention webSearch tool if the model doesn't have native search grounding
+  const currentTime = new Date().toUTCString();
   const hasWebSearchTool = searchEnabled && !config.capabilities.includes("search");
 
-  const parts = [
-    `You are a helpful AI assistant. The current time is ${currentTime}. Respond naturally and clearly.`,
-    assistantName &&
-      `The assistant's name is ${assistantName}. Use your name very sparingly, only when specifically needed or directly asked.`,
-    userTraits &&
-      `The user has pre-configured the following preferences. You must follow them. DO NOT use the memorySave tool for this information as it is already persisted: "${userTraits}"`,
-    hasWebSearchTool &&
-      "You have access to a web search tool. Use it when you need current information, recent news, or facts not in your training data. Call the webSearch tool with relevant queries.",
-    config.capabilities.includes("search") &&
-      searchEnabled &&
-      "You have native web search capabilities integrated into your responses. You can automatically search for and include current information when needed.",
-    memoryEnabled &&
-      "You have access to memory tools. Use 'memorySave' for NEW information or preferences explicitly shared during conversation that should be remembered for future interactions. Do not save the user's pre-configured preferences. Use 'memoryRetrieve' to recall saved information.",
-    config.capabilities.includes("image") && "You can analyze images.",
-    config.capabilities.includes("pdf") && "You can read PDFs.",
-    "When providing code examples, use markdown code blocks with appropriate language specifiers: ```python code ```",
-    "For mathematical expressions, use LaTeX syntax enclosed in `$$...$$` for block-level equations and `$...$` for inline equations. The output will be rendered using KaTeX.",
+  const baseInstructions = [
+    `You are a helpful AI assistant. Current time: ${currentTime}.`,
+    assistantName && `Your name is ${assistantName}.`,
+    userTraits && `User preferences to follow: "${userTraits}"`,
   ];
 
-  return parts.filter(Boolean).join(" ");
+  const capabilities = [
+    hasWebSearchTool && "Use the 'webSearch' tool for current information.",
+    config.capabilities.includes("search") && searchEnabled && "You have native web search.",
+    memoryEnabled && "Use 'memorySave'/'memoryRetrieve' tools for user preferences.",
+    config.capabilities.includes("image") && "You can analyze images.",
+    config.capabilities.includes("pdf") && "You can read PDFs.",
+  ].filter(Boolean);
+
+  const formattingRules = [
+    "Use markdown for code blocks (e.g., ```python).",
+    "For math, use LaTeX (`$$...$$` or `$...$`). To show a dollar amount, escape the dollar sign: `\\$145.86`.",
+  ];
+
+  if (config.provider === "Anthropic") {
+    formattingRules.push(
+      "Wrap filenames with double underscores (e.g., `__init__.py`) in backticks. Use standard markdown lists (* or -)."
+    );
+  }
+
+  return [...baseInstructions, ...capabilities, ...formattingRules].filter(Boolean).join(" ");
 };
