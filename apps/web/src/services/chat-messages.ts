@@ -111,7 +111,10 @@ export async function deleteMessage(messageId: string): Promise<void> {
 /**
  * Simple retry function: Delete from a message onwards
  */
-export async function deleteFromPoint(messageId: string): Promise<boolean> {
+export async function deleteFromPoint(
+  messageId: string,
+  inclusive: boolean = false
+): Promise<boolean> {
   const supabase = createClient();
 
   // First, get the message info
@@ -126,12 +129,15 @@ export async function deleteFromPoint(messageId: string): Promise<boolean> {
     return false;
   }
 
+  let query = supabase.from("chat_messages").delete().eq("session_id", message.session_id);
+
+  if (inclusive) {
+    query = query.gte("created_at", message.created_at);
+  } else {
+    query = query.gt("created_at", message.created_at);
+  }
   // Delete everything from this point onwards
-  const { error: deleteError } = await supabase
-    .from("chat_messages")
-    .delete()
-    .eq("session_id", message.session_id)
-    .gt("created_at", message.created_at);
+  const { error: deleteError } = await query;
 
   if (deleteError) {
     console.error(`Error deleting messages from retry point:`, deleteError.message);

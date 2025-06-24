@@ -550,50 +550,33 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         if (chatId && chatId !== "new") {
-          const deleteSuccess = await deleteFromPoint(messageToEdit.id);
-          if (deleteSuccess) {
-            await invalidateMessages();
-          }
+          await deleteFromPoint(messageToEdit.id, true);
         }
-
-        clearSuggestions();
-        const messagesToKeep = messages.slice(0, messageIndex);
-        setMessages(messagesToKeep);
 
         const editedMessage: Message = {
           ...messageToEdit,
-          id: uuidv4(),
           content: newContent,
           parts: [{ type: "text", text: newContent }],
         };
 
-        setJustSubmittedMessageId(editedMessage.id);
+        const messagesToKeep = messages.slice(0, messageIndex);
+        const newMessages = [...messagesToKeep, editedMessage];
 
-        setTimeout(() => {
-          lastUserMessageForSuggestions.current = editedMessage;
-          append(editedMessage);
-        }, 50);
+        clearSuggestions();
+        setMessages(newMessages);
+
+        await reload();
       } catch (error) {
         console.error("Error during message edit:", error);
         updateState({
           uiError: "Failed to edit message. Please try again.",
         });
         if (chatId && chatId !== "new") {
-          setTimeout(() => invalidateMessages(), 500);
+          invalidateMessages();
         }
       }
     },
-    [
-      messages,
-      stop,
-      chatId,
-      updateState,
-      invalidateMessages,
-      setMessages,
-      append,
-      clearSuggestions,
-      setJustSubmittedMessageId,
-    ]
+    [messages, stop, chatId, updateState, invalidateMessages, setMessages, reload, clearSuggestions]
   );
 
   // Form handling
