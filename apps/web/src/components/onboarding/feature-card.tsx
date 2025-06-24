@@ -29,24 +29,14 @@ export interface Feature {
     | "imageGeneration";
 }
 
-const providerList: ModelConfig["provider"][] = [
-  "OpenAI",
-  "Anthropic",
-  "Google",
-  "xAI",
-  "Groq",
-  "DeepSeek",
-  "OpenRouter",
-];
-
-const modelNames = [
-  "Gemini 2.5 Flash",
-  "Claude 3.5 Sonnet",
-  "GPT-4o",
-  "Llama 3.3 70B",
-  "DeepSeek R1",
-  "DeepSeek V3",
-  "Claude 4 Sonnet",
+const showcaseData: { provider: ModelConfig["provider"]; model: string }[] = [
+  { provider: "OpenAI", model: "GPT-4o" },
+  { provider: "Anthropic", model: "Claude 3.5 Sonnet" },
+  { provider: "Google", model: "Gemini 2.5 Pro" },
+  { provider: "xAI", model: "Grok 3" },
+  { provider: "Groq", model: "Llama 3.3 70B" },
+  { provider: "DeepSeek", model: "DeepSeek R1 Preview" },
+  { provider: "OpenRouter", model: "Qwen3 30B" },
 ];
 
 const ProviderShowcase = () => {
@@ -57,7 +47,7 @@ const ProviderShowcase = () => {
     const interval = setInterval(() => {
       setIsTransitioning(true);
       setTimeout(() => {
-        setCurrentProvider((prev) => (prev + 1) % providerList.length);
+        setCurrentProvider((prev) => (prev + 1) % showcaseData.length);
         setIsTransitioning(false);
       }, 150);
     }, 2000);
@@ -81,7 +71,10 @@ const ProviderShowcase = () => {
               exit={{ opacity: 0, rotateY: -90 }}
               transition={{ duration: 0.3 }}
             >
-              <ProviderIcon provider={providerList[currentProvider]!} className="h-10 w-10" />
+              <ProviderIcon
+                provider={showcaseData[currentProvider]!.provider}
+                className="h-10 w-10"
+              />
             </motion.div>
           </AnimatePresence>
         </motion.div>
@@ -95,16 +88,14 @@ const ProviderShowcase = () => {
             className="text-center"
           >
             <div className="text-sm font-semibold text-foreground">
-              {providerList[currentProvider]}
+              {showcaseData[currentProvider]!.provider}
             </div>
-            <div className="text-xs text-default-500">
-              {modelNames[currentProvider] || "Latest Model"}
-            </div>
+            <div className="text-xs text-default-500">{showcaseData[currentProvider]!.model}</div>
           </motion.div>
         </AnimatePresence>
 
         <div className="flex gap-1">
-          {providerList.map((_, index) => (
+          {showcaseData.map((_, index) => (
             <motion.div
               key={index}
               animate={{
