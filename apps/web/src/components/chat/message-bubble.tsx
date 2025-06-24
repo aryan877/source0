@@ -293,7 +293,11 @@ const MessageBubble = memo(
           case "text":
             return (
               <div key={index}>
-                <MessageContent content={part.text} citations={getCitationsFromMessage(message)} />
+                <MessageContent
+                  content={part.text}
+                  citations={getCitationsFromMessage(message)}
+                  isUser={isUser}
+                />
               </div>
             );
 
@@ -450,7 +454,7 @@ const MessageBubble = memo(
                 isLoading={isReasoningStreaming}
                 autoExpand={true}
               >
-                <MessageContent content={part.reasoning} citations={[]} />
+                <MessageContent content={part.reasoning} citations={[]} isUser={isUser} />
               </ExpandableSection>
             );
 
@@ -655,7 +659,7 @@ const MessageBubble = memo(
               isEditing && isUser
                 ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
                 : isUser
-                  ? "w-full rounded-2xl bg-content2 px-5 py-4"
+                  ? "rounded-2xl bg-content2 px-5 py-4"
                   : "w-full px-1"
             }`}
           >

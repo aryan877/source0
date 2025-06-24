@@ -19,6 +19,7 @@ import { CodeBlock } from "./code-block";
 interface MessageContentProps {
   content: string;
   citations?: TavilySearchResult[];
+  isUser?: boolean;
 }
 
 /**
@@ -222,7 +223,7 @@ const sanitizeSchema = {
 
 const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex];
 
-const MessageContent = memo(({ content, citations }: MessageContentProps) => {
+const MessageContent = memo(({ content, citations, isUser }: MessageContentProps) => {
   const { fontSize } = useUserPreferencesStore();
   const { theme } = useTheme();
 
@@ -275,10 +276,18 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
           const languageClassName = codeProps.className || "";
           const codeContent = String(codeProps.children).replace(/\n$/, "");
 
-          return <CodeBlock className={languageClassName}>{codeContent}</CodeBlock>;
+          return (
+            <div className="text-left">
+              <CodeBlock className={languageClassName}>{codeContent}</CodeBlock>
+            </div>
+          );
         }
 
-        return <pre {...props}>{children}</pre>;
+        return (
+          <pre {...props} className="text-left">
+            {children}
+          </pre>
+        );
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,7 +296,7 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
 
   return (
     <div
-      className={`prose max-w-none prose-${fontSize} ${isDarkTheme ? "prose-invert" : ""}`}
+      className={`prose max-w-none prose-${fontSize} ${isDarkTheme ? "prose-invert" : ""} ${isUser ? "text-right" : ""}`}
       style={{
         // Correctly map the abstract size to a pixel value for the container.
         // Tailwind's prose plugin uses this to scale all children.
