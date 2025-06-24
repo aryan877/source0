@@ -23,7 +23,7 @@ import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/message-utils";
+import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/database-message-converter";
 import { useChat, type Message } from "@ai-sdk/react";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";

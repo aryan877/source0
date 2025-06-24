@@ -10,7 +10,8 @@ import {
 import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
-import { convertToAiMessages } from "@/utils/message-utils";
+import { processMessages } from "@/utils/core-message-processor";
+import { convertToAiMessages } from "@/utils/database-message-converter";
 import { pub, sub } from "@/utils/redis";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
@@ -31,7 +32,6 @@ import {
   createModelInstance,
   getModelMapping,
 } from "./utils/models";
-import { processMessages } from "./utils/process-messages";
 import { getToolsForModel } from "./utils/tools";
 
 const MessageSummarySchema = z.object({

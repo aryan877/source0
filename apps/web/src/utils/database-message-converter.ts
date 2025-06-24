@@ -623,3 +623,26 @@ export function prepareMessageForDb(
 
   return preparedMessage;
 }
+
+/**
+ * Ensures that a list of messages contains no duplicate IDs.
+ * If duplicates are found, it keeps the last occurrence of the message.
+ * This is useful for preventing React key errors when message lists are updated.
+ *
+ * @param messages - An array of AI SDK Message objects.
+ * @returns A new array of Message objects with unique IDs.
+ */
+export const ensureUniqueMessages = (messages: Message[]): Message[] => {
+  const uniqueMessages = messages.reduce((acc: Message[], message) => {
+    const existingIndex = acc.findIndex((m) => m.id === message.id);
+    if (existingIndex === -1) {
+      acc.push(message);
+    } else {
+      // If duplicate ID found, keep the more recent one (later in array)
+      console.warn(`Duplicate message ID detected: ${message.id}, keeping latest version`);
+      acc[existingIndex] = message;
+    }
+    return acc;
+  }, []);
+  return uniqueMessages;
+};

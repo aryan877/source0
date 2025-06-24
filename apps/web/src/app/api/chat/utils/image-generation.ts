@@ -1,5 +1,6 @@
 import { ModelConfig } from "@/config/models";
 import { saveAssistantMessageServer } from "@/services/chat-messages.server";
+import { CustomFileUIPart } from "@/utils/core-message-processor";
 import { openai } from "@ai-sdk/openai";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
 import {
@@ -9,7 +10,6 @@ import {
   type Message,
 } from "ai";
 import { handleStreamError } from "./errors";
-import { CustomFileUIPart } from "./process-messages";
 
 export async function handleImageGenerationRequest(
   supabase: SupabaseClient,

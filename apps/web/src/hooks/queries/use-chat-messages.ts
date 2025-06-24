@@ -1,7 +1,7 @@
 "use client";
 
 import { getMessages } from "@/services/chat-messages";
-import { convertToAiMessages } from "@/utils/message-utils";
+import { convertToAiMessages } from "@/utils/database-message-converter";
 import { chatMessagesKeys } from "@/utils/query-keys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 

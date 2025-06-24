@@ -1,6 +1,6 @@
 import { ReasoningLevel } from "@/config/models";
 import { type ProviderMetadata } from "@/types/provider-metadata";
-import { convertToAiMessages, prepareMessageForDb } from "@/utils/message-utils";
+import { convertToAiMessages, prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type Message } from "ai";

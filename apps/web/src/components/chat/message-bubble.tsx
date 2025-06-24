@@ -1,9 +1,9 @@
 "use client";
 
-import { CustomFileUIPart } from "@/app/api/chat/utils/process-messages";
 import { type GroundingMetadata } from "@/types/provider-metadata";
 import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
+import { CustomFileUIPart } from "@/utils/core-message-processor";
 import {
   ArrowPathIcon,
   BookmarkIcon,

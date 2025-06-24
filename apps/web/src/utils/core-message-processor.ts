@@ -1,5 +1,6 @@
 import { PROVIDER_MAPPING, type ModelConfig } from "@/config/models";
-import { type ReasoningDetail } from "@/services";
+import { type MessagePart, type ReasoningDetail } from "@/services";
+import { convertPartsForDb } from "@/utils/database-message-converter";
 import {
   ToolResultPart,
   type Attachment,
@@ -126,9 +127,15 @@ async function processAttachment(
 async function processUserMessage(
   message: Message,
   modelConfig: ModelConfig
-): Promise<CoreMessage | null> {
+): Promise<{
+  coreMessage: CoreMessage | null;
+  dbParts: MessagePart[];
+}> {
   const attachments = (message.experimental_attachments as ClientAttachment[]) ?? [];
   const coreParts: UserContentPart[] = [];
+
+  // Use the helper to properly convert message parts to database format )
+  const dbParts = convertPartsForDb(message);
 
   // Build coreParts for the AI model (different from database storage)
   const textContent = typeof message.content === "string" ? message.content.trim() : "";
@@ -143,10 +150,8 @@ async function processUserMessage(
     if (corePart) coreParts.push(corePart as UserContentPart);
   }
 
-  if (coreParts.length > 0) {
-    return { role: "user" as const, content: coreParts };
-  }
-  return null;
+  const coreMessage = coreParts.length > 0 ? { role: "user" as const, content: coreParts } : null;
+  return { coreMessage, dbParts };
 }
 
 async function processAssistantMessage(
@@ -280,19 +285,27 @@ export const processMessages = async (
   modelConfig: ModelConfig
 ): Promise<{
   coreMessages: CoreMessage[];
-  lastUserMessage: Message | null;
+  userMessageToSave: (Message & { dbParts: MessagePart[] }) | null;
 }> => {
   const coreMessages: CoreMessage[] = [];
-  const reversedMessages = [...messages].reverse();
-  const lastUserMessage = reversedMessages.find((m) => m.role === "user") || null;
+  let userMessageToSave: (Message & { dbParts: MessagePart[] }) | null = null;
 
-  for (const message of messages) {
+  const reversedMessages = [...messages].reverse();
+  const lastUserMessageIndex = reversedMessages.findIndex((m) => m.role === "user");
+
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
     if (!message) continue;
+
+    const isLastUserMessage = i === messages.length - 1 - lastUserMessageIndex;
 
     switch (message.role) {
       case "user": {
-        const coreMessage = await processUserMessage(message, modelConfig);
+        const { coreMessage, dbParts } = await processUserMessage(message, modelConfig);
         if (coreMessage) coreMessages.push(coreMessage);
+        if (isLastUserMessage && dbParts.length > 0) {
+          userMessageToSave = { ...message, dbParts };
+        }
         break;
       }
       case "assistant": {
@@ -315,5 +328,5 @@ export const processMessages = async (
     }
   }
 
-  return { coreMessages, lastUserMessage };
+  return { coreMessages, userMessageToSave };
 };
