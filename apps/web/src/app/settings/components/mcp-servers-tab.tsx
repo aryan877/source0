@@ -309,18 +309,18 @@ export function McpServersTab() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:flex sm:items-center sm:justify-between sm:space-y-0">
         <div>
           <h2 className="text-xl font-semibold text-foreground">MCP Servers</h2>
           <p className="text-sm text-default-500">
             Configure Model Context Protocol servers for enhanced AI capabilities
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Chip variant="flat" color="success">
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip variant="flat" color="success" size="sm">
             {activeServersCount} active
           </Chip>
-          <Chip variant="flat" color="default">
+          <Chip variant="flat" color="default" size="sm">
             {servers.length} total
           </Chip>
           <Button
@@ -328,8 +328,11 @@ export function McpServersTab() {
             startContent={<PlusIcon className="h-4 w-4" />}
             onPress={openAddModal}
             isDisabled={isProcessing}
+            size="sm"
+            className="sm:size-medium"
           >
-            Add Server
+            <span className="hidden sm:inline">Add Server</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
       </div>
@@ -368,7 +371,7 @@ export function McpServersTab() {
               }`}
             >
               <CardHeader className="pb-2">
-                <div className="flex w-full items-center justify-between">
+                <div className="space-y-3 sm:flex sm:w-full sm:items-center sm:justify-between sm:space-y-0">
                   <div className="flex items-center gap-3">
                     <div
                       className={`flex h-10 w-10 items-center justify-center rounded-lg ${
@@ -381,9 +384,9 @@ export function McpServersTab() {
                         }`}
                       />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{server.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                        <h3 className="truncate font-semibold text-foreground">{server.name}</h3>
                         <Switch
                           size="sm"
                           isSelected={!!server.is_active}
@@ -395,9 +398,11 @@ export function McpServersTab() {
                           }}
                         />
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-default-500">
-                        <GlobeAltIcon className="h-4 w-4" />
-                        <span className="font-mono text-xs">{server.url}</span>
+                      <div className="flex flex-col gap-1 text-sm text-default-500 sm:flex-row sm:items-center sm:gap-2">
+                        <div className="flex items-center gap-1">
+                          <GlobeAltIcon className="h-4 w-4 flex-shrink-0" />
+                          <span className="truncate font-mono text-xs">{server.url}</span>
+                        </div>
                         <Chip
                           size="sm"
                           variant="flat"
@@ -408,7 +413,7 @@ export function McpServersTab() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-end gap-1 sm:flex-shrink-0">
                     <Tooltip content="Duplicate Server">
                       <Button
                         isIconOnly
