@@ -219,10 +219,15 @@ const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
       onPress={onNewChat}
       color="primary"
       size="md"
-      className="h-10 w-full font-semibold shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
-      startContent={<PlusIcon className="h-4 w-4" />}
+      className="relative h-10 w-full overflow-hidden rounded-lg bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 font-semibold text-white shadow-lg shadow-primary/25"
+      startContent={
+        <div className="relative z-10">
+          <PlusIcon className="h-4 w-4" />
+        </div>
+      }
     >
-      New Chat
+      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+      <span className="relative z-10 tracking-wide">New Chat</span>
     </Button>
   </div>
 ));
