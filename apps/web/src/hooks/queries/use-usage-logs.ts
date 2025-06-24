@@ -29,6 +29,8 @@ export function useUsageLogs(filters: UsageLogsFilters) {
     queryFn: ({ pageParam: cursor }) => getUsageLogs({ ...filters, cursor }),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: undefined,
+    gcTime: 0,
+    staleTime: 0,
   });
 
   const usageLogs = useMemo(() => data?.pages.flatMap((page) => page.data) || [], [data]);

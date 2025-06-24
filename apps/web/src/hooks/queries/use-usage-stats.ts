@@ -15,5 +15,7 @@ export function useUsageStats(filters: UsageStatsFilters) {
   return useQuery({
     queryKey: usageLogsKeys.stats(filters),
     queryFn: () => getUsageStats(filters),
+    gcTime: 0,
+    staleTime: 0,
   });
 }
