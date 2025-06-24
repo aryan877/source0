@@ -258,6 +258,50 @@ export type Database = {
           },
         ]
       }
+      model_usage_logs: {
+        Row: {
+          completion_tokens: number
+          created_at: string | null
+          id: string
+          model_id: string
+          prompt_tokens: number
+          provider: string
+          session_id: string
+          total_tokens: number
+          user_id: string
+        }
+        Insert: {
+          completion_tokens: number
+          created_at?: string | null
+          id?: string
+          model_id: string
+          prompt_tokens: number
+          provider: string
+          session_id: string
+          total_tokens: number
+          user_id: string
+        }
+        Update: {
+          completion_tokens?: number
+          created_at?: string | null
+          id?: string
+          model_id?: string
+          prompt_tokens?: number
+          provider?: string
+          session_id?: string
+          total_tokens?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_usage_logs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           created_at: string | null

@@ -1,4 +1,4 @@
-import { PROVIDER_MAPPING, type ModelConfig } from "@/config/models";
+import { Provider, type ModelConfig } from "@/config/models";
 import { type MessagePart, type ReasoningDetail } from "@/services";
 import { convertPartsForDb } from "@/utils/database-message-converter";
 import {
@@ -42,10 +42,7 @@ type UserContentPart = TextPart | ImagePart | FilePart;
 type AssistantContentPart = TextPart | FilePart | ToolCallPart | AssistantReasoningPart;
 
 // PROVIDER CONFIGURATION - Add providers here that need assistant images converted to user messages
-const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<keyof typeof PROVIDER_MAPPING>([
-  "OpenAI",
-  "Anthropic",
-]);
+const PROVIDERS_NEEDING_IMAGE_CONVERSION = new Set<Provider>(["OpenAI", "Anthropic"]);
 
 // Generic helper functions for providers that need assistant images converted to user messages
 const needsImageConversion = (modelConfig: ModelConfig) =>

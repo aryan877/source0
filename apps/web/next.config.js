@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@heroui/react"],
+  transpilePackages: ["@heroui/react", "@modelcontextprotocol/sdk"],
   images: {
     remotePatterns: [
       {

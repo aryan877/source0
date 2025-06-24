@@ -11,6 +11,7 @@ import { CustomizationTab } from "./components/customization-tab";
 import { GeneralTab } from "./components/general-tab";
 import { McpServersTab } from "./components/mcp-servers-tab";
 import { ModelsTab } from "./components/models-tab";
+import { UsageTab } from "./components/usage-tab";
 
 function SettingsContent() {
   const router = useRouter();
@@ -87,6 +88,10 @@ function SettingsContent() {
 
             <Tab key="mcp-servers" title="MCP Servers">
               <McpServersTab />
+            </Tab>
+
+            <Tab key="usage" title="Usage">
+              <UsageTab />
             </Tab>
 
             <Tab key="api-keys" title="API Keys">

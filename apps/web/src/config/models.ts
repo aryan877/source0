@@ -22,6 +22,10 @@ export const PROVIDER_MAPPING = {
   OpenRouter: { name: "openrouter", supported: true },
 } as const;
 
+// Export provider names for reuse across the codebase
+export const PROVIDERS = Object.keys(PROVIDER_MAPPING) as (keyof typeof PROVIDER_MAPPING)[];
+export type Provider = keyof typeof PROVIDER_MAPPING;
+
 export interface ModelConfig {
   id: string;
   name: string;

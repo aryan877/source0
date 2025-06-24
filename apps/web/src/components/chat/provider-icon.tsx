@@ -1,15 +1,9 @@
-import { ModelConfig } from "@/config/models";
+import { Provider } from "@/config/models";
 import React from "react";
 
 export // Provider icon component with dark/light mode support
 const ProviderIcon = React.memo(
-  ({
-    provider,
-    className = "h-4 w-4",
-  }: {
-    provider: ModelConfig["provider"];
-    className?: string;
-  }) => {
+  ({ provider, className = "h-4 w-4" }: { provider: Provider; className?: string }) => {
     // Inline SVGs with currentColor to support theming
     const iconMap = {
       Google: (

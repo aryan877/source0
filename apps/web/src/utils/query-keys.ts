@@ -25,3 +25,10 @@ export const userFilesKeys = {
   all: ["user-files"] as const,
   byUser: (userId: string) => [...userFilesKeys.all, "user", userId] as const,
 };
+
+export const usageLogsKeys = {
+  all: ["usageLogs"] as const,
+  lists: () => [...usageLogsKeys.all, "list"] as const,
+  list: (filters: object) => [...usageLogsKeys.lists(), filters] as const,
+  stats: (filters: object) => [...usageLogsKeys.all, "stats", filters] as const,
+};

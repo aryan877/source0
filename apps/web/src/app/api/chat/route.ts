@@ -10,6 +10,7 @@ import {
 import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
+import { saveModelUsageLog } from "@/services/usage-logs.server";
 import { processMessages } from "@/utils/core-message-processor";
 import { convertToAiMessages } from "@/utils/database-message-converter";
 import { pub, sub } from "@/utils/redis";
@@ -314,7 +315,7 @@ export async function POST(req: Request): Promise<Response> {
                   stack: error.error instanceof Error ? error.error.stack : undefined,
                 });
               },
-              onFinish: async ({ text, providerMetadata, response }) => {
+              onFinish: async ({ text, providerMetadata, response, usage }) => {
                 console.log("streamText completed for session:", {
                   sessionId: finalSessionId,
                   userId: user.id,
@@ -322,6 +323,20 @@ export async function POST(req: Request): Promise<Response> {
                   streamId,
                   textLength: text.length,
                 });
+
+                try {
+                  await saveModelUsageLog(supabase, {
+                    user_id: user.id,
+                    session_id: finalSessionId,
+                    model_id: model,
+                    provider: modelConfig.provider,
+                    prompt_tokens: usage.promptTokens,
+                    completion_tokens: usage.completionTokens,
+                    total_tokens: usage.totalTokens,
+                  });
+                } catch (e) {
+                  console.error("Failed to save model usage log", e);
+                }
 
                 const logContext: {
                   sessionId: string;
@@ -335,12 +350,6 @@ export async function POST(req: Request): Promise<Response> {
                   model,
                   streamId,
                 };
-
-                // Check if stream was cancelled before saving message
-                if (signal.aborted) {
-                  console.log(`Stream ${streamId} was aborted, skipping message save`);
-                  return;
-                }
 
                 // The stream can finish without any substantive content.
                 if (!text && (!response || response.messages.length === 0)) {

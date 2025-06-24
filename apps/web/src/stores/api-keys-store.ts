@@ -1,8 +1,8 @@
-import { PROVIDER_MAPPING } from "@/config/models";
+import { Provider, PROVIDER_MAPPING } from "@/config/models";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type SupportedProvider = keyof typeof PROVIDER_MAPPING;
+export type SupportedProvider = Provider;
 
 interface ApiKeysState {
   // API Keys State
