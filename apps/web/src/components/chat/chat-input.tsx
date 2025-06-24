@@ -103,24 +103,20 @@ export const ChatInput = memo(
               />
             )}
 
-            {attachedFiles.length > 0 && (
-              <div className="rounded-t-2xl border-l border-r border-t border-default-200 bg-content2 p-4">
-                <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />
-              </div>
-            )}
-
             <form onSubmit={onSubmit}>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className="relative overflow-hidden rounded-t-2xl border-l border-r border-t border-default-200 bg-content1 px-2 pt-2"
+                className="relative overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-sm"
               >
-                <div
-                  className={`relative w-full border-l border-r border-t border-primary/10 bg-content2 pb-5 pl-4 pr-4 pt-5 ${
-                    attachedFiles.length > 0 ? "rounded-b-2xl border-t-0" : "rounded-t-2xl"
-                  }`}
-                >
+                {attachedFiles.length > 0 && (
+                  <div className="border-b border-default-200 bg-content1 p-4">
+                    <FileAttachment files={attachedFiles} onRemove={onRemoveFile} />
+                  </div>
+                )}
+
+                <div className="relative w-full bg-content1 px-4 py-4">
                   <Textarea
                     ref={textareaRef}
                     value={input}
@@ -139,7 +135,7 @@ export const ChatInput = memo(
                     onKeyDown={onKeyDown}
                   />
 
-                  <div className="flex items-center justify-between gap-2 pt-3">
+                  <div className="flex items-center justify-between gap-2 pt-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <ModelSelector
                         value={selectedModel}

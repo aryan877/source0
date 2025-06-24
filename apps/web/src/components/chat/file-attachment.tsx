@@ -93,14 +93,17 @@ export const FileAttachment = ({ files, onRemove }: FileAttachmentProps) => {
   }, [files]);
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-2">
       {files.map((attachedFile, index) => {
         const { file, uploading, error } = attachedFile;
         const previewUrl = imagePreviews[index];
 
         return (
-          <Card key={index} className="relative max-w-[300px] overflow-hidden">
-            <CardBody className="p-4">
+          <Card
+            key={index}
+            className="relative max-w-[300px] overflow-hidden border-default-200/50 bg-content2/50"
+          >
+            <CardBody className="p-3">
               <div className={`flex items-center gap-3 ${uploading ? "opacity-50" : ""}`}>
                 <div className="flex-shrink-0">
                   <FileIcon
@@ -111,7 +114,7 @@ export const FileAttachment = ({ files, onRemove }: FileAttachmentProps) => {
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1">
-                  <span className="max-w-[200px] truncate text-sm font-semibold">{file.name}</span>
+                  <span className="max-w-[200px] truncate text-sm font-medium">{file.name}</span>
                   <span className="text-xs text-default-500">{formatFileSize(file.size)}</span>
                 </div>
                 <Button
