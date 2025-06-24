@@ -247,344 +247,380 @@ export async function POST(req: Request): Promise<Response> {
       await serverAppendStreamId(supabase, finalSessionId, streamId);
 
       const stream = createDataStream({
-        execute: (dataStream) => {
-          console.log("Starting streamText for session:", {
-            sessionId: finalSessionId,
-            userId: user.id,
-            model,
-            streamId,
-            messageCount: finalMessages.length,
-          });
+        async execute(dataStream) {
+          const abortController = new AbortController();
+          const signal = abortController.signal;
 
-          const result = streamText({
-            model: modelInstance,
-            messages: finalMessages,
-            maxSteps: 5,
-            tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
-              capabilities: modelConfig.capabilities,
-              supportsFunctions: modelConfig.supportsFunctions,
-            }),
-            // abortSignal: req.signal,
-            ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-            onError: (error) => {
-              console.error("streamText error:", {
-                sessionId: finalSessionId,
-                userId: user.id,
-                model,
-                streamId,
-                error: error.error,
-                stack: error.error instanceof Error ? error.error.stack : undefined,
+          // This is guaranteed to be defined by the streamContext check
+          const redisSubscriber = sub!.duplicate();
+          const channel = `chat-cancel-${streamId}`;
+
+          const cleanup = () => {
+            redisSubscriber
+              .unsubscribe(channel)
+              .catch((e) => console.error("Error unsubscribing", e));
+            redisSubscriber.quit().catch((e) => console.error("Error quitting subscriber", e));
+          };
+
+          try {
+            // Wait for the subscription to be confirmed before proceeding.
+            await new Promise<void>((resolve, reject) => {
+              redisSubscriber.on("error", (err) => {
+                console.error("Redis Subscriber Error", err);
+                reject(err);
               });
-            },
-            onFinish: async ({ text, providerMetadata, response }) => {
-              console.log("streamText completed for session:", {
-                sessionId: finalSessionId,
-                userId: user.id,
-                model,
-                streamId,
-                textLength: text.length,
-              });
-
-              const logContext: {
-                sessionId: string;
-                userId: string;
-                model: string;
-                streamId: string;
-                messageId?: string;
-              } = {
-                sessionId: finalSessionId,
-                userId: user.id,
-                model,
-                streamId,
-              };
-
-              // Check if stream was cancelled before saving message
-              try {
-                const streamStatus = await serverGetLatestStreamIdWithStatus(
-                  supabase,
-                  finalSessionId
-                );
-                if (streamStatus?.streamId === streamId && streamStatus.cancelled) {
-                  console.log(`Stream ${streamId} was cancelled, skipping message save`);
-                  return; // Don't save message if stream was cancelled
+              redisSubscriber.subscribe(channel, (err) => {
+                if (err) {
+                  return reject(
+                    new Error(`Failed to subscribe to cancellation channel: ${err.message}`)
+                  );
                 }
-              } catch (error) {
-                console.error("Error checking stream status:", {
-                  ...logContext,
-                  error,
+                resolve();
+              });
+            });
+
+            redisSubscriber.on("message", (ch, message) => {
+              if (ch === channel && message === "cancel") {
+                console.log(`Cancellation signal received for stream ${streamId}. Aborting...`);
+                abortController.abort();
+              }
+            });
+
+            console.log("Starting streamText for session:", {
+              sessionId: finalSessionId,
+              userId: user.id,
+              model,
+              streamId,
+              messageCount: finalMessages.length,
+            });
+
+            const result = streamText({
+              model: modelInstance,
+              messages: finalMessages,
+              maxSteps: 5,
+              tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
+                capabilities: modelConfig.capabilities,
+                supportsFunctions: modelConfig.supportsFunctions,
+              }),
+              abortSignal: signal,
+              ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+              onError: (error) => {
+                console.error("streamText error:", {
+                  sessionId: finalSessionId,
+                  userId: user.id,
+                  model,
+                  streamId,
+                  error: error.error,
+                  stack: error.error instanceof Error ? error.error.stack : undefined,
                 });
-                // Continue with saving if we can't check status
-              }
+              },
+              onFinish: async ({ text, providerMetadata, response }) => {
+                console.log("streamText completed for session:", {
+                  sessionId: finalSessionId,
+                  userId: user.id,
+                  model,
+                  streamId,
+                  textLength: text.length,
+                });
 
-              // The stream can finish without any substantive content.
-              if (!text && (!response || response.messages.length === 0)) {
-                console.warn("Stream finished with no message content.", logContext);
-                return;
-              }
+                const logContext: {
+                  sessionId: string;
+                  userId: string;
+                  model: string;
+                  streamId: string;
+                  messageId?: string;
+                } = {
+                  sessionId: finalSessionId,
+                  userId: user.id,
+                  model,
+                  streamId,
+                };
 
-              const messageId = uuidv4();
-              logContext.messageId = messageId;
+                // Check if stream was cancelled before saving message
+                if (signal.aborted) {
+                  console.log(`Stream ${streamId} was aborted, skipping message save`);
+                  return;
+                }
 
-              // Process response.messages to construct proper assistant message format
-              let messageSaved = false;
+                // The stream can finish without any substantive content.
+                if (!text && (!response || response.messages.length === 0)) {
+                  console.warn("Stream finished with no message content.", logContext);
+                  return;
+                }
 
-              if (response.messages.length > 0) {
-                try {
-                  // Build the comprehensive assistant message from response.messages inline
-                  const parts: Message["parts"] = [];
-                  let fullContent = "";
-                  let stepCount = 0;
+                const messageId = uuidv4();
+                logContext.messageId = messageId;
 
-                  for (const message of response.messages) {
-                    if (message.role === "assistant" && Array.isArray(message.content)) {
-                      for (const contentPart of message.content) {
-                        if (contentPart.type === "text") {
-                          parts.push({ type: "text", text: String(contentPart.text) });
-                          fullContent += String(contentPart.text);
-                        } else if (contentPart.type === "tool-call") {
-                          // Find tool result for this tool call by looking in tool messages
-                          let toolResult: unknown = "";
-                          for (const toolMessage of response.messages) {
-                            if (toolMessage.role === "tool" && Array.isArray(toolMessage.content)) {
-                              for (const toolPart of toolMessage.content) {
-                                if (
-                                  toolPart.type === "tool-result" &&
-                                  toolPart.toolCallId === contentPart.toolCallId
-                                ) {
-                                  toolResult = toolPart.result;
-                                  break;
+                // Process response.messages to construct proper assistant message format
+                let messageSaved = false;
+
+                if (response.messages.length > 0) {
+                  try {
+                    // Build the comprehensive assistant message from response.messages inline
+                    const parts: Message["parts"] = [];
+                    let fullContent = "";
+                    let stepCount = 0;
+
+                    for (const message of response.messages) {
+                      if (message.role === "assistant" && Array.isArray(message.content)) {
+                        for (const contentPart of message.content) {
+                          if (contentPart.type === "text") {
+                            parts.push({ type: "text", text: String(contentPart.text) });
+                            fullContent += String(contentPart.text);
+                          } else if (contentPart.type === "tool-call") {
+                            // Find tool result for this tool call by looking in tool messages
+                            let toolResult: unknown = "";
+                            for (const toolMessage of response.messages) {
+                              if (
+                                toolMessage.role === "tool" &&
+                                Array.isArray(toolMessage.content)
+                              ) {
+                                for (const toolPart of toolMessage.content) {
+                                  if (
+                                    toolPart.type === "tool-result" &&
+                                    toolPart.toolCallId === contentPart.toolCallId
+                                  ) {
+                                    toolResult = toolPart.result;
+                                    break;
+                                  }
                                 }
                               }
+                              if (toolResult) break;
                             }
-                            if (toolResult) break;
+
+                            const toolInvocation = {
+                              state: "result" as const,
+                              step: stepCount,
+                              toolCallId: contentPart.toolCallId,
+                              toolName: contentPart.toolName,
+                              args: contentPart.args,
+                              result: toolResult,
+                            };
+
+                            parts.push({
+                              type: "tool-invocation",
+                              toolInvocation,
+                            });
+                            stepCount++;
+                          } else if (contentPart.type === "reasoning") {
+                            const reasoningContentPart = contentPart as {
+                              text: string;
+                              signature?: string;
+                            };
+                            parts.push({
+                              type: "reasoning",
+                              reasoning: reasoningContentPart.text,
+                              details: [
+                                {
+                                  type: "text",
+                                  text: String(reasoningContentPart.text),
+                                  signature: reasoningContentPart.signature, // Store signature for Claude reasoning models
+                                },
+                              ],
+                            });
                           }
-
-                          const toolInvocation = {
-                            state: "result" as const,
-                            step: stepCount,
-                            toolCallId: contentPart.toolCallId,
-                            toolName: contentPart.toolName,
-                            args: contentPart.args,
-                            result: toolResult,
-                          };
-
-                          parts.push({
-                            type: "tool-invocation",
-                            toolInvocation,
-                          });
-                          stepCount++;
-                        } else if (contentPart.type === "reasoning") {
-                          const reasoningContentPart = contentPart as {
-                            text: string;
-                            signature?: string;
-                          };
-                          parts.push({
-                            type: "reasoning",
-                            reasoning: reasoningContentPart.text,
-                            details: [
-                              {
-                                type: "text",
-                                text: String(reasoningContentPart.text),
-                                signature: reasoningContentPart.signature, // Store signature for Claude reasoning models
-                              },
-                            ],
-                          });
                         }
                       }
                     }
-                  }
 
-                  const assistantMessage: Message = {
-                    id: messageId,
-                    role: "assistant" as const,
-                    content: fullContent,
-                    parts,
-                  };
+                    const assistantMessage: Message = {
+                      id: messageId,
+                      role: "assistant" as const,
+                      content: fullContent,
+                      parts,
+                    };
 
-                  const savedAssistantMessage = await saveAssistantMessageServer(
-                    supabase,
-                    assistantMessage,
-                    finalSessionId,
-                    user.id,
-                    model,
-                    modelConfig.provider,
-                    { reasoningLevel, searchEnabled },
-                    providerMetadata
-                  );
+                    const savedAssistantMessage = await saveAssistantMessageServer(
+                      supabase,
+                      assistantMessage,
+                      finalSessionId,
+                      user.id,
+                      model,
+                      modelConfig.provider,
+                      { reasoningLevel, searchEnabled },
+                      providerMetadata
+                    );
 
-                  if (showChatNavigator && assistantMessage.content) {
-                    try {
-                      const { object } = await generateObject({
-                        model: openai("gpt-4o-mini"),
-                        schema: MessageSummarySchema,
-                        prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
-                      });
-                      await saveMessageSummary(supabase, {
-                        message_id: savedAssistantMessage.id,
-                        session_id: finalSessionId,
-                        user_id: user.id,
-                        summary: object.summary,
-                      });
-                    } catch (e) {
-                      console.error("Failed to generate/save assistant message summary", e);
+                    if (showChatNavigator && assistantMessage.content) {
+                      try {
+                        const { object } = await generateObject({
+                          model: openai("gpt-4o-mini"),
+                          schema: MessageSummarySchema,
+                          prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
+                        });
+                        await saveMessageSummary(supabase, {
+                          message_id: savedAssistantMessage.id,
+                          session_id: finalSessionId,
+                          user_id: user.id,
+                          summary: object.summary,
+                        });
+                      } catch (e) {
+                        console.error("Failed to generate/save assistant message summary", e);
+                      }
                     }
-                  }
 
-                  messageSaved = true;
-                } catch (error) {
-                  console.error("Failed to save assistant message:", {
-                    ...logContext,
-                    error,
-                  });
-                }
-              } else if (text) {
-                // Fallback to simple text message if no response.messages
-                try {
-                  const assistantMessage: Message = {
-                    id: messageId,
-                    role: "assistant",
-                    parts: [{ type: "text", text }],
-                    content: text,
-                  };
-
-                  const savedAssistantMessage = await saveAssistantMessageServer(
-                    supabase,
-                    assistantMessage,
-                    finalSessionId,
-                    user.id,
-                    model,
-                    modelConfig.provider,
-                    { reasoningLevel, searchEnabled },
-                    providerMetadata
-                  );
-
-                  if (showChatNavigator && assistantMessage.content) {
-                    try {
-                      const { object } = await generateObject({
-                        model: openai("gpt-4o-mini"),
-                        schema: MessageSummarySchema,
-                        prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
-                      });
-                      await saveMessageSummary(supabase, {
-                        message_id: savedAssistantMessage.id,
-                        session_id: finalSessionId,
-                        user_id: user.id,
-                        summary: object.summary,
-                      });
-                    } catch (e) {
-                      console.error("Failed to generate/save assistant message summary", e);
-                    }
-                  }
-
-                  messageSaved = true;
-                  console.log("Message saved successfully with ID:", messageId);
-                } catch (error) {
-                  console.error("Failed to save assistant message:", {
-                    ...logContext,
-                    error,
-                  });
-                }
-              }
-
-              // Handle title generation for first message
-              let generatedTitle: string | null = null;
-              if (isFirstMessage && userMessageToSave) {
-                try {
-                  const firstUserMessage =
-                    typeof userMessageToSave.content === "string"
-                      ? userMessageToSave.content
-                      : userMessageToSave.parts?.find((p) => p.type === "text")?.text || "";
-
-                  generatedTitle = await generateTitleOnly(firstUserMessage);
-
-                  // Update the title in the database using server-side client
-                  const { error: titleError } = await supabase
-                    .from("chat_sessions")
-                    .update({ title: generatedTitle })
-                    .eq("id", finalSessionId);
-
-                  if (titleError) {
-                    console.error("Failed to update title in database:", {
+                    messageSaved = true;
+                  } catch (error) {
+                    console.error("Failed to save assistant message:", {
                       ...logContext,
-                      error: titleError,
+                      error,
                     });
                   }
-                } catch (error) {
-                  console.error("Failed to generate title:", {
-                    ...logContext,
-                    error,
-                  });
+                } else if (text) {
+                  // Fallback to simple text message if no response.messages
+                  try {
+                    const assistantMessage: Message = {
+                      id: messageId,
+                      role: "assistant",
+                      parts: [{ type: "text", text }],
+                      content: text,
+                    };
+
+                    const savedAssistantMessage = await saveAssistantMessageServer(
+                      supabase,
+                      assistantMessage,
+                      finalSessionId,
+                      user.id,
+                      model,
+                      modelConfig.provider,
+                      { reasoningLevel, searchEnabled },
+                      providerMetadata
+                    );
+
+                    if (showChatNavigator && assistantMessage.content) {
+                      try {
+                        const { object } = await generateObject({
+                          model: openai("gpt-4o-mini"),
+                          schema: MessageSummarySchema,
+                          prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
+                        });
+                        await saveMessageSummary(supabase, {
+                          message_id: savedAssistantMessage.id,
+                          session_id: finalSessionId,
+                          user_id: user.id,
+                          summary: object.summary,
+                        });
+                      } catch (e) {
+                        console.error("Failed to generate/save assistant message summary", e);
+                      }
+                    }
+
+                    messageSaved = true;
+                    console.log("Message saved successfully with ID:", messageId);
+                  } catch (error) {
+                    console.error("Failed to save assistant message:", {
+                      ...logContext,
+                      error,
+                    });
+                  }
                 }
-              }
 
-              // Send a SINGLE comprehensive annotation with all data batched together
-              // This avoids the multi-annotation processing issues in AI SDK
-              let finalModelName = model;
-              if (
-                reasoningLevel &&
-                modelConfig?.reasoningLevels &&
-                modelConfig.reasoningLevels.length > 0
-              ) {
-                finalModelName = `${model} (${reasoningLevel})`;
-              }
+                // Handle title generation for first message
+                let generatedTitle: string | null = null;
+                if (isFirstMessage && userMessageToSave) {
+                  try {
+                    const firstUserMessage =
+                      typeof userMessageToSave.content === "string"
+                        ? userMessageToSave.content
+                        : userMessageToSave.parts?.find((p) => p.type === "text")?.text || "";
 
-              const annotationData = {
-                type: "message_complete",
-                data: {
-                  // Model metadata
-                  modelUsed: finalModelName,
-                  modelProvider: modelConfig.provider,
+                    generatedTitle = await generateTitleOnly(firstUserMessage);
 
-                  // Message saved data (only if successfully saved)
-                  ...(messageSaved && {
-                    databaseId: messageId,
-                    sessionId: finalSessionId,
-                    messageSaved: true,
-                  }),
+                    // Update the title in the database using server-side client
+                    const { error: titleError } = await supabase
+                      .from("chat_sessions")
+                      .update({ title: generatedTitle })
+                      .eq("id", finalSessionId);
 
-                  // Title data (only if generated successfully)
-                  ...(generatedTitle && {
-                    titleGenerated: generatedTitle,
-                    userId: user.id,
-                  }),
+                    if (titleError) {
+                      console.error("Failed to update title in database:", {
+                        ...logContext,
+                        error: titleError,
+                      });
+                    }
+                  } catch (error) {
+                    console.error("Failed to generate title:", {
+                      ...logContext,
+                      error,
+                    });
+                  }
+                }
 
-                  // Grounding data (only if available)
-                  ...(providerMetadata?.google?.groundingMetadata && {
-                    grounding: providerMetadata.google.groundingMetadata as JSONValue,
-                    hasGrounding: true,
-                  }),
+                // Send a SINGLE comprehensive annotation with all data batched together
+                // This avoids the multi-annotation processing issues in AI SDK
+                let finalModelName = model;
+                if (
+                  reasoningLevel &&
+                  modelConfig?.reasoningLevels &&
+                  modelConfig.reasoningLevels.length > 0
+                ) {
+                  finalModelName = `${model} (${reasoningLevel})`;
+                }
 
-                  // Additional metadata for debugging
-                  isFirstMessage,
-                  timestamp: new Date().toISOString(),
-                } as JSONValue,
-              };
+                const annotationData = {
+                  type: "message_complete",
+                  data: {
+                    // Model metadata
+                    modelUsed: finalModelName,
+                    modelProvider: modelConfig.provider,
 
-              dataStream.writeMessageAnnotation(annotationData);
+                    // Message saved data (only if successfully saved)
+                    ...(messageSaved && {
+                      databaseId: messageId,
+                      sessionId: finalSessionId,
+                      messageSaved: true,
+                    }),
 
-              try {
-                await serverMarkStreamAsComplete(supabase, streamId);
-              } catch (e) {
-                console.error("Failed to mark stream as complete", { ...logContext, error: e });
-              }
-            },
-          });
+                    // Title data (only if generated successfully)
+                    ...(generatedTitle && {
+                      titleGenerated: generatedTitle,
+                      userId: user.id,
+                    }),
 
-          result.mergeIntoDataStream(dataStream, {
-            sendReasoning: modelConfig.capabilities.includes("reasoning"),
-            sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
-          });
+                    // Grounding data (only if available)
+                    ...(providerMetadata?.google?.groundingMetadata && {
+                      grounding: providerMetadata.google.groundingMetadata as JSONValue,
+                      hasGrounding: true,
+                    }),
 
-          // Consume the stream to ensure it runs to completion & triggers onFinish
-          // even when the client response is aborted:
-          result.consumeStream();
+                    // Additional metadata for debugging
+                    isFirstMessage,
+                    timestamp: new Date().toISOString(),
+                  } as JSONValue,
+                };
+
+                dataStream.writeMessageAnnotation(annotationData);
+
+                try {
+                  await serverMarkStreamAsComplete(supabase, streamId);
+                } catch (e) {
+                  console.error("Failed to mark stream as complete", { ...logContext, error: e });
+                }
+              },
+            });
+
+            result.mergeIntoDataStream(dataStream, {
+              sendReasoning: modelConfig.capabilities.includes("reasoning"),
+              sendSources: modelConfig.capabilities.includes("search") || searchEnabled,
+            });
+
+            // Consume the stream to ensure it runs to completion & triggers onFinish
+            // even when the client response is aborted:
+            await result.consumeStream();
+          } catch (error) {
+            if ((error as Error).name !== "AbortError") {
+              console.error("Error during stream execution:", { streamId, error });
+            }
+          } finally {
+            cleanup();
+          }
         },
         onError: (error: unknown) => {
           console.error("createDataStream error:", {
             sessionId: finalSessionId,
             userId: user.id,
             model,
-            streamId,
+            streamId: id,
             error: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined,
           });
@@ -594,7 +630,7 @@ export async function POST(req: Request): Promise<Response> {
             sessionId: finalSessionId,
             userId: user.id,
             model,
-            streamId,
+            streamId: id,
           });
 
           return error instanceof Error ? error.message : "An error occurred during streaming";

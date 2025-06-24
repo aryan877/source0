@@ -11,19 +11,13 @@ import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  createSession,
-  deleteFromPoint,
-  getLatestStreamIdWithStatus,
-  markStreamAsCancelled,
-  saveAssistantMessage,
-} from "@/services";
+import { createSession, deleteFromPoint, getLatestStreamIdWithStatus } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/database-message-converter";
+import { ensureUniqueMessages } from "@/utils/database-message-converter";
 import { useChat, type Message } from "@ai-sdk/react";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -362,52 +356,24 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const handleStop = useCallback(() => {
     stop();
 
-    const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
-
-    // Always mark the stream as cancelled on explicit stop
     if (chatId && chatId !== "new") {
       getLatestStreamIdWithStatus(chatId)
         .then((latestStream) => {
           if (latestStream && !latestStream.cancelled) {
-            console.log(`Marking stream ${latestStream.streamId} as cancelled`);
-            return markStreamAsCancelled(latestStream.streamId);
+            console.log(`Sending cancel request for stream ${latestStream.streamId}`);
+            // Fire-and-forget cancellation request
+            fetch("/api/chat/cancel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chatId, streamId: latestStream.streamId }),
+            }).catch((e) => console.error("Failed to send cancel request", e));
           }
         })
         .catch((error) => {
-          console.error("Error marking stream as cancelled:", error);
+          console.error("Error retrieving latest stream to cancel:", error);
         });
     }
-
-    // Then, if a partial message exists, save it
-    if (lastAssistantMessage && chatId !== "new" && user) {
-      console.log("Saving partial message due to user stop:", lastAssistantMessage);
-
-      const modelConfig = getModelById(selectedModel);
-      const modelProvider = modelConfig?.provider || "Unknown";
-
-      const preparedMessage = prepareMessageForDb({
-        message: lastAssistantMessage,
-        sessionId: chatId,
-        userId: user.id,
-        model: selectedModel,
-        modelProvider,
-        reasoningLevel: reasoningLevel,
-        searchEnabled: searchEnabled,
-      });
-
-      if (preparedMessage.parts.length > 0) {
-        saveAssistantMessage(
-          lastAssistantMessage,
-          chatId,
-          user.id,
-          selectedModel,
-          modelProvider,
-          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
-          { fireAndForget: true, existingParts: preparedMessage.parts }
-        );
-      }
-    }
-  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
+  }, [stop, chatId]);
 
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
