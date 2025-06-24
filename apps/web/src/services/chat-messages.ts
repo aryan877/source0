@@ -1,6 +1,6 @@
 import { ReasoningLevel } from "@/config/models";
 import { type Json, type Tables } from "@/types/supabase-types";
-import { prepareMessageForDb } from "@/utils/message-utils";
+import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
 import { type Message } from "ai";
 
