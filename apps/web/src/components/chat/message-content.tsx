@@ -223,7 +223,7 @@ const sanitizeSchema = {
 
 const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex];
 
-const MessageContent = memo(({ content, citations, isUser }: MessageContentProps) => {
+const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   const { fontSize } = useUserPreferencesStore();
   const { theme } = useTheme();
 
