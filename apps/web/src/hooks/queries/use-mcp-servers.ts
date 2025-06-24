@@ -28,15 +28,12 @@ export function useMcpServers() {
   const createMutation = useMutation({
     mutationFn: createMcpServer,
     onSuccess: (newServer) => {
-      queryClient.setQueryData(mcpServersKeys.all, (oldData: McpServer[] = []) => [
-        ...oldData,
-        newServer,
-      ]);
       addToast({
         title: "Server Created",
         description: `MCP server "${newServer.name}" has been created successfully.`,
         color: "success",
       });
+      invalidateServers();
     },
     onError: (error) => {
       console.error("Failed to create server:", error.message);
@@ -45,7 +42,6 @@ export function useMcpServers() {
         description: `Failed to create MCP server: ${error.message}`,
         color: "danger",
       });
-      invalidateServers();
     },
   });
 
@@ -53,74 +49,52 @@ export function useMcpServers() {
     mutationFn: ({ id, formData }: { id: string; formData: McpServerFormValues }) =>
       updateMcpServer(id, formData),
     onSuccess: (updatedServer) => {
-      queryClient.setQueryData(mcpServersKeys.all, (oldData: McpServer[] = []) =>
-        oldData.map((s) => (s.id === updatedServer.id ? updatedServer : s))
-      );
       addToast({
         title: "Server Updated",
         description: `MCP server "${updatedServer.name}" has been updated successfully.`,
         color: "success",
       });
+      invalidateServers();
     },
-    onError: (error) => {
+    onError: (error, { formData }) => {
       console.error("Failed to update server:", error.message);
       addToast({
         title: "Update Failed",
-        description: `Failed to update MCP server: ${error.message}`,
+        description: `Failed to update MCP server "${formData.name}": ${error.message}`,
         color: "danger",
       });
-      invalidateServers();
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteMcpServer,
-    onMutate: async (deletedServerId) => {
-      await queryClient.cancelQueries({ queryKey: mcpServersKeys.all });
-      const previousServers = queryClient.getQueryData<McpServer[]>(mcpServersKeys.all);
-      queryClient.setQueryData<McpServer[]>(mcpServersKeys.all, (old = []) =>
-        old.filter((s) => s.id !== deletedServerId)
-      );
-      return { previousServers };
-    },
-    onSuccess: (_, deletedServerId, context) => {
-      const deletedServer = context?.previousServers?.find((s) => s.id === deletedServerId);
+    mutationFn: ({ id }: { id: string; name: string }) => deleteMcpServer(id),
+    onSuccess: (_, { name }) => {
       addToast({
         title: "Server Deleted",
-        description: `MCP server "${deletedServer?.name || "Unknown"}" has been deleted.`,
+        description: `MCP server "${name}" has been deleted.`,
         color: "warning",
       });
+      invalidateServers();
     },
-    onError: (err, variables, context) => {
-      console.error("Failed to delete server:", (err as Error).message);
+    onError: (err, { name }) => {
+      console.error(`Failed to delete server ${name}:`, (err as Error).message);
       addToast({
         title: "Deletion Failed",
-        description: `Failed to delete MCP server: ${(err as Error).message}`,
+        description: `Failed to delete MCP server "${name}": ${(err as Error).message}`,
         color: "danger",
       });
-      if (context?.previousServers) {
-        queryClient.setQueryData(mcpServersKeys.all, context.previousServers);
-      } else {
-        invalidateServers();
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: mcpServersKeys.all });
     },
   });
 
   const duplicateMutation = useMutation({
     mutationFn: duplicateMcpServer,
     onSuccess: (newServer) => {
-      queryClient.setQueryData(mcpServersKeys.all, (oldData: McpServer[] = []) => [
-        ...oldData,
-        newServer,
-      ]);
       addToast({
         title: "Server Duplicated",
         description: `MCP server "${newServer.name}" has been duplicated successfully.`,
         color: "success",
       });
+      invalidateServers();
     },
     onError: (error) => {
       console.error("Failed to duplicate server:", error.message);
@@ -129,7 +103,6 @@ export function useMcpServers() {
         description: `Failed to duplicate MCP server: ${error.message}`,
         color: "danger",
       });
-      invalidateServers();
     },
   });
 
@@ -148,14 +121,6 @@ export function useMcpServers() {
       };
       return updateMcpServer(id, formData);
     },
-    onMutate: async ({ id }) => {
-      await queryClient.cancelQueries({ queryKey: mcpServersKeys.all });
-      const previousServers = queryClient.getQueryData<McpServer[]>(mcpServersKeys.all);
-      queryClient.setQueryData<McpServer[]>(mcpServersKeys.all, (old = []) =>
-        old.map((s) => (s.id === id ? { ...s, is_active: !s.is_active } : s))
-      );
-      return { previousServers };
-    },
     onSuccess: (updatedServer) => {
       const status = updatedServer.is_active ? "activated" : "deactivated";
       addToast({
@@ -163,22 +128,18 @@ export function useMcpServers() {
         description: `MCP server "${updatedServer.name}" has been ${status}.`,
         color: updatedServer.is_active ? "success" : "warning",
       });
+      invalidateServers();
     },
-    onError: (err, variables, context) => {
+    onError: (err, variables) => {
       console.error("Failed to update server status:", (err as Error).message);
       addToast({
         title: "Status Update Failed",
-        description: `Failed to update server status: ${(err as Error).message}`,
+        description: `Failed to update server status for "${variables.currentServer.name}": ${
+          (err as Error).message
+        }`,
         color: "danger",
       });
-      if (context?.previousServers) {
-        queryClient.setQueryData(mcpServersKeys.all, context.previousServers);
-      } else {
-        invalidateServers();
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: mcpServersKeys.all });
+      invalidateServers();
     },
   });
 
@@ -190,11 +151,15 @@ export function useMcpServers() {
     isCreatingServer: createMutation.isPending,
     updateServer: updateMutation.mutate,
     isUpdatingServer: updateMutation.isPending,
+    updatingServerId: updateMutation.isPending ? updateMutation.variables.id : null,
     deleteServer: deleteMutation.mutate,
     isDeletingServer: deleteMutation.isPending,
+    deletingServerId: deleteMutation.isPending ? deleteMutation.variables.id : null,
     duplicateServer: duplicateMutation.mutate,
     isDuplicatingServer: duplicateMutation.isPending,
+    duplicatingServerId: duplicateMutation.isPending ? duplicateMutation.variables : null,
     toggleServerActive: toggleActiveMutation.mutate,
     isTogglingServerActive: toggleActiveMutation.isPending,
+    togglingServerId: toggleActiveMutation.isPending ? toggleActiveMutation.variables.id : null,
   };
 }

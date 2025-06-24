@@ -134,13 +134,15 @@ export function McpServersTab() {
     createServer,
     updateServer,
     deleteServer,
-    toggleServerActive,
     duplicateServer,
+    toggleServerActive,
     isCreatingServer,
     isUpdatingServer,
     isDeletingServer,
     isDuplicatingServer,
     isTogglingServerActive,
+    duplicatingServerId,
+    togglingServerId,
   } = useMcpServers();
 
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
@@ -162,12 +164,12 @@ export function McpServersTab() {
   const [formData, setFormData] = useState({
     name: "",
     url: "",
-    transport: "sse" as "http" | "sse",
+    transport: "http" as "http" | "sse",
     headers: [] as { id: string; key: string; value: string }[],
     isActive: true,
   });
 
-  const isProcessing =
+  const isAnyServerProcessing =
     isCreatingServer ||
     isUpdatingServer ||
     isDeletingServer ||
@@ -200,7 +202,7 @@ export function McpServersTab() {
     setFormData({
       name: "",
       url: "",
-      transport: "sse",
+      transport: "http",
       headers: [],
       isActive: true,
     });
@@ -327,7 +329,8 @@ export function McpServersTab() {
             color="primary"
             startContent={<PlusIcon className="h-4 w-4" />}
             onPress={openAddModal}
-            isDisabled={isProcessing}
+            isDisabled={isAnyServerProcessing}
+            isLoading={isCreatingServer}
             size="sm"
             className="sm:size-medium"
           >
@@ -355,197 +358,210 @@ export function McpServersTab() {
                 className="mt-4"
                 startContent={<PlusIcon className="h-4 w-4" />}
                 onPress={openAddModal}
+                isDisabled={isAnyServerProcessing}
+                isLoading={isCreatingServer}
               >
                 Add Your First Server
               </Button>
             </CardBody>
           </Card>
         ) : (
-          servers.map((server) => (
-            <Card
-              key={server.id}
-              className={`border transition-all duration-200 ${
-                server.is_active
-                  ? "border-success-200 bg-success-50/30"
-                  : "border-default-200 bg-default-50/50"
-              }`}
-            >
-              <CardHeader className="pb-2">
-                <div className="space-y-3 sm:flex sm:w-full sm:items-center sm:justify-between sm:space-y-0">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                        server.is_active ? "bg-success-100" : "bg-default-100"
-                      }`}
-                    >
-                      <ServerIcon
-                        className={`h-5 w-5 ${
-                          server.is_active ? "text-success-600" : "text-default-600"
+          servers.map((server) => {
+            const isToggling = togglingServerId === server.id;
+            const isDuplicating = duplicatingServerId === server.id;
+            const isCurrentServerProcessing = isToggling || isDuplicating || isDeletingServer;
+
+            return (
+              <Card
+                key={server.id}
+                className={`border transition-all duration-200 ${
+                  server.is_active
+                    ? "border-success-200 bg-success-50/30"
+                    : "border-default-200 bg-default-50/50"
+                }`}
+              >
+                <CardHeader className="pb-2">
+                  <div className="space-y-3 sm:flex sm:w-full sm:items-center sm:justify-between sm:space-y-0">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                          server.is_active ? "bg-success-100" : "bg-default-100"
                         }`}
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                        <h3 className="truncate font-semibold text-foreground">{server.name}</h3>
-                        <Switch
-                          size="sm"
-                          isSelected={!!server.is_active}
-                          onValueChange={() =>
-                            toggleServerActive({ id: server.id, currentServer: server })
-                          }
-                          classNames={{
-                            base: "max-w-fit",
-                          }}
+                      >
+                        <ServerIcon
+                          className={`h-5 w-5 ${
+                            server.is_active ? "text-success-600" : "text-default-600"
+                          }`}
                         />
                       </div>
-                      <div className="flex flex-col gap-1 text-sm text-default-500 sm:flex-row sm:items-center sm:gap-2">
-                        <div className="flex items-center gap-1">
-                          <GlobeAltIcon className="h-4 w-4 flex-shrink-0" />
-                          <span className="truncate font-mono text-xs">{server.url}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                          <h3 className="truncate font-semibold text-foreground">{server.name}</h3>
+                          <Switch
+                            size="sm"
+                            isSelected={!!server.is_active}
+                            onValueChange={() =>
+                              toggleServerActive({ id: server.id, currentServer: server })
+                            }
+                            isDisabled={isCurrentServerProcessing}
+                            classNames={{
+                              base: "max-w-fit",
+                            }}
+                          />
                         </div>
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={server.transport === "sse" ? "success" : "primary"}
-                        >
-                          {server.transport.toUpperCase()}
-                        </Chip>
+                        <div className="flex flex-col gap-1 text-sm text-default-500 sm:flex-row sm:items-center sm:gap-2">
+                          <div className="flex items-center gap-1">
+                            <GlobeAltIcon className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate font-mono text-xs">{server.url}</span>
+                          </div>
+                          <Chip
+                            size="sm"
+                            variant="flat"
+                            color={server.transport === "sse" ? "success" : "primary"}
+                          >
+                            {server.transport.toUpperCase()}
+                          </Chip>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center justify-end gap-1 sm:flex-shrink-0">
+                      <Tooltip content="Duplicate Server">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => duplicateServer(server.id)}
+                          isDisabled={isCurrentServerProcessing}
+                          isLoading={isDuplicating}
+                        >
+                          <DocumentDuplicateIcon className="h-4 w-4" />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Edit Server">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => openEditModal(server)}
+                          isDisabled={isCurrentServerProcessing}
+                        >
+                          <PencilSquareIcon className="h-4 w-4" />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content={expandedServers.has(server.id) ? "Collapse" : "Expand"}>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => toggleServerExpanded(server.id)}
+                          isDisabled={isCurrentServerProcessing}
+                        >
+                          {expandedServers.has(server.id) ? (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Delete Server" color="danger">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          onPress={() => {
+                            setServerToDelete(server);
+                            onDeleteModalOpen();
+                          }}
+                          isDisabled={isCurrentServerProcessing}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </Tooltip>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end gap-1 sm:flex-shrink-0">
-                    <Tooltip content="Duplicate Server">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        onPress={() => duplicateServer(server.id)}
-                        isDisabled={isProcessing}
-                      >
-                        <DocumentDuplicateIcon className="h-4 w-4" />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content="Edit Server">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        onPress={() => openEditModal(server)}
-                        isDisabled={isProcessing}
-                      >
-                        <PencilSquareIcon className="h-4 w-4" />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content={expandedServers.has(server.id) ? "Collapse" : "Expand"}>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        onPress={() => toggleServerExpanded(server.id)}
-                        isDisabled={isProcessing}
-                      >
-                        {expandedServers.has(server.id) ? (
-                          <ChevronUpIcon className="h-4 w-4" />
-                        ) : (
-                          <ChevronDownIcon className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content="Delete Server" color="danger">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        color="danger"
-                        onPress={() => {
-                          setServerToDelete(server);
-                          onDeleteModalOpen();
-                        }}
-                        isDisabled={isProcessing}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </Tooltip>
-                  </div>
-                </div>
-              </CardHeader>
+                </CardHeader>
 
-              <AnimatePresence>
-                {expandedServers.has(server.id) && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <CardBody className="pt-0">
-                      <Divider className="mb-4" />
-                      <div className="space-y-3">
-                        <h4 className="flex items-center gap-2 font-medium text-foreground">
-                          <Cog6ToothIcon className="h-4 w-4" />
-                          HTTP Headers
-                          <Chip size="sm" variant="flat" color="default">
-                            {server.headers.length}
-                          </Chip>
-                        </h4>
-                        {server.headers.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-default-200 p-4 text-center">
-                            <p className="text-sm text-default-400">No headers configured</p>
-                            <p className="text-xs text-default-300">
-                              Add authentication headers or custom headers for your MCP server
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {server.headers.map((header) => (
-                              <div
-                                key={header.id}
-                                className="flex items-center gap-2 rounded-lg bg-default-50 p-3"
-                              >
-                                <code className="min-w-fit font-mono text-xs text-primary">
-                                  {header.key}:
-                                </code>
-                                <div className="flex flex-1 items-center gap-2">
-                                  <code className="flex-1 break-all font-mono text-xs text-default-600">
-                                    {visibleHeaders.has(header.id) || !isSensitiveHeader(header.key)
-                                      ? header.value
-                                      : "•".repeat(
-                                          Math.min(header.value ? header.value.length : 0, 20)
-                                        )}
+                <AnimatePresence>
+                  {expandedServers.has(server.id) && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <CardBody className="pt-0">
+                        <Divider className="mb-4" />
+                        <div className="space-y-3">
+                          <h4 className="flex items-center gap-2 font-medium text-foreground">
+                            <Cog6ToothIcon className="h-4 w-4" />
+                            HTTP Headers
+                            <Chip size="sm" variant="flat" color="default">
+                              {server.headers.length}
+                            </Chip>
+                          </h4>
+                          {server.headers.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-default-200 p-4 text-center">
+                              <p className="text-sm text-default-400">No headers configured</p>
+                              <p className="text-xs text-default-300">
+                                Add authentication headers or custom headers for your MCP server
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {server.headers.map((header) => (
+                                <div
+                                  key={header.id}
+                                  className="flex items-center gap-2 rounded-lg bg-default-50 p-3"
+                                >
+                                  <code className="min-w-fit font-mono text-xs text-primary">
+                                    {header.key}:
                                   </code>
-                                  {isSensitiveHeader(header.key) && (
-                                    <Tooltip
-                                      content={
-                                        visibleHeaders.has(header.id) ? "Hide Value" : "Show Value"
-                                      }
-                                    >
-                                      <Button
-                                        isIconOnly
-                                        size="sm"
-                                        variant="light"
-                                        onPress={() => toggleListItemVisibility(header.id)}
+                                  <div className="flex flex-1 items-center gap-2">
+                                    <code className="flex-1 break-all font-mono text-xs text-default-600">
+                                      {visibleHeaders.has(header.id) ||
+                                      !isSensitiveHeader(header.key)
+                                        ? header.value
+                                        : "•".repeat(
+                                            Math.min(header.value ? header.value.length : 0, 20)
+                                          )}
+                                    </code>
+                                    {isSensitiveHeader(header.key) && (
+                                      <Tooltip
+                                        content={
+                                          visibleHeaders.has(header.id)
+                                            ? "Hide Value"
+                                            : "Show Value"
+                                        }
                                       >
-                                        {visibleHeaders.has(header.id) ? (
-                                          <EyeSlashIcon className="h-4 w-4" />
-                                        ) : (
-                                          <EyeIcon className="h-4 w-4" />
-                                        )}
-                                      </Button>
-                                    </Tooltip>
-                                  )}
+                                        <Button
+                                          isIconOnly
+                                          size="sm"
+                                          variant="light"
+                                          onPress={() => toggleListItemVisibility(header.id)}
+                                        >
+                                          {visibleHeaders.has(header.id) ? (
+                                            <EyeSlashIcon className="h-4 w-4" />
+                                          ) : (
+                                            <EyeIcon className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      </Tooltip>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </CardBody>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Card>
-          ))
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardBody>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -780,7 +796,11 @@ export function McpServersTab() {
                 <Button variant="light" onPress={onClose}>
                   Cancel
                 </Button>
-                <Button color="primary" onPress={handleSubmit}>
+                <Button
+                  color="primary"
+                  onPress={handleSubmit}
+                  isLoading={isUpdatingServer || isCreatingServer}
+                >
                   {editingServer ? "Update Server" : "Add Server"}
                 </Button>
               </ModalFooter>
@@ -811,7 +831,7 @@ export function McpServersTab() {
                   isLoading={isDeletingServer}
                   onPress={() => {
                     if (serverToDelete) {
-                      deleteServer(serverToDelete.id);
+                      deleteServer({ id: serverToDelete.id, name: serverToDelete.name });
                     }
                     onClose();
                   }}
