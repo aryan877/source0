@@ -866,7 +866,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   }, []);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-tl-2xl border border-divider bg-content1">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-tl-2xl border-l border-t border-divider bg-content1">
       <ChatHeader
         ref={headerRef}
         chatId={chatId}
