@@ -148,9 +148,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     experimental_throttle: 100,
     body: chatBody,
     onError: (error) => {
-      const errorMessage = error.message || String(error);
-
-      updateState({ uiError: errorMessage });
+      // The `useChat` hook's `error` object will be populated.
+      // We log it here for debugging, but we don't need to set a separate `uiError`
+      // state as that would be redundant. `ErrorDisplay` will use the `error` object.
+      console.error("An error occurred in the chat stream:", error);
     },
     onResponse: (response) => {
       if (!response.ok) {
@@ -165,6 +166,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             url: response.url,
           }
         );
+
+        // Clear any existing error first to prevent stacking
+        updateState({ uiError: null });
 
         if (response.status === 413) {
           updateState({
@@ -182,6 +186,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         } else if (response.status === 401) {
           updateState({
             uiError: "🔐 Authentication error. Please refresh the page and try again.",
+          });
+        } else {
+          // Generic error for other HTTP status codes
+          updateState({
+            uiError: `Request failed with status ${response.status}. Please try again.`,
           });
         }
       }

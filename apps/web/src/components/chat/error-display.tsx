@@ -14,21 +14,21 @@ interface ErrorDisplayProps {
 
 export const ErrorDisplay = memo(
   ({ error, uiError, onDismissUiError, onRetry, isMessageError = false }: ErrorDisplayProps) => {
-    const effectiveError = uiError || error?.message;
-
-    if (!effectiveError) {
-      return null;
-    }
-
     let errorTitle = "Error";
-    let errorMessage: string | undefined = error?.message;
+    let displayMessage = uiError;
 
-    if (error?.message) {
+    if (!displayMessage && error?.message) {
       const match = error.message.match(/^\[([^\]]+)\]\s*(.*)$/s);
       if (match) {
         errorTitle = match[1] || "Error";
-        errorMessage = match[2] || "An unexpected error occurred.";
+        displayMessage = match[2] || "An unexpected error occurred.";
+      } else {
+        displayMessage = error.message;
       }
+    }
+
+    if (!displayMessage) {
+      return null;
     }
 
     return (
@@ -57,17 +57,14 @@ export const ErrorDisplay = memo(
           {/* Header with icon and title */}
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 flex-shrink-0 rounded-full bg-danger" />
-            <p className="text-sm font-medium text-danger">{error ? errorTitle : "Notice"}</p>
+            <p className="text-sm font-medium text-danger">{uiError ? "Notice" : errorTitle}</p>
           </div>
 
           {/* Error message */}
-          {errorMessage && (
-            <p className="pl-4 text-xs leading-relaxed text-danger/80">{errorMessage}</p>
-          )}
-          {uiError && <p className="pl-4 text-xs leading-relaxed text-danger/80">{uiError}</p>}
+          <p className="pl-4 text-xs leading-relaxed text-danger/80">{displayMessage}</p>
 
           {/* Retry button */}
-          {error && onRetry && (
+          {(error || uiError) && onRetry && (
             <div className="flex justify-start pl-4">
               <Button
                 size="sm"

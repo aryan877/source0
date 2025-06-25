@@ -15,6 +15,8 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   Alert,
+  Autocomplete,
+  AutocompleteItem,
   Button,
   Card,
   CardBody,
@@ -160,6 +162,18 @@ export function UsageTab() {
       // When the provider filter changes, reset the model filter
       if (key === "provider") {
         delete newFilters.modelId;
+      }
+
+      // When model is selected, auto-fill the provider, or clear provider when model is cleared
+      if (key === "modelId") {
+        if (value) {
+          const selectedModel = MODELS.find((model) => model.id === value);
+          if (selectedModel) {
+            newFilters.provider = selectedModel.provider;
+          }
+        } else {
+          delete newFilters.provider;
+        }
       }
 
       return newFilters;
@@ -408,20 +422,40 @@ export function UsageTab() {
               </SelectItem>
             ))}
           </Select>
-          <Select
+          <Autocomplete
             label="Model"
             placeholder="All Models"
-            selectedKeys={filters.modelId ? [filters.modelId] : []}
-            onSelectionChange={(keys) =>
-              handleFilterChange("modelId", (keys as Set<string>).values().next().value)
-            }
+            selectedKey={filters.modelId || null}
+            onSelectionChange={(key) => handleFilterChange("modelId", key as string | null)}
             size="sm"
             variant="bordered"
+            isClearable
+            allowsCustomValue={false}
+            menuTrigger="focus"
           >
             {filteredModels.map((model) => (
-              <SelectItem key={model.id}>{model.name}</SelectItem>
+              <AutocompleteItem
+                key={model.id}
+                startContent={
+                  isKnownProvider(model.provider) ? (
+                    <ProviderIcon provider={model.provider} className="h-4 w-4" />
+                  ) : (
+                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-default-200">
+                      <span className="text-xs font-semibold text-default-600">
+                        {String(model.provider).charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )
+                }
+                textValue={model.name}
+              >
+                <div className="flex flex-col">
+                  <span className="text-small">{model.name}</span>
+                  <span className="text-tiny text-default-400">{model.provider}</span>
+                </div>
+              </AutocompleteItem>
             ))}
-          </Select>
+          </Autocomplete>
         </div>
       </div>
 

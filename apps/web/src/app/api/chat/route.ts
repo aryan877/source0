@@ -305,16 +305,6 @@ export async function POST(req: Request): Promise<Response> {
               }),
               abortSignal: signal,
               ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-              onError: (error) => {
-                console.error("streamText error:", {
-                  sessionId: finalSessionId,
-                  userId: user.id,
-                  model,
-                  streamId,
-                  error: error.error,
-                  stack: error.error instanceof Error ? error.error.stack : undefined,
-                });
-              },
               onFinish: async ({ text, providerMetadata, response, usage }) => {
                 console.log("streamText completed for session:", {
                   sessionId: finalSessionId,
@@ -618,29 +608,36 @@ export async function POST(req: Request): Promise<Response> {
             await result.consumeStream();
           } catch (error) {
             if ((error as Error).name !== "AbortError") {
-              console.error("Error during stream execution:", { streamId, error });
+              // Re-throw the error to be caught by the data stream's onError
+              throw error;
             }
+            // Do not re-throw AbortError, as it's an expected part of the flow
           } finally {
             cleanup();
           }
         },
         onError: (error: unknown) => {
-          console.error("createDataStream error:", {
-            sessionId: finalSessionId,
-            userId: user.id,
-            model,
-            streamId: id,
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-          });
+          // This is the single point of truth for handling stream errors and reporting to the client.
+          const isAbortError = (error as Error)?.name === "AbortError";
 
-          // Log LLM-specific errors (not abort errors)
-          handleStreamError(error, "DataStream", {
-            sessionId: finalSessionId,
-            userId: user.id,
-            model,
-            streamId: id,
-          });
+          // Don't log abort errors as they are expected client-side behavior (e.g., user stops generation)
+          if (!isAbortError) {
+            console.error("createDataStream error:", {
+              sessionId: finalSessionId,
+              userId: user.id,
+              model,
+              streamId: id,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+            });
+
+            handleStreamError(error, "DataStream", {
+              sessionId: finalSessionId,
+              userId: user.id,
+              model,
+              streamId: id,
+            });
+          }
 
           return error instanceof Error ? error.message : "An error occurred during streaming";
         },
