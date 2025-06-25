@@ -110,7 +110,7 @@ async function processAttachment(
       };
     }
 
-    const isTextFile = TEXT_MIME_TYPES.includes(mimeType as any);
+    const isTextFile = TEXT_MIME_TYPES.includes(mimeType);
 
     if (
       (modelConfig.capabilities.includes("pdf") && mimeType === "application/pdf") ||
