@@ -285,7 +285,7 @@ const SearchBar = memo(
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search your threads..."
+            placeholder="Search threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-divider bg-content2 py-2 pl-10 pr-16 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"

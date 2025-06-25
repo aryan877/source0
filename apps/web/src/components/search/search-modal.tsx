@@ -41,7 +41,7 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
             </div>
             <input
               type="text"
-              placeholder="Search your threads..."
+              placeholder="Search threads..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border-transparent bg-transparent py-2 pl-10 pr-4 text-base focus:border-transparent focus:outline-none focus:ring-0"
