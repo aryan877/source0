@@ -1,7 +1,14 @@
 "use client";
 
 import { getModelById, type ReasoningLevel } from "@/config/models";
-import { ALL_SUPPORTED_EXTENSIONS, ALL_SUPPORTED_MIME_TYPES } from "@/config/supported-files";
+import {
+  IMAGE_EXTENSIONS,
+  IMAGE_MIME_TYPES,
+  PDF_EXTENSIONS,
+  PDF_MIME_TYPES,
+  TEXT_EXTENSIONS,
+  TEXT_MIME_TYPES,
+} from "@/config/supported-files";
 import { ChevronDownIcon, GlobeAltIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import {
   CpuChipIcon as CpuChipIconSolid,
@@ -54,13 +61,37 @@ export const ModelControls = ({
         hasSearch: false,
         showControls: false,
         availableReasoningLevels: [],
+        canAttachFiles: false,
+        fileAccept: "",
+        hasImageSupport: false,
+        hasPdfSupport: false,
       };
     }
 
     const hasReasoning = modelConfig.capabilities.includes("reasoning");
     const hasSearch = modelConfig.supportsFunctions || modelConfig.capabilities.includes("search");
+    const hasImageSupport = modelConfig.capabilities.includes("image");
+    const hasPdfSupport = modelConfig.capabilities.includes("pdf");
     const availableReasoningLevels = modelConfig.reasoningLevels || [];
-    const showAttachment = true;
+
+    // All models are assumed to support text files.
+    const canAttachFiles = true;
+
+    const acceptedMimeTypes: string[] = [...TEXT_MIME_TYPES];
+    const acceptedExtensions: string[] = [...TEXT_EXTENSIONS];
+
+    if (hasImageSupport) {
+      acceptedMimeTypes.push(...IMAGE_MIME_TYPES);
+      acceptedExtensions.push(...IMAGE_EXTENSIONS);
+    }
+
+    if (hasPdfSupport) {
+      acceptedMimeTypes.push(...PDF_MIME_TYPES);
+      acceptedExtensions.push(...PDF_EXTENSIONS);
+    }
+
+    const fileAccept = [...new Set([...acceptedMimeTypes, ...acceptedExtensions])].join(",");
+    const showAttachment = true; // Always show the control area
     const showControls = hasReasoning || hasSearch || showAttachment;
 
     return {
@@ -68,11 +99,12 @@ export const ModelControls = ({
       hasSearch,
       availableReasoningLevels,
       showControls,
+      canAttachFiles,
+      fileAccept,
+      hasImageSupport,
+      hasPdfSupport,
     };
   }, [modelConfig]);
-
-  // Static file accept string from centralized config
-  const fileAccept = [...ALL_SUPPORTED_MIME_TYPES, ...ALL_SUPPORTED_EXTENSIONS].join(",");
 
   // Don't render anything until mounted to prevent hydration mismatch
   if (!isMounted) {
@@ -104,8 +136,9 @@ export const ModelControls = ({
         ref={fileInputRef}
         onChange={onFileAttach}
         multiple
-        accept={fileAccept}
+        accept={computedValues.fileAccept}
         className="hidden"
+        disabled={isLoading || !computedValues.canAttachFiles}
       />
 
       {/* Reasoning Level Selector */}
@@ -218,7 +251,14 @@ export const ModelControls = ({
               <span className="text-sm font-medium">Attach Files</span>
             </div>
             <span className="text-xs leading-relaxed text-foreground/70">
-              Attach images, PDFs, or text files to enhance your conversation
+              Supports:{" "}
+              {[
+                "Text files",
+                computedValues.hasImageSupport && "Images",
+                computedValues.hasPdfSupport && "PDFs",
+              ]
+                .filter(Boolean)
+                .join(", ")}
             </span>
           </div>
         }
@@ -231,9 +271,9 @@ export const ModelControls = ({
           variant="flat"
           size="sm"
           isIconOnly
-          className="h-8 w-8 flex-shrink-0 rounded-lg border border-content2 bg-content2/60 text-foreground/70 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
+          className="h-8 w-8 flex-shrink-0 rounded-lg border border-content2 bg-content2/60 text-foreground/70 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content2 hover:text-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
           onPress={() => fileInputRef.current?.click()}
-          isDisabled={isLoading}
+          isDisabled={isLoading || !computedValues.canAttachFiles}
         >
           <PaperClipIcon className="h-4 w-4" />
         </Button>

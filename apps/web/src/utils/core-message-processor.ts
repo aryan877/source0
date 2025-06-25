@@ -1,4 +1,5 @@
 import { Provider, type ModelConfig } from "@/config/models";
+import { TEXT_MIME_TYPES } from "@/config/supported-files";
 import { type MessagePart, type ReasoningDetail } from "@/services";
 import { convertPartsForDb } from "@/utils/database-message-converter";
 import {
@@ -109,8 +110,11 @@ async function processAttachment(
       };
     }
 
+    const isTextFile = TEXT_MIME_TYPES.includes(mimeType as any);
+
     if (
       (modelConfig.capabilities.includes("pdf") && mimeType === "application/pdf") ||
+      isTextFile ||
       (isAssistant && (mimeType.startsWith("text/") || mimeType.startsWith("application/")))
     ) {
       return { corePart: { type: "file", data: buffer, mimeType } };
