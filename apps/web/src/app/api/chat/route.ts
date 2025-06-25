@@ -5,6 +5,7 @@ import { createOrGetSession } from "@/services/chat-sessions.server";
 import {
   serverAppendStreamId,
   serverGetLatestStreamIdWithStatus,
+  serverMarkStreamAsCancelled,
   serverMarkStreamAsComplete,
 } from "@/services/chat-streams";
 import { generateTitleOnly } from "@/services/generate-chat-title";
@@ -620,13 +621,20 @@ export async function POST(req: Request): Promise<Response> {
           // This is the single point of truth for handling stream errors and reporting to the client.
           const isAbortError = (error as Error)?.name === "AbortError";
 
+          // Also mark stream as cancelled on error, unless it's a client-side abort.
+          if (!isAbortError) {
+            serverMarkStreamAsCancelled(supabase, streamId).catch((e) => {
+              console.error("Failed to mark stream as cancelled on error", { streamId, error: e });
+            });
+          }
+
           // Don't log abort errors as they are expected client-side behavior (e.g., user stops generation)
           if (!isAbortError) {
             console.error("createDataStream error:", {
               sessionId: finalSessionId,
               userId: user.id,
               model,
-              streamId: id,
+              streamId,
               error: error instanceof Error ? error.message : String(error),
               stack: error instanceof Error ? error.stack : undefined,
             });
@@ -635,7 +643,7 @@ export async function POST(req: Request): Promise<Response> {
               sessionId: finalSessionId,
               userId: user.id,
               model,
-              streamId: id,
+              streamId,
             });
           }
 
