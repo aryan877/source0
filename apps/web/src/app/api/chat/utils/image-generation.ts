@@ -10,14 +10,24 @@ import {
   experimental_generateImage as generateImage,
   type Message,
 } from "ai";
+import OpenAI from "openai";
 import { handleStreamError } from "./errors";
+
+const openaiClient = new OpenAI();
+
+interface ImageAttachment {
+  contentType?: string;
+  url?: string;
+  name?: string;
+}
 
 export async function handleImageGenerationRequest(
   supabase: SupabaseClient,
   user: User,
   sessionId: string,
   modelConfig: ModelConfig,
-  prompt: string
+  prompt: string,
+  imageAttachments?: ImageAttachment[]
 ): Promise<Response> {
   const messageId = generateId();
 
@@ -34,16 +44,60 @@ export async function handleImageGenerationRequest(
       });
 
       try {
-        const { image } = await generateImage({
-          model: openai.image("gpt-image-1"),
-          prompt: prompt.trim(),
-          size: "1024x1024",
-          providerOptions: {
-            openai: { quality: "auto" },
-          },
-        });
+        let imageBuffer: Uint8Array;
 
-        const imageBuffer = image.uint8Array;
+        // Check if we have input images for image-to-image generation
+        if (imageAttachments && imageAttachments.length > 0) {
+          // Image-to-image generation using images.edit
+          const inputImages: File[] = [];
+
+          for (const attachment of imageAttachments) {
+            if (attachment.url) {
+              const response = await fetch(attachment.url);
+              if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const file = new File([arrayBuffer], attachment.name || "input.png", {
+                  type: attachment.contentType || "image/png",
+                });
+                inputImages.push(file);
+              }
+            }
+          }
+
+          if (inputImages.length > 0) {
+            const imageToEdit = inputImages[0];
+            if (!imageToEdit) {
+              throw new Error("Could not retrieve the image to edit.");
+            }
+            // Use the edit endpoint for image-to-image generation
+            const result = await openaiClient.images.edit({
+              model: "gpt-image-1",
+              image: imageToEdit,
+              prompt: prompt.trim(),
+              size: "1024x1024",
+            });
+
+            const imageBase64 = result.data?.[0]?.b64_json;
+            if (!imageBase64) {
+              throw new Error("No image data returned from OpenAI");
+            }
+            imageBuffer = Buffer.from(imageBase64, "base64");
+          } else {
+            throw new Error("Failed to process input images");
+          }
+        } else {
+          // Text-to-image generation using the original approach
+          const { image } = await generateImage({
+            model: openai.image("gpt-image-1"),
+            prompt: prompt.trim(),
+            size: "1024x1024",
+            providerOptions: {
+              openai: { quality: "auto" },
+            },
+          });
+
+          imageBuffer = image.uint8Array;
+        }
         const filePath = `uploads/${user.id}/generated-${messageId}.png`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage

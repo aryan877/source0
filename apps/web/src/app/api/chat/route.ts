@@ -229,7 +229,20 @@ export async function POST(req: Request): Promise<Response> {
     if (modelConfig.capabilities.includes("image-generation")) {
       const lastUserMessage = messages[messages.length - 1];
       const prompt = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
-      return handleImageGenerationRequest(supabase, user, finalSessionId, modelConfig, prompt);
+
+      // Extract any image attachments from the last user message
+      const imageAttachments = (lastUserMessage?.experimental_attachments || []).filter((att) =>
+        att.contentType?.startsWith("image/")
+      );
+
+      return handleImageGenerationRequest(
+        supabase,
+        user,
+        finalSessionId,
+        modelConfig,
+        prompt,
+        imageAttachments
+      );
     }
 
     const systemMessage = buildSystemMessage(

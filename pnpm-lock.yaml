@@ -147,6 +147,9 @@ importers:
       next-themes:
         specifier: ^0.4.4
         version: 0.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      openai:
+        specifier: ^5.7.0
+        version: 5.7.0(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5))(zod@3.25.64)
       orate:
         specifier: ^2.0.6
         version: 2.0.6(@types/node@22.15.30)(bufferutil@4.0.9)(jiti@1.21.7)(utf-8-validate@6.0.5)(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5))(yaml@2.8.0)(zod@3.25.64)
@@ -4843,6 +4846,18 @@ packages:
 
   openai@4.104.0:
     resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
+  openai@5.7.0:
+    resolution: {integrity: sha512-zXWawZl6J/P5Wz57/nKzVT3kJQZvogfuyuNVCdEp4/XU2UNrjL7SsuNpWAyLZbo6HVymwmnfno9toVzBhelygA==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -12402,6 +12417,11 @@ snapshots:
       zod: 3.25.64
     transitivePeerDependencies:
       - encoding
+
+  openai@5.7.0(ws@8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5))(zod@3.25.64):
+    optionalDependencies:
+      ws: 8.18.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      zod: 3.25.64
 
   optionator@0.9.4:
     dependencies:
