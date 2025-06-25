@@ -71,6 +71,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     messages: initialMessages,
     isLoading: isLoadingInitialMessages,
     invalidateMessages,
+    deleteMessage: deleteMessageMutation,
+    isDeletingMessage,
   } = useChatMessages(chatId);
 
   const isLoadingMessages = isLoadingInitialMessages;
@@ -588,6 +590,29 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     [messages, stop, chatId, updateState, invalidateMessages, setMessages, reload, clearSuggestions]
   );
 
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      const previousMessages = messages;
+      // Optimistically update the UI for all cases
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      clearSuggestions();
+      updateState({ uiError: null });
+
+      // For existing sessions, call the mutation to delete from DB
+      if (chatId !== "new") {
+        deleteMessageMutation(messageId, {
+          onError: (error) => {
+            // If the mutation fails, roll back the UI change and show an error
+            setMessages(previousMessages);
+            updateState({ uiError: "Failed to delete message. Please try again." });
+            console.error("Error deleting message:", error);
+          },
+        });
+      }
+    },
+    [messages, setMessages, clearSuggestions, updateState, chatId, deleteMessageMutation]
+  );
+
   // Form handling
   const handleFormSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -887,6 +912,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             onBranchChat={handleBranchChat}
             onRetryMessage={handleRetryMessage}
             onEditMessage={handleEditMessage}
+            onDeleteMessage={handleDeleteMessage}
+            isDeletingMessage={isDeletingMessage}
             error={error}
             uiError={state.uiError}
             onDismissUiError={handleDismissUiError}

@@ -194,6 +194,8 @@ interface MessagesListProps {
   onBranchChat: (messageId: string, modelId?: string) => void;
   onRetryMessage: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  isDeletingMessage?: boolean;
   error?: Error;
   uiError?: string | null;
   onDismissUiError: () => void;
@@ -216,6 +218,8 @@ export const MessagesList = memo(
     onBranchChat,
     onRetryMessage,
     onEditMessage,
+    onDeleteMessage,
+    isDeletingMessage,
     error,
     uiError,
     onDismissUiError,
@@ -259,7 +263,9 @@ export const MessagesList = memo(
                       onRetry={onRetryMessage}
                       onBranch={onBranchChat}
                       onEdit={onEditMessage}
+                      onDelete={onDeleteMessage}
                       isLoading={isLoading && index === messages.length - 1}
+                      isDeleting={isDeletingMessage}
                       chatId={chatId}
                       onBranchOptionsToggle={onBranchOptionsToggle}
                     />
@@ -317,7 +323,9 @@ export const MessagesList = memo(
                     onRetry={onRetryMessage}
                     onBranch={onBranchChat}
                     onEdit={onEditMessage}
+                    onDelete={onDeleteMessage}
                     isLoading={isLoading && index === messages.length - 1}
+                    isDeleting={isDeletingMessage}
                     chatId={chatId}
                     onBranchOptionsToggle={onBranchOptionsToggle}
                   />

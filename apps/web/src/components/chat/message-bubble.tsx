@@ -12,6 +12,7 @@ import {
   CpuChipIcon,
   MagnifyingGlassIcon,
   PencilIcon,
+  TrashIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -92,7 +93,9 @@ interface MessageBubbleProps {
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string, modelId?: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onDelete?: (messageId: string) => void;
   isLoading?: boolean;
+  isDeleting?: boolean;
   chatId: string;
   onBranchOptionsToggle?: (isOpen: boolean) => void;
 }
@@ -129,7 +132,9 @@ const MessageBubble = memo(
     onRetry,
     onBranch,
     onEdit,
+    onDelete,
     isLoading = false,
+    isDeleting = false,
     chatId,
     onBranchOptionsToggle,
   }: MessageBubbleProps) => {
@@ -138,6 +143,7 @@ const MessageBubble = memo(
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(message.content || "");
     const [showBranchOptions, setShowBranchOptions] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const branchButtonRef = useRef<HTMLDivElement>(null);
     const isUser = message.role === "user";
@@ -228,6 +234,22 @@ const MessageBubble = memo(
       },
       [handleSaveEdit, handleCancelEdit]
     );
+
+    const handleDelete = useCallback(() => {
+      if (onDelete) {
+        onDelete(message.id);
+        setShowDeleteConfirm(false);
+      }
+    }, [onDelete, message.id]);
+
+    const handleDeleteClick = useCallback(() => {
+      setShowDeleteConfirm(true);
+      setShowActions(false);
+    }, []);
+
+    const handleCancelDelete = useCallback(() => {
+      setShowDeleteConfirm(false);
+    }, []);
 
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
@@ -613,6 +635,41 @@ const MessageBubble = memo(
               </div>
             </Tooltip>
           )}
+
+          {onDelete && !showDeleteConfirm && (
+            <Tooltip content="Delete message" placement="top" delay={300}>
+              <div>
+                <Button
+                  variant="light"
+                  size="sm"
+                  isIconOnly
+                  onPress={handleDeleteClick}
+                  isLoading={isDeleting}
+                  isDisabled={isDeleting}
+                  className="transition-all hover:scale-105 hover:bg-content2 hover:text-danger"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </Tooltip>
+          )}
+
+          {onDelete && showDeleteConfirm && (
+            <div className="flex items-center gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2">
+              <span className="text-sm font-medium text-danger">Delete?</span>
+              <Button
+                size="sm"
+                variant="light"
+                onPress={handleCancelDelete}
+                className="h-6 px-2 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button size="sm" color="danger" onPress={handleDelete} className="h-6 px-2 text-xs">
+                Delete
+              </Button>
+            </div>
+          )}
         </div>
       );
     }, [
@@ -622,10 +679,16 @@ const MessageBubble = memo(
       copied,
       handleCopy,
       handleBranch,
+      handleDeleteClick,
       isLoading,
+      isDeleting,
       isUser,
       isEditing,
       onEdit,
+      onDelete,
+      handleCancelDelete,
+      handleDelete,
+      showDeleteConfirm,
     ]);
 
     return (
