@@ -212,7 +212,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-image-1",
     {
-      capabilities: ["image-generation", "image"],
+      capabilities: ["image-generation"],
       maxTokens: 4096,
       supportsStreaming: false,
       supportsFunctions: false,
