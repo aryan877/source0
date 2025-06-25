@@ -104,9 +104,9 @@ export default function GalleryPage() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col overflow-hidden border-divider bg-content1 lg:rounded-tl-2xl lg:border-l lg:border-t">
       {/* Header */}
-      <div className="border-b border-divider bg-background/80 px-6 py-6 backdrop-blur-sm">
+      <div className="border-b border-divider px-6 py-6">
         <div className="max-w-7xl">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">AI Generated Images</h1>
           <p className="text-muted-foreground mt-2">

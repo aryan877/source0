@@ -200,7 +200,7 @@ export function AppShell({ children }: AppShellProps) {
       />
       <main
         className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-in-out ${
-          isSidebarOpen ? "lg:ml-72" : "lg:ml-0"
+          isSidebarOpen ? "lg:ml-64" : "lg:ml-0"
         }`}
       >
         <div className="h-full lg:pl-2 lg:pt-2">{children}</div>

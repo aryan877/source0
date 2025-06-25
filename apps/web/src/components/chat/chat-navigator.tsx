@@ -23,7 +23,7 @@ export const ChatNavigator = forwardRef<HTMLDivElement, ChatNavigatorProps>(func
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-0 z-20 h-full w-full max-w-sm border-l border-divider bg-background/95 shadow-lg backdrop-blur-sm"
+      className="absolute right-0 top-0 z-[60] h-full w-full max-w-sm border-l border-divider bg-background/95 shadow-lg backdrop-blur-sm"
       style={{
         transition: "transform 0.3s ease-in-out",
         transform: isOpen ? "translateX(0)" : "translateX(100%)",

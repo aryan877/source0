@@ -202,7 +202,7 @@ SidebarOverlay.displayName = "SidebarOverlay";
 const SidebarHeader = memo(
   ({ onNewChat, onOpenGallery }: { onNewChat: () => void; onOpenGallery: () => void }) => (
     <div className="p-4">
-      <div className="mb-4 flex h-10 items-center justify-center">
+      <div className="mb-4 flex h-10 items-center justify-center pl-8">
         <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">
           SOURCE0
         </h1>
@@ -775,7 +775,7 @@ export const Sidebar = memo(
 
         {/* Main Sidebar */}
         <div
-          className={`fixed left-0 top-0 z-50 flex h-full w-72 flex-col bg-background transition-transform duration-300 ease-in-out ${
+          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-background transition-transform duration-300 ease-in-out ${
             isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

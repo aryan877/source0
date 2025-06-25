@@ -1,7 +1,7 @@
 "use client";
 
 import { themeColorMap, themeOptions } from "@/stores/user-preferences-store";
-import { Select, SelectItem } from "@heroui/react";
+import { Tooltip } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useState } from "react";
 
@@ -24,76 +24,38 @@ const ThemeSelector = memo(() => {
 
   if (!mounted) {
     return (
-      <Select
-        size="sm"
-        placeholder="Theme"
-        isDisabled
-        aria-label="Theme selector"
-        classNames={{
-          trigger: "h-8 min-h-unit-8",
-        }}
-      >
-        {themeOptions.map((theme) => (
-          <SelectItem
+      <div className="flex items-center gap-1.5 p-1">
+        {themeOptions.slice(0, 4).map((theme) => (
+          <div
             key={theme.key}
-            startContent={
-              <span
-                className="h-3 w-3 rounded-full"
-                style={{ backgroundColor: themeColorMap[theme.key][0] }}
-              />
-            }
-          >
-            {theme.label}
-          </SelectItem>
+            className="h-6 w-6 rounded-full opacity-50"
+            style={{ backgroundColor: themeColorMap[theme.key][0] }}
+          />
         ))}
-      </Select>
+      </div>
     );
   }
 
   return (
-    <Select
-      size="sm"
-      selectedKeys={[currentTheme]}
-      onSelectionChange={(keys) => {
-        const selectedTheme = Array.from(keys)[0] as string;
-        if (selectedTheme) {
-          handleThemeChange(selectedTheme);
-        }
-      }}
-      aria-label="Theme selector"
-      classNames={{
-        trigger: "h-8 min-h-unit-8 w-36",
-        base: "w-36",
-      }}
-      renderValue={() => {
-        const currentThemeOption = themeOptions.find((theme) => theme.key === currentTheme);
-        return currentThemeOption ? (
-          <div className="flex items-center gap-2">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{
-                backgroundColor: themeColorMap[currentThemeOption.key][0],
-              }}
-            />
-            <span className="text-sm font-medium">{currentThemeOption.label}</span>
-          </div>
-        ) : null;
-      }}
-    >
+    <div className="flex items-center gap-1.5 p-1">
       {themeOptions.map((theme) => (
-        <SelectItem
-          key={theme.key}
-          startContent={
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: themeColorMap[theme.key][0] }}
-            />
-          }
-        >
-          {theme.label}
-        </SelectItem>
+        <Tooltip key={theme.key} content={theme.label} placement="top" delay={500}>
+          <button
+            onClick={() => handleThemeChange(theme.key)}
+            className={`relative h-6 w-6 rounded-full border-2 transition-all hover:scale-110 ${
+              currentTheme === theme.key
+                ? "border-default-900 shadow-sm"
+                : "border-transparent hover:border-default-300"
+            }`}
+            style={{ backgroundColor: themeColorMap[theme.key][0] }}
+          >
+            {currentTheme === theme.key && (
+              <div className="absolute inset-0.5 rounded-full bg-white/30 backdrop-blur-sm" />
+            )}
+          </button>
+        </Tooltip>
       ))}
-    </Select>
+    </div>
   );
 });
 
