@@ -28,7 +28,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
       <div className="w-full space-y-4">
         {/* Header with searching indicator */}
         <div className="flex items-center">
-          <div className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2">
+          <div className="flex items-center gap-2 rounded-full bg-content3/80 px-4 py-2">
             <GlobeAltIcon className="h-4 w-4 animate-spin text-primary" />
             <span className="text-sm font-medium text-foreground/80">Searching the web...</span>
           </div>
@@ -37,7 +37,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
         {/* Show the original query if available */}
         {query !== "Searching..." && (
           <div className="flex gap-2">
-            <div className="flex-shrink-0 rounded-full bg-content2/60 px-3 py-1.5 text-xs text-foreground/70 transition-colors">
+            <div className="flex-shrink-0 rounded-full bg-default-100 px-3 py-1.5 text-xs text-foreground/70 transition-colors">
               <MagnifyingGlassIcon className="mr-1.5 inline h-3 w-3" />
               {query}
             </div>
@@ -97,7 +97,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
       <div className="w-full space-y-4">
         {/* Header with search icon and result count */}
         <div className="flex items-center">
-          <div className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2">
+          <div className="flex items-center gap-2 rounded-full bg-content3/80 px-4 py-2">
             <GlobeAltIcon className="h-4 w-4 text-foreground/60" />
             <span className="text-sm font-medium text-foreground/80">Search Results</span>
             <span className="text-foreground/40">•</span>
@@ -110,7 +110,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
           {[originalQuery, ...generatedQueries.slice(1)].map((query, idx) => (
             <div
               key={idx}
-              className="flex-shrink-0 rounded-full bg-content2/60 px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-content2"
+              className="flex-shrink-0 rounded-full bg-content3/60 px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-content3/80"
             >
               <MagnifyingGlassIcon className="mr-1.5 inline h-3 w-3" />
               {query}
@@ -124,7 +124,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
             <Card
               key={idx}
               isHoverable
-              className="group min-w-[320px] max-w-[320px] transition-all duration-200 hover:shadow-lg"
+              className="search-card-group min-w-[320px] max-w-[320px] bg-content2/60 shadow-none backdrop-blur-sm transition-all duration-200 hover:bg-content3/40"
             >
               <CardBody className="p-0">
                 <Link
@@ -148,16 +148,16 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
                           }}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 text-xs text-primary-600">
+                          <div className="flex items-center gap-1.5 text-xs text-primary">
                             <span className="truncate font-medium">
                               {new URL(source.url).hostname}
                             </span>
-                            <ArrowTopRightOnSquareIcon className="h-3 w-3 flex-shrink-0 opacity-60 transition-opacity group-hover:opacity-100" />
+                            <ArrowTopRightOnSquareIcon className="h-3 w-3 flex-shrink-0 opacity-60 transition-opacity hover:opacity-100" />
                           </div>
                         </div>
                       </div>
 
-                      <h6 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground transition-colors group-hover:text-primary-600">
+                      <h6 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground transition-colors hover:text-primary">
                         {source.title}
                       </h6>
                     </div>
@@ -169,7 +169,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
 
                     {/* Footer with date */}
                     {source.published_date && (
-                      <div className="flex items-center justify-between border-t border-divider pt-1">
+                      <div className="flex items-center justify-between pt-1">
                         <div className="text-xs text-foreground/50">
                           {formatPublishedDate(source.published_date)}
                         </div>

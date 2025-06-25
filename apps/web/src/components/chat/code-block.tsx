@@ -118,9 +118,9 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   }
 
   return (
-    <div className="not-prose my-3 overflow-hidden rounded-md border border-divider">
-      <div className="flex items-center justify-between border-b border-divider bg-content2 px-3 py-2">
-        <span className="font-mono text-xs text-default-600">
+    <div className="not-prose my-3 overflow-hidden rounded-lg bg-content2/80 shadow-sm backdrop-blur-sm">
+      <div className="flex items-center justify-between bg-content3/60 px-3 py-2">
+        <span className="font-mono text-xs font-medium text-foreground/70">
           {language}
           {!isLanguageSupported && " (no highlighting)"}
         </span>
@@ -129,18 +129,18 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
       <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"}`}>
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
           {/* Line Numbers Column */}
-          <div className="flex min-w-[3rem] select-none flex-col border-r border-divider bg-content2 py-3 pl-3 pr-2">
+          <div className="flex min-w-[3rem] select-none flex-col bg-content3/40 py-3 pl-3 pr-2">
             {lineNumbers.map((lineNum) => (
               <div
                 key={lineNum}
-                className="flex h-6 items-center justify-end font-mono text-xs leading-6 text-default-400"
+                className="flex h-6 items-center justify-end font-mono text-xs leading-6 text-foreground/60"
               >
                 {lineNum}
               </div>
             ))}
           </div>
           {/* Code Column */}
-          <div className="min-w-0 flex-1 bg-content1">
+          <div className="min-w-0 flex-1 bg-content2/60">
             {isLanguageSupported ? (
               <div className="py-3 pl-2 pr-3 font-mono text-sm leading-6">
                 <ShikiHighlighter
