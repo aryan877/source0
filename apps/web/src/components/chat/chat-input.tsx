@@ -2,9 +2,11 @@
 
 import { type ReasoningLevel } from "@/config/models";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
+import { useAuth } from "@/hooks/useAuth";
 import { Button, Textarea } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   forwardRef,
   memo,
@@ -83,12 +85,20 @@ export const ChatInput = memo(
       const dropZoneRef = useRef<HTMLDivElement>(null);
       const { isRecording, isProcessingSpeech, startRecording, stopRecording } =
         useSpeechRecognition();
+      const { user } = useAuth();
+      const router = useRouter();
 
       useImperativeHandle(ref, () => ({
         focus: () => {
           textareaRef.current?.focus();
         },
       }));
+
+      const handleFocus = useCallback(() => {
+        if (!user) {
+          router.push("/auth/login");
+        }
+      }, [user, router]);
 
       const handleValueChange = useCallback(
         (value: string) => {
@@ -244,6 +254,7 @@ export const ChatInput = memo(
                         "text-sm resize-none focus:outline-none border-transparent focus:border-transparent focus:ring-0 !outline-none",
                     }}
                     onKeyDown={onKeyDown}
+                    onFocus={handleFocus}
                   />
 
                   <div className="flex items-center justify-between gap-2 pt-3">
