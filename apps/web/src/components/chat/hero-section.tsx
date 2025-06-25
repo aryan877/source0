@@ -89,12 +89,12 @@ export const HeroSection = memo(({ onPromptSelect, className = "" }: HeroSection
         </div>
 
         {/* Simple Prompts */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           {SIMPLE_PROMPTS.map((prompt, index) => (
             <button
               key={index}
               onClick={() => onPromptSelect(prompt)}
-              className="w-full rounded-xl border border-default-200 bg-background px-4 py-3 text-left text-sm text-foreground transition-colors hover:border-default-300 hover:bg-default-50"
+              className="w-full rounded-xl border border-default-300 bg-default-100 px-4 py-3.5 text-left text-sm font-medium text-foreground transition-colors hover:border-default-400 hover:bg-default-200"
             >
               {prompt}
             </button>

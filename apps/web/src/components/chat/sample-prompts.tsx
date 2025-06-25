@@ -243,18 +243,18 @@ export const SamplePrompts = memo(({ onPromptSelect, className = "" }: SamplePro
               key={prompt.id}
               isPressable
               isHoverable
-              className="w-full border-none bg-content1/50 shadow-sm backdrop-blur-sm transition-all duration-200 hover:scale-[1.01] hover:shadow-md"
+              className="w-full border border-divider/30 bg-content1/80 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-[1.01] hover:border-divider/60 hover:bg-content1/90 hover:shadow-md"
               onPress={() => onPromptSelect(prompt.text)}
             >
               <CardBody className="p-4">
                 <div className="flex items-center gap-4">
                   <div
-                    className={`flex-shrink-0 rounded-lg bg-content2 p-2 ${getCategoryColor(prompt.category)}`}
+                    className={`flex-shrink-0 rounded-lg bg-content2/60 p-2.5 transition-colors group-hover:bg-content2/80 ${getCategoryColor(prompt.category)}`}
                   >
                     {prompt.icon}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-relaxed text-foreground">
+                    <p className="text-sm font-medium leading-relaxed text-foreground/90">
                       {prompt.text}
                     </p>
                   </div>
