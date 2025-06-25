@@ -949,7 +949,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           <div className="flex items-center justify-center gap-4 text-sm text-default-600">
             <span>Want to start your own conversation?</span>
             <Link
-              href="/chat/new"
+              href="/"
               className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Start New Chat
