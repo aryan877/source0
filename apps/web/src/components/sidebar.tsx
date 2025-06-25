@@ -7,9 +7,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
-import { CategorizedSessions, useSidebarStore } from "@/stores/sidebar-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
+import { categorizeSessions, type CategorizedSessions } from "@/utils/session-categorizer";
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -62,8 +62,8 @@ interface ChatItemProps {
   isPinned: boolean;
   onSelect: (chatId: string) => void;
   onDelete: (chatId: string) => void;
-  onTogglePin: (chatId: string) => void;
-  isDeleting: boolean;
+  onTogglePin: (chatId: string, isPinned: boolean) => void;
+  isUpdating: boolean;
 }
 
 // ========================================
@@ -88,7 +88,6 @@ const useSidebarState = () => {
   // Store reset functions
   const resetApiKeysStore = useApiKeysStore((state) => state.resetStore);
   const resetModelSelectorStore = useModelSelectorStore((state) => state.resetStore);
-  const resetSidebarStore = useSidebarStore((state) => state.resetStore);
   const resetUiStore = useUiStore((state) => state.resetStore);
   const resetUserPreferencesStore = useUserPreferencesStore((state) => state.resetStore);
 
@@ -108,7 +107,6 @@ const useSidebarState = () => {
     // Clear all stores before signing out
     resetApiKeysStore();
     resetModelSelectorStore();
-    resetSidebarStore();
     resetUiStore();
     resetUserPreferencesStore();
 
@@ -123,7 +121,6 @@ const useSidebarState = () => {
   }, [
     resetApiKeysStore,
     resetModelSelectorStore,
-    resetSidebarStore,
     resetUiStore,
     resetUserPreferencesStore,
     queryClient,
@@ -161,8 +158,7 @@ const useSidebarChatHandlers = (
   windowObj: Window | null,
   router: ReturnType<typeof useRouter>,
   chats: ReturnType<typeof useChatSessions>["sessions"],
-  deleteSession: ReturnType<typeof useChatSessions>["deleteSession"],
-  removePinnedSession: (sessionId: string) => void
+  deleteSession: ReturnType<typeof useChatSessions>["deleteSession"]
 ) => {
   const handleNewChat = useCallback(() => {
     router.push("/");
@@ -171,7 +167,6 @@ const useSidebarChatHandlers = (
   const handleDeleteChat = useCallback(
     (chatId: string) => {
       deleteSession(chatId);
-      removePinnedSession(chatId);
       if (selectedChatId === chatId) {
         if (chats.length <= 1) {
           router.push("/");
@@ -181,7 +176,7 @@ const useSidebarChatHandlers = (
         }
       }
     },
-    [deleteSession, removePinnedSession, selectedChatId, chats, onSelectChat, router]
+    [deleteSession, selectedChatId, chats, onSelectChat, router]
   );
 
   return {
@@ -360,7 +355,7 @@ const ChatItem = memo(
     onSelect,
     onDelete,
     onTogglePin,
-    isDeleting,
+    isUpdating,
   }: ChatItemProps) => {
     return (
       <div
@@ -395,7 +390,7 @@ const ChatItem = memo(
                   isIconOnly
                   className="min-w-unit-6 h-6 w-6"
                   onClick={(e) => e.stopPropagation()}
-                  isDisabled={isDeleting}
+                  isDisabled={isUpdating}
                 >
                   <EllipsisHorizontalIcon className="h-3 w-3" />
                 </Button>
@@ -405,7 +400,7 @@ const ChatItem = memo(
                   if (key === "delete") {
                     onDelete(chatId);
                   } else if (key === "pin") {
-                    onTogglePin(chatId);
+                    onTogglePin(chatId, !isPinned);
                   }
                 }}
               >
@@ -445,6 +440,7 @@ const CategorySection = memo(
     onDeleteChat,
     onTogglePin,
     isDeletingSession,
+    isTogglingPin,
     isOnNewChat,
   }: {
     title: string;
@@ -452,12 +448,11 @@ const CategorySection = memo(
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
     onDeleteChat: (chatId: string) => void;
-    onTogglePin: (chatId: string) => void;
+    onTogglePin: (chatId: string, isPinned: boolean) => void;
     isDeletingSession: boolean;
+    isTogglingPin: boolean;
     isOnNewChat: boolean;
   }) => {
-    const { isPinnedSession } = useSidebarStore();
-
     if (sessions.length === 0) return null;
 
     const getTitleColor = (title: string) => {
@@ -493,11 +488,11 @@ const CategorySection = memo(
               title={chat.title}
               isSelected={!isOnNewChat && selectedChatId === chat.id}
               isBranched={!!chat.branched_from_session_id}
-              isPinned={isPinnedSession(chat.id)}
+              isPinned={!!chat.is_pinned}
               onSelect={onSelectChat}
               onDelete={onDeleteChat}
               onTogglePin={onTogglePin}
-              isDeleting={isDeletingSession}
+              isUpdating={isDeletingSession || isTogglingPin}
             />
           ))}
         </div>
@@ -516,15 +511,25 @@ const CategorizedChatList = memo(
     onDeleteChat,
     onTogglePin,
     isDeletingSession,
+    isTogglingPin,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   }: {
     categorizedSessions: CategorizedSessions;
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
     onDeleteChat: (chatId: string) => void;
-    onTogglePin: (chatId: string) => void;
+    onTogglePin: (chatId: string, isPinned: boolean) => void;
     isDeletingSession: boolean;
+    isTogglingPin: boolean;
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
+    fetchNextPage?: () => void;
   }) => {
     const isOnNewChat = selectedChatId === "new" || !selectedChatId;
+
+    const hasAnySessions = Object.values(categorizedSessions).some((arr) => arr.length > 0);
 
     return (
       <ScrollShadow className="flex-1 p-2">
@@ -537,6 +542,7 @@ const CategorizedChatList = memo(
             onDeleteChat={onDeleteChat}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
+            isTogglingPin={isTogglingPin}
             isOnNewChat={isOnNewChat}
           />
           <CategorySection
@@ -547,6 +553,7 @@ const CategorizedChatList = memo(
             onDeleteChat={onDeleteChat}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
+            isTogglingPin={isTogglingPin}
             isOnNewChat={isOnNewChat}
           />
           <CategorySection
@@ -557,6 +564,7 @@ const CategorizedChatList = memo(
             onDeleteChat={onDeleteChat}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
+            isTogglingPin={isTogglingPin}
             isOnNewChat={isOnNewChat}
           />
           <CategorySection
@@ -567,6 +575,7 @@ const CategorizedChatList = memo(
             onDeleteChat={onDeleteChat}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
+            isTogglingPin={isTogglingPin}
             isOnNewChat={isOnNewChat}
           />
           <CategorySection
@@ -577,9 +586,17 @@ const CategorizedChatList = memo(
             onDeleteChat={onDeleteChat}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
+            isTogglingPin={isTogglingPin}
             isOnNewChat={isOnNewChat}
           />
         </div>
+        {hasAnySessions && hasNextPage && (
+          <div className="mt-4 flex justify-center">
+            <Button onPress={fetchNextPage} disabled={isFetchingNextPage} variant="flat" size="sm">
+              {isFetchingNextPage ? "Loading..." : "Load More"}
+            </Button>
+          </div>
+        )}
       </ScrollShadow>
     );
   }
@@ -719,9 +736,12 @@ export const Sidebar = memo(
       deleteSession,
       isDeletingSession,
       invalidateSessions,
+      hasNextPage,
+      fetchNextPage,
+      isFetchingNextPage,
+      togglePinSession,
+      isTogglingPin,
     } = useChatSessions(debouncedSearchQuery);
-
-    const { togglePinnedSession, categorizeSessions, removePinnedSession } = useSidebarStore();
 
     const { handleNewChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
@@ -729,15 +749,14 @@ export const Sidebar = memo(
       windowObj,
       router,
       chats,
-      deleteSession,
-      removePinnedSession
+      deleteSession
     );
 
     const handleTogglePin = useCallback(
-      (chatId: string) => {
-        togglePinnedSession(chatId);
+      (chatId: string, isPinned: boolean) => {
+        togglePinSession({ sessionId: chatId, isPinned });
       },
-      [togglePinnedSession]
+      [togglePinSession]
     );
 
     const categorizedSessions = categorizeSessions(chats);
@@ -788,6 +807,10 @@ export const Sidebar = memo(
               onDeleteChat={handleDeleteChat}
               onTogglePin={handleTogglePin}
               isDeletingSession={isDeletingSession}
+              isTogglingPin={isTogglingPin}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
             />
           )}
           <SidebarBottomActions

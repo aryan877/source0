@@ -35,11 +35,12 @@ export function QueryProvider({ children }: Props) {
       persistOptions={{
         persister: localStoragePersister,
         maxAge: 1000 * 60 * 60 * 24, // 24 hours
-        // Only persist chat sessions list, not individual sessions
         dehydrateOptions: {
-          shouldDehydrateQuery: (query) => {
-            // Only persist the sessions list, not individual sessions
-            return query.queryKey[0] === "chat-sessions" && query.queryKey[1] === "user";
+          shouldDehydrateQuery: () => {
+            // Do not persist any queries to localStorage.
+            // We are not persisting chat sessions due to pagination.
+            // Other queries were not persisted before anyway.
+            return false;
           },
         },
       }}

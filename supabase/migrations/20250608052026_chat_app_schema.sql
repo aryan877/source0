@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     is_public               boolean         DEFAULT false,
     share_slug              text            UNIQUE,
     
+    -- Pinning
+    is_pinned               boolean         NOT NULL DEFAULT false,
+    
     -- Timestamps
     created_at              timestamptz     DEFAULT now(),
     updated_at              timestamptz     DEFAULT now(),
@@ -142,6 +145,11 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_public_recent
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_share_slug 
     ON chat_sessions(share_slug) 
     WHERE share_slug IS NOT NULL;
+
+-- Index for pinned sessions by user
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned
+    ON chat_sessions(user_id, is_pinned)
+    WHERE is_pinned = true;
 
 -- Indexes for session branching
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_branched_from 
@@ -568,7 +576,8 @@ $$;
 --
 -- Function: search_user_sessions(p_search_term text)
 -- Description: Searches for chat sessions belonging to the current user based on a search term.
--- The search is performed case-insensitively on the session title.
+-- The search is performed case-insensitively on the session title. Pinned sessions are
+-- always returned first.
 --
 CREATE OR REPLACE FUNCTION search_user_sessions(p_search_term text)
 RETURNS SETOF chat_sessions
@@ -582,14 +591,14 @@ BEGIN
         SELECT cs.*
         FROM chat_sessions cs
         WHERE cs.user_id = auth.uid()
-        ORDER BY cs.updated_at DESC;
+        ORDER BY cs.is_pinned DESC, cs.updated_at DESC;
     ELSE
         RETURN QUERY
         SELECT cs.*
         FROM chat_sessions cs
         WHERE cs.user_id = auth.uid()
           AND cs.title ILIKE '%' || p_search_term || '%'
-        ORDER BY cs.updated_at DESC;
+        ORDER BY cs.is_pinned DESC, cs.updated_at DESC;
     END IF;
 END;
 $$;

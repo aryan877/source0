@@ -53,19 +53,57 @@ export async function createSession(
 /**
  * Get all chat sessions for a user
  */
-export async function getUserSessions(userId: string): Promise<ChatSession[]> {
+export async function getUserSessions(
+  userId: string,
+  {
+    pageSize = 30, // Increased page size for sidebar
+    cursor,
+    searchTerm,
+  }: {
+    pageSize?: number;
+    cursor?: string;
+    searchTerm?: string;
+  } = {}
+): Promise<{ data: ChatSession[]; nextCursor: string | null }> {
   const supabase = createClient();
-  const { data, error } = await supabase
+
+  if (searchTerm) {
+    // If there's a search term, we use the RPC function which handles its own pagination/limiting.
+    // And does not support cursor-based pagination.
+    const { data, error } = await supabase.rpc("search_user_sessions", {
+      p_search_term: searchTerm,
+    });
+
+    if (error) {
+      console.error("Error searching chat sessions:", error);
+      throw error;
+    }
+    return { data: data || [], nextCursor: null };
+  }
+
+  // Standard paginated fetching without search
+  let query = supabase
     .from("chat_sessions")
     .select("*")
     .eq("user_id", userId)
-    .order("updated_at", { ascending: false });
+    .order("is_pinned", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(pageSize);
+
+  if (cursor) {
+    query = query.lt("updated_at", cursor);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching chat sessions:", error);
-    return [];
+    throw error;
   }
-  return data;
+
+  const nextCursor = data && data.length === pageSize ? data[data.length - 1]?.updated_at : null;
+
+  return { data: data || [], nextCursor };
 }
 
 /**
@@ -304,6 +342,44 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
   if (error) {
     console.error("Error updating chat session title:", error);
     throw new Error(`Failed to update chat session title: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * Pins a chat session.
+ */
+export async function pinSession(sessionId: string): Promise<ChatSession> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update({ is_pinned: true })
+    .eq("id", sessionId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(`Error pinning session ${sessionId}:`, error);
+    throw new Error(`Failed to pin session: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * Unpins a chat session.
+ */
+export async function unpinSession(sessionId: string): Promise<ChatSession> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update({ is_pinned: false })
+    .eq("id", sessionId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(`Error unpinning session ${sessionId}:`, error);
+    throw new Error(`Failed to unpin session: ${error.message}`);
   }
   return data;
 }
