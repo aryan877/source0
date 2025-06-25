@@ -201,7 +201,7 @@ SidebarOverlay.displayName = "SidebarOverlay";
 
 const SidebarHeader = memo(
   ({ onNewChat, onOpenGallery }: { onNewChat: () => void; onOpenGallery: () => void }) => (
-    <div className="border-b border-divider p-4">
+    <div className="p-4">
       <div className="mb-4 flex h-10 items-center justify-center">
         <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">
           SOURCE0
@@ -265,7 +265,7 @@ const SearchBar = memo(
     }, [isSearchFocused, blurSearch]);
 
     return (
-      <div className="border-b border-divider p-3">
+      <div className="p-3">
         <div className="relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
@@ -637,7 +637,7 @@ const SidebarBottomActions = memo(
     onLogin: () => void;
     onOpenSettings: () => void;
   }) => (
-    <div className="space-y-1 border-t border-divider p-2">
+    <div className="space-y-1 p-2">
       {user ? (
         <div className="space-y-1">
           <UserInfo user={user} />
@@ -775,7 +775,7 @@ export const Sidebar = memo(
 
         {/* Main Sidebar */}
         <div
-          className={`fixed left-0 top-0 z-50 flex h-full w-72 flex-col border-r border-divider bg-content1 transition-transform duration-300 ease-in-out ${
+          className={`fixed left-0 top-0 z-50 flex h-full w-72 flex-col bg-background transition-transform duration-300 ease-in-out ${
             isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

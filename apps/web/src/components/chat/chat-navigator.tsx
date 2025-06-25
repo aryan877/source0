@@ -23,14 +23,14 @@ export const ChatNavigator = forwardRef<HTMLDivElement, ChatNavigatorProps>(func
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-0 z-20 h-full w-full max-w-sm rounded-l-lg border-l border-divider bg-background/95 shadow-lg backdrop-blur-sm"
+      className="absolute right-0 top-0 z-20 h-full w-full max-w-sm border-l border-divider bg-background/95 shadow-lg backdrop-blur-sm"
       style={{
         transition: "transform 0.3s ease-in-out",
         transform: isOpen ? "translateX(0)" : "translateX(100%)",
       }}
     >
       <div className="flex h-full flex-col">
-        <header className="flex items-center justify-between border-b border-divider p-4">
+        <header className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-default-600" />
             <h2 className="text-lg font-semibold text-foreground">Chat Navigator</h2>

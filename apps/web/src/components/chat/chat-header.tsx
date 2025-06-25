@@ -39,23 +39,24 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
       return (
         <header
           ref={ref}
-          className="flex h-14 shrink-0 items-center justify-end gap-1 border-b border-divider px-3 sm:h-16 sm:gap-2 sm:px-4"
+          className="flex h-10 shrink-0 items-center justify-end gap-2 bg-gradient-to-r from-transparent via-content2/30 to-content2/50 px-4 backdrop-blur-sm"
         >
-          {/* Hide theme selector on mobile, show only settings */}
-          <div className="hidden sm:block">
-            <ThemeSelector />
+          <div className="flex items-center gap-1">
+            <div className="hidden sm:block">
+              <ThemeSelector />
+            </div>
+            <Tooltip content="Settings" placement="bottom" delay={300}>
+              <Button
+                isIconOnly
+                variant="light"
+                size="sm"
+                className="h-7 w-7 data-[hover=true]:bg-default-200/70"
+                onPress={handleOpenSettings}
+              >
+                <Cog6ToothIcon className="h-3.5 w-3.5 text-default-600" />
+              </Button>
+            </Tooltip>
           </div>
-          <Tooltip content="Settings" placement="bottom" delay={300}>
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              className="sm:size-md data-[hover=true]:bg-default-200"
-              onPress={handleOpenSettings}
-            >
-              <Cog6ToothIcon className="h-4 w-4 text-default-600 sm:h-5 sm:w-5" />
-            </Button>
-          </Tooltip>
         </header>
       );
     }
@@ -63,7 +64,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
     return (
       <header
         ref={ref}
-        className="flex h-14 shrink-0 items-center justify-between border-b border-divider px-3 sm:h-16 sm:px-4"
+        className="flex h-10 shrink-0 items-center justify-between bg-gradient-to-r from-transparent via-content2/30 to-content2/50 px-4 backdrop-blur-sm"
       >
         <div className="flex flex-1 items-center justify-between">
           {/* Left side - Shared indicator */}
@@ -73,13 +74,9 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
                 size="sm"
                 variant="flat"
                 color="primary"
-                className="text-xs"
+                className="h-6 text-xs"
                 startContent={
-                  <svg
-                    className="h-2.5 w-2.5 sm:h-3 sm:w-3"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
+                  <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
                   </svg>
                 }
@@ -93,18 +90,19 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
           {/* Right side - Actions */}
           <div className="flex items-center">
             {/* Desktop: Show all buttons */}
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-1 sm:flex">
               <ThemeSelector />
               {showNavigatorButton && (
                 <Tooltip content="Chat Navigator" placement="bottom" delay={300}>
                   <Button
                     isIconOnly
                     variant="light"
-                    className="data-[hover=true]:bg-default-200"
+                    size="sm"
+                    className="h-7 w-7 data-[hover=true]:bg-default-200/70"
                     onPress={onToggleNavigator}
                     data-testid="chat-navigator-toggle"
                   >
-                    <FileText className="h-5 w-5 text-default-600" />
+                    <FileText className="h-3.5 w-3.5 text-default-600" />
                   </Button>
                 </Tooltip>
               )}
@@ -117,27 +115,28 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
                 <Button
                   isIconOnly
                   variant="light"
-                  className="data-[hover=true]:bg-default-200"
+                  size="sm"
+                  className="h-7 w-7 data-[hover=true]:bg-default-200/70"
                   onPress={handleOpenSettings}
                 >
-                  <Cog6ToothIcon className="h-5 w-5 text-default-600" />
+                  <Cog6ToothIcon className="h-3.5 w-3.5 text-default-600" />
                 </Button>
               </Tooltip>
             </div>
 
-            {/* Mobile: Show only essential buttons + dropdown for others */}
-            <div className="flex items-center gap-1 sm:hidden">
+            {/* Mobile: Compact button layout */}
+            <div className="flex items-center gap-0.5 sm:hidden">
               {/* Navigator button - always visible if needed */}
               {showNavigatorButton && (
                 <Button
                   isIconOnly
                   variant="light"
                   size="sm"
-                  className="data-[hover=true]:bg-default-200"
+                  className="h-6 w-6 data-[hover=true]:bg-default-200/70"
                   onPress={onToggleNavigator}
                   data-testid="chat-navigator-toggle"
                 >
-                  <FileText className="h-4 w-4 text-default-600" />
+                  <FileText className="h-3 w-3 text-default-600" />
                 </Button>
               )}
 
@@ -146,36 +145,48 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="data-[hover=true]:bg-default-200"
+                className="h-6 w-6 data-[hover=true]:bg-default-200/70"
                 onPress={handleOpenSettings}
               >
-                <Cog6ToothIcon className="h-4 w-4 text-default-600" />
+                <Cog6ToothIcon className="h-3 w-3 text-default-600" />
               </Button>
 
               {/* More options dropdown */}
-              <Dropdown>
+              <Dropdown placement="bottom-end">
                 <DropdownTrigger>
                   <Button
                     isIconOnly
                     variant="light"
                     size="sm"
-                    className="data-[hover=true]:bg-default-200"
+                    className="h-6 w-6 data-[hover=true]:bg-default-200/70"
                   >
-                    <EllipsisHorizontalIcon className="h-4 w-4 text-default-600" />
+                    <EllipsisHorizontalIcon className="h-3 w-3 text-default-600" />
                   </Button>
                 </DropdownTrigger>
-                <DropdownMenu aria-label="More options">
-                  <DropdownItem key="theme" startContent={<Palette className="h-4 w-4" />}>
+                <DropdownMenu aria-label="More options" className="min-w-[200px]">
+                  <DropdownItem
+                    key="theme"
+                    startContent={<Palette className="h-3.5 w-3.5" />}
+                    className="py-2"
+                  >
                     <div className="flex w-full items-center justify-between">
-                      <span>Theme</span>
-                      <ThemeSelector />
+                      <span className="text-sm">Theme</span>
+                      <div className="ml-4">
+                        <ThemeSelector />
+                      </div>
                     </div>
                   </DropdownItem>
                   {!isSharedView ? (
-                    <DropdownItem key="share" startContent={<Share2 className="h-4 w-4" />}>
+                    <DropdownItem
+                      key="share"
+                      startContent={<Share2 className="h-3.5 w-3.5" />}
+                      className="py-2"
+                    >
                       <div className="flex w-full items-center justify-between">
-                        <span>Share Chat</span>
-                        <ShareButton session={sessionData} />
+                        <span className="text-sm">Share Chat</span>
+                        <div className="ml-4">
+                          <ShareButton session={sessionData} />
+                        </div>
                       </div>
                     </DropdownItem>
                   ) : null}
