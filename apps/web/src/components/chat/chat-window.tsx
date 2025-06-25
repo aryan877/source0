@@ -418,7 +418,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           selectedModel,
           modelProvider,
           { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
-          { fireAndForget: true, existingParts: preparedMessage.parts }
+          { fireAndForget: true }
         );
       }
     }

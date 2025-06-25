@@ -320,7 +320,7 @@ export async function saveAssistantMessage(
   model: string,
   modelProvider: string,
   modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
-  options: { fireAndForget?: boolean; existingParts?: MessagePart[] } = {}
+  options: { fireAndForget?: boolean } = {}
 ): Promise<DBChatMessage | void> {
   const preparedMessage = prepareMessageForDb({
     message,
@@ -330,7 +330,6 @@ export async function saveAssistantMessage(
     modelProvider,
     reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
     searchEnabled: modelConfig.searchEnabled,
-    existingParts: options.existingParts,
   });
 
   if (options.fireAndForget) {
