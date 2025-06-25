@@ -222,30 +222,6 @@ export async function getFileInfo(filePath: string): Promise<FileInfo | null> {
 }
 
 /**
- * Create a signed URL for secure file access
- */
-export async function createSignedUrl(
-  filePath: string,
-  expiresIn: number = 3600
-): Promise<string | null> {
-  try {
-    const { data, error } = await supabase.storage
-      .from(CHAT_ATTACHMENTS_BUCKET)
-      .createSignedUrl(filePath, expiresIn);
-
-    if (error) {
-      console.error("Create signed URL error:", error);
-      return null;
-    }
-
-    return data.signedUrl;
-  } catch (error) {
-    console.error("Create signed URL error:", error);
-    return null;
-  }
-}
-
-/**
  * List all files for the current user by scanning through chat folders.
  */
 export async function listUserFiles(): Promise<{

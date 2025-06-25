@@ -451,8 +451,6 @@ BEGIN
 END;
 $$;
 
-
-
 --
 -- Function: get_session_branches(p_session_id)
 -- Description: Retrieves all sessions that have been branched from a given session.
@@ -595,7 +593,6 @@ BEGIN
     END IF;
 END;
 $$;
-
 -- ================================================================================
 -- Usage Examples
 -- ================================================================================

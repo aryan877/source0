@@ -31,11 +31,12 @@ import {
   ModalFooter,
   ModalHeader,
   ScrollShadow,
+  Tooltip,
   useDisclosure,
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitBranchIcon, Pin, PinOff } from "lucide-react";
+import { GitBranchIcon, ImageIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -203,28 +204,49 @@ const SidebarOverlay = memo(({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
 SidebarOverlay.displayName = "SidebarOverlay";
 
-const SidebarHeader = memo(({ onNewChat }: { onNewChat: () => void }) => (
-  <div className="border-b border-divider p-4">
-    <div className="mb-4 flex h-10 items-center justify-center">
-      <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">SOURCE0</h1>
+const SidebarHeader = memo(
+  ({ onNewChat, onOpenGallery }: { onNewChat: () => void; onOpenGallery: () => void }) => (
+    <div className="border-b border-divider p-4">
+      <div className="mb-4 flex h-10 items-center justify-center">
+        <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">
+          SOURCE0
+        </h1>
+      </div>
+      <div className="flex w-full items-center gap-2">
+        <Button
+          onPress={onNewChat}
+          color="primary"
+          size="md"
+          className="relative h-10 w-full overflow-hidden rounded-lg bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 font-semibold text-white shadow-lg shadow-primary/25"
+          startContent={
+            <div className="relative z-10">
+              <PlusIcon className="h-4 w-4" />
+            </div>
+          }
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+          <span className="relative z-10 tracking-wide">New Chat</span>
+        </Button>
+        <Tooltip
+          content="AI Generated Images Gallery"
+          placement="bottom"
+          delay={500}
+          closeDelay={0}
+        >
+          <Button
+            onPress={onOpenGallery}
+            variant="ghost"
+            isIconOnly
+            aria-label="Image Gallery"
+            className="h-10 min-w-10"
+          >
+            <ImageIcon className="h-5 w-5" />
+          </Button>
+        </Tooltip>
+      </div>
     </div>
-
-    <Button
-      onPress={onNewChat}
-      color="primary"
-      size="md"
-      className="relative h-10 w-full overflow-hidden rounded-lg bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 font-semibold text-white shadow-lg shadow-primary/25"
-      startContent={
-        <div className="relative z-10">
-          <PlusIcon className="h-4 w-4" />
-        </div>
-      }
-    >
-      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
-      <span className="relative z-10 tracking-wide">New Chat</span>
-    </Button>
-  </div>
-));
+  )
+);
 
 SidebarHeader.displayName = "SidebarHeader";
 
@@ -724,6 +746,10 @@ export const Sidebar = memo(
       router.push("/auth/login");
     }, [router]);
 
+    const handleOpenGallery = useCallback(() => {
+      router.push("/gallery");
+    }, [router]);
+
     return (
       <>
         <SidebarOverlay isOpen={isOpen} onClose={onClose} />
@@ -734,7 +760,7 @@ export const Sidebar = memo(
             isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <SidebarHeader onNewChat={handleNewChat} />
+          <SidebarHeader onNewChat={handleNewChat} onOpenGallery={handleOpenGallery} />
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
           {!user ? (
             <div className="flex-1 p-2">

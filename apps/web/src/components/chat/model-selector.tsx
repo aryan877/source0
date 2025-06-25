@@ -34,7 +34,7 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { Pin, PinOff } from "lucide-react";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { CapabilityIcon } from "./capability-icons";
 import { ProviderIcon } from "./provider-icon";
 
@@ -268,12 +268,23 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
     resetState,
   } = useModelSelectorStore();
 
+  const expandedSearchInputRef = useRef<HTMLInputElement>(null);
+
   // Ensure hydration happens on client side
   useEffect(() => {
     if (!hasHydrated) {
       setHasHydrated(true);
     }
   }, [hasHydrated, setHasHydrated]);
+
+  // When switching to expanded view due to a search, focus the input
+  useEffect(() => {
+    if (viewMode === "expanded" && searchQuery.trim()) {
+      setTimeout(() => {
+        expandedSearchInputRef.current?.focus();
+      }, 0);
+    }
+  }, [viewMode, searchQuery]);
 
   // Use store value if no external value provided
   const currentSelectedModel = value ?? getSelectedModel(chatId);
@@ -290,6 +301,15 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
     selectedCapabilities,
     selectedProvider,
     favorites
+  );
+
+  const favoriteModels = useMemo(
+    () => filteredModels.filter((model) => favorites.includes(model.id)),
+    [filteredModels, favorites]
+  );
+  const otherModels = useMemo(
+    () => filteredModels.filter((model) => !favorites.includes(model.id)),
+    [filteredModels, favorites]
   );
 
   const filteredFavorites = useMemo(() => {
@@ -325,6 +345,16 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
       setIsOpen(open);
     },
     [setIsOpen]
+  );
+
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      if (query.trim() && viewMode === "normal") {
+        setViewMode("expanded");
+      }
+    },
+    [viewMode, setSearchQuery, setViewMode]
   );
 
   const renderModelItem = (model: ModelConfig, isFavorite: boolean, showPinOnHover = false) => (
@@ -452,7 +482,7 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
           base: `${viewMode === "expanded" ? "max-h-[85vh]" : "max-h-[70vh]"} overflow-hidden flex flex-col`,
           list: "overflow-y-auto flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-default-300 [&::-webkit-scrollbar-thumb]:rounded-lg [&>*]:mr-3 [&_[data-focus-visible=true]]:outline-none [&_[data-focus-visible=true]]:ring-0 [&_[data-focus-visible=true]]:shadow-none",
         }}
-        autoFocus="first"
+        autoFocus={searchQuery ? false : "first"}
         shouldFocusWrap
         itemClasses={{
           base: "data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
@@ -483,6 +513,7 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
 
                 <div className="px-2 py-1">
                   <Input
+                    ref={expandedSearchInputRef}
                     placeholder="Search models..."
                     value={searchQuery}
                     onValueChange={setSearchQuery}
@@ -497,9 +528,9 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
               <>
                 <div className="px-2 py-1">
                   <Input
-                    placeholder="Search favorites..."
+                    placeholder="Search models..."
                     value={searchQuery}
-                    onValueChange={setSearchQuery}
+                    onValueChange={handleSearchChange}
                     startContent={<MagnifyingGlassIcon className="h-4 w-4" />}
                     size="sm"
                     isClearable
@@ -566,80 +597,71 @@ export const ModelSelector = ({ value, onValueChange, chatId }: ModelSelectorPro
         ) : (
           <>
             {/* Favorites Section in Expanded View */}
-            {filteredModels.filter((model) => favorites.includes(model.id)).length > 0 && (
+            {favoriteModels.length > 0 && (
               <DropdownSection
-                title={`Favorites (${filteredModels.filter((model) => favorites.includes(model.id)).length})`}
-                showDivider={
-                  filteredModels.filter((model) => !favorites.includes(model.id)).length > 0
-                }
+                title={`Favorites (${favoriteModels.length})`}
+                showDivider={otherModels.length > 0}
                 classNames={{
                   base: "mt-3",
                   heading: "text-sm font-semibold text-primary px-3 py-2",
                 }}
               >
-                {filteredModels
-                  .filter((model) => favorites.includes(model.id))
-                  .map((model) => (
-                    <DropdownItem
-                      key={`fav-${model.id}`}
-                      textValue={model.name}
-                      closeOnSelect={false}
-                      onClick={(event) => {
-                        const target = event.target as HTMLElement;
-                        const isPinButton = target.closest('[aria-label*="favorites"]');
+                {favoriteModels.map((model) => (
+                  <DropdownItem
+                    key={`fav-${model.id}`}
+                    textValue={model.name}
+                    closeOnSelect={false}
+                    onClick={(event) => {
+                      const target = event.target as HTMLElement;
+                      const isPinButton = target.closest('[aria-label*="favorites"]');
 
-                        if (!isPinButton) {
-                          handleModelSelect(model.id);
-                        }
-                      }}
-                      classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
-                      }}
-                    >
-                      {renderModelItem(model, true, true)}
-                    </DropdownItem>
-                  ))}
+                      if (!isPinButton) {
+                        handleModelSelect(model.id);
+                      }
+                    }}
+                    classNames={{
+                      base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
+                    }}
+                  >
+                    {renderModelItem(model, true, true)}
+                  </DropdownItem>
+                ))}
               </DropdownSection>
             )}
 
             {/* Other Models Section in Expanded View */}
             <DropdownSection
-              title={`Other Models (${filteredModels.filter((model) => !favorites.includes(model.id)).length})`}
+              title={`Other Models (${otherModels.length})`}
               classNames={{
-                base:
-                  filteredModels.filter((model) => favorites.includes(model.id)).length === 0
-                    ? "mt-3"
-                    : "",
+                base: favoriteModels.length === 0 ? "mt-3" : "",
                 heading: "text-sm font-semibold text-primary px-3 py-2",
               }}
             >
-              {filteredModels.filter((model) => !favorites.includes(model.id)).length === 0 ? (
+              {otherModels.length === 0 ? (
                 <DropdownItem key="no-other-models" isDisabled textValue="No other models">
                   All models are in favorites
                 </DropdownItem>
               ) : (
-                filteredModels
-                  .filter((model) => !favorites.includes(model.id))
-                  .map((model) => (
-                    <DropdownItem
-                      key={`other-${model.id}`}
-                      textValue={model.name}
-                      closeOnSelect={false}
-                      onClick={(event) => {
-                        const target = event.target as HTMLElement;
-                        const isPinButton = target.closest('[aria-label*="favorites"]');
+                otherModels.map((model) => (
+                  <DropdownItem
+                    key={`other-${model.id}`}
+                    textValue={model.name}
+                    closeOnSelect={false}
+                    onClick={(event) => {
+                      const target = event.target as HTMLElement;
+                      const isPinButton = target.closest('[aria-label*="favorites"]');
 
-                        if (!isPinButton) {
-                          handleModelSelect(model.id);
-                        }
-                      }}
-                      classNames={{
-                        base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
-                      }}
-                    >
-                      {renderModelItem(model, false, true)}
-                    </DropdownItem>
-                  ))
+                      if (!isPinButton) {
+                        handleModelSelect(model.id);
+                      }
+                    }}
+                    classNames={{
+                      base: "p-2 gap-2 h-auto hover:bg-content2 transition-colors data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:ring-offset-0 data-[focus-visible=true]:shadow-none focus:outline-none focus:ring-0 focus:shadow-none",
+                    }}
+                  >
+                    {renderModelItem(model, false, true)}
+                  </DropdownItem>
+                ))
               )}
             </DropdownSection>
           </>

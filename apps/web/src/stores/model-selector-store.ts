@@ -52,7 +52,6 @@ interface ModelSelectorState {
   transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
-  closeAndReset: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
   resetStore: () => void;
 }
@@ -202,21 +201,9 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       },
 
       resetState: () => {
+        get().clearFilters();
         set({
           viewMode: "normal",
-          searchQuery: "",
-          selectedCapabilities: [],
-          selectedProvider: null,
-        });
-      },
-
-      closeAndReset: () => {
-        set({
-          isOpen: false,
-          viewMode: "normal",
-          searchQuery: "",
-          selectedCapabilities: [],
-          selectedProvider: null,
         });
       },
 

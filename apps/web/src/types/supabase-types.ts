@@ -148,6 +148,51 @@ export type Database = {
           },
         ]
       }
+      generated_images: {
+        Row: {
+          created_at: string | null
+          file_path: string
+          id: string
+          message_id: string
+          prompt: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_path: string
+          id?: string
+          message_id: string
+          prompt?: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_path?: string
+          id?: string
+          message_id?: string
+          prompt?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_message"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_images_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_server_headers: {
         Row: {
           created_at: string | null
@@ -361,6 +406,20 @@ export type Database = {
           branch_created_at: string
           branch_point_message: Json
           branch_point_time: string
+        }[]
+      }
+      get_usage_stats: {
+        Args: {
+          start_date_filter?: string
+          end_date_filter?: string
+          provider_filter?: string
+          model_id_filter?: string
+        }
+        Returns: {
+          total_requests: number
+          total_tokens: number
+          total_prompt_tokens: number
+          total_completion_tokens: number
         }[]
       }
       gtrgm_compress: {

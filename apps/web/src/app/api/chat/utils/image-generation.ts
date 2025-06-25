@@ -1,5 +1,6 @@
 import { ModelConfig } from "@/config/models";
 import { saveAssistantMessageServer } from "@/services/chat-messages.server";
+import { saveGeneratedImage } from "@/services/generated-images.server";
 import { CustomFileUIPart } from "@/utils/core-message-processor";
 import { openai } from "@ai-sdk/openai";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
@@ -78,7 +79,7 @@ export async function handleImageGenerationRequest(
           ],
         };
 
-        await saveAssistantMessageServer(
+        const savedAssistantMessage = await saveAssistantMessageServer(
           supabase,
           assistantMessage,
           sessionId,
@@ -87,6 +88,19 @@ export async function handleImageGenerationRequest(
           modelConfig.provider,
           { reasoningLevel: "low", searchEnabled: false }
         );
+
+        try {
+          await saveGeneratedImage(supabase, {
+            user_id: user.id,
+            session_id: sessionId,
+            message_id: savedAssistantMessage.id,
+            file_path: filePath,
+            prompt: prompt,
+          });
+        } catch (imageRecordError) {
+          // Log it, but don't fail the whole request because of this
+          console.error("Failed to save generated image metadata", imageRecordError);
+        }
 
         dataStream.writeMessageAnnotation({
           type: "image_generation_complete",
