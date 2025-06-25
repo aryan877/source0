@@ -3,6 +3,7 @@
 import {
   type ChatSession,
   deleteSession,
+  getNewUserSessions,
   getUserSessions,
   pinSession,
   unpinSession,
@@ -14,7 +15,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "../useAuth";
 
 type Page = { data: ChatSession[]; nextCursor: string | null };
@@ -23,6 +24,19 @@ export function useChatSessions(searchTerm = "") {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const queryKey = useMemo(
+    () => (user?.id ? chatSessionsKeys.search(user.id, searchTerm) : []),
+    [user?.id, searchTerm]
+  );
+
+  const invalidateSessions = useCallback(() => {
+    if (user?.id) {
+      queryClient.invalidateQueries({
+        queryKey: chatSessionsKeys.byUser(user.id),
+      });
+    }
+  }, [user?.id, queryClient]);
+
   const query = useInfiniteQuery<
     Page,
     Error,
@@ -30,7 +44,7 @@ export function useChatSessions(searchTerm = "") {
     readonly (string | undefined)[],
     string | null
   >({
-    queryKey: user?.id ? chatSessionsKeys.search(user.id, searchTerm) : [],
+    queryKey,
     queryFn: ({ pageParam = null }) =>
       getUserSessions(user!.id, {
         cursor: pageParam ?? undefined,
@@ -43,6 +57,63 @@ export function useChatSessions(searchTerm = "") {
     refetchOnWindowFocus: false,
   });
 
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== "visible" || !user?.id || searchTerm) {
+        return;
+      }
+
+      const latestSession = query.data?.pages[0]?.data[0];
+      if (!latestSession?.updated_at) {
+        // If there are no sessions, or the latest has no timestamp,
+        // a simple invalidation is safer to refetch the initial list.
+        invalidateSessions();
+        return;
+      }
+
+      try {
+        const newSessions = await getNewUserSessions(user.id, latestSession.updated_at);
+
+        if (newSessions.length > 0) {
+          queryClient.setQueryData(queryKey, (oldData: InfiniteData<Page> | undefined) => {
+            if (!oldData) return oldData;
+
+            // Filter out any sessions that might already be in the list
+            const existingIds = new Set(oldData.pages.flatMap((p) => p.data.map((s) => s.id)));
+            const trulyNewSessions = newSessions.filter((s) => !existingIds.has(s.id));
+
+            if (trulyNewSessions.length === 0) {
+              return oldData;
+            }
+
+            // Prepend the new sessions to the first page
+            const newPages = [...oldData.pages];
+            const firstPage = newPages[0] ?? { data: [], nextCursor: null };
+
+            const updatedFirstPage = {
+              ...firstPage,
+              data: [...trulyNewSessions, ...firstPage.data],
+            };
+
+            newPages[0] = updatedFirstPage;
+
+            return {
+              ...oldData,
+              pages: newPages,
+            };
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch new sessions on focus:", error);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [query.data, user?.id, searchTerm, queryClient, invalidateSessions, queryKey]);
+
   const sessions = useMemo(
     () => query.data?.pages.flatMap((page) => page.data) ?? [],
     [query.data]
@@ -52,19 +123,16 @@ export function useChatSessions(searchTerm = "") {
     mutationFn: deleteSession,
     onSuccess: (_, deletedSessionId) => {
       if (user?.id) {
-        queryClient.setQueryData(
-          chatSessionsKeys.search(user.id, searchTerm),
-          (oldData: InfiniteData<Page> | undefined) => {
-            if (!oldData) return oldData;
-            return {
-              ...oldData,
-              pages: oldData.pages.map((page) => ({
-                ...page,
-                data: page.data.filter((session) => session.id !== deletedSessionId),
-              })),
-            };
-          }
-        );
+        queryClient.setQueryData(queryKey, (oldData: InfiniteData<Page> | undefined) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page) => ({
+              ...page,
+              data: page.data.filter((session) => session.id !== deletedSessionId),
+            })),
+          };
+        });
         queryClient.removeQueries({ queryKey: chatSessionsKeys.byId(deletedSessionId) });
       }
     },
@@ -79,7 +147,6 @@ export function useChatSessions(searchTerm = "") {
     onMutate: async ({ sessionId, isPinned }) => {
       if (!user?.id) return;
 
-      const queryKey = chatSessionsKeys.search(user.id, searchTerm);
       await queryClient.cancelQueries({ queryKey });
 
       const previousData = queryClient.getQueryData<InfiniteData<Page>>(queryKey);
@@ -122,11 +189,8 @@ export function useChatSessions(searchTerm = "") {
       return { previousData };
     },
     onError: (err, variables, context) => {
-      if (context?.previousData && user?.id) {
-        queryClient.setQueryData(
-          chatSessionsKeys.search(user.id, searchTerm),
-          context.previousData
-        );
+      if (context?.previousData) {
+        queryClient.setQueryData(queryKey, context.previousData);
       }
       console.error("Failed to toggle pin status:", err);
     },
@@ -137,24 +201,18 @@ export function useChatSessions(searchTerm = "") {
     },
   });
 
-  const invalidateSessions = () => {
-    if (user?.id) {
-      queryClient.invalidateQueries({
-        queryKey: chatSessionsKeys.byUser(user.id),
-      });
-    }
-  };
+  const updateSessionInCache = useCallback(
+    (updatedSession: ChatSession, userId?: string) => {
+      const targetUserId = userId || user?.id;
+      if (!targetUserId) {
+        console.error("Cannot update session cache: no user ID available");
+        return;
+      }
 
-  const updateSessionInCache = (updatedSession: ChatSession, userId?: string) => {
-    const targetUserId = userId || user?.id;
-    if (!targetUserId) {
-      console.error("Cannot update session cache: no user ID available");
-      return;
-    }
+      const keyToUpdate =
+        targetUserId === user?.id ? queryKey : chatSessionsKeys.search(targetUserId, searchTerm);
 
-    queryClient.setQueryData(
-      chatSessionsKeys.search(targetUserId, searchTerm),
-      (oldData: InfiniteData<Page> | undefined) => {
+      queryClient.setQueryData(keyToUpdate, (oldData: InfiniteData<Page> | undefined) => {
         if (!oldData) return oldData;
 
         const sessionWithDate = {
@@ -191,9 +249,10 @@ export function useChatSessions(searchTerm = "") {
           ...oldData,
           pages: [newFirstPage, ...oldData.pages.slice(1)],
         };
-      }
-    );
-  };
+      });
+    },
+    [user?.id, queryClient, searchTerm, queryKey]
+  );
 
   return {
     ...query,

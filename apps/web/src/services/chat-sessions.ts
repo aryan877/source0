@@ -134,14 +134,20 @@ export async function getSession(sessionId: string): Promise<ChatSession | null>
 /**
  * Update session title
  */
-export async function updateTitle(sessionId: string, title: string): Promise<void> {
+export async function updateTitle(sessionId: string, title: string): Promise<ChatSession> {
   const supabase = createClient();
-  const { error } = await supabase.from("chat_sessions").update({ title }).eq("id", sessionId);
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .update({ title })
+    .eq("id", sessionId)
+    .select()
+    .single();
 
   if (error) {
     console.error("Error updating chat session title:", error);
     throw new Error(`Failed to update chat session title: ${error.message}`);
   }
+  return data;
 }
 
 /**
@@ -312,41 +318,6 @@ export async function updateSessionMetadata(sessionId: string, metadata: Json): 
 }
 
 /**
- * Search user sessions by title
- */
-export async function searchUserSessions(searchTerm: string): Promise<ChatSession[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("search_user_sessions", {
-    p_search_term: searchTerm,
-  });
-
-  if (error) {
-    console.error("Error searching chat sessions:", error);
-    return [];
-  }
-  return data;
-}
-
-/**
- * Update a chat session's title
- */
-export async function updateSessionTitle(sessionId: string, title: string): Promise<ChatSession> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_sessions")
-    .update({ title })
-    .eq("id", sessionId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error updating chat session title:", error);
-    throw new Error(`Failed to update chat session title: ${error.message}`);
-  }
-  return data;
-}
-
-/**
  * Pins a chat session.
  */
 export async function pinSession(sessionId: string): Promise<ChatSession> {
@@ -382,4 +353,26 @@ export async function unpinSession(sessionId: string): Promise<ChatSession> {
     throw new Error(`Failed to unpin session: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Get new or updated sessions since a specific time.
+ */
+export async function getNewUserSessions(userId: string, since: string): Promise<ChatSession[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .gt("updated_at", since)
+    .order("is_pinned", { ascending: false })
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching new chat sessions:", error);
+    throw error;
+  }
+
+  return data || [];
 }
