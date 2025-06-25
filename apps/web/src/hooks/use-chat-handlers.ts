@@ -190,6 +190,7 @@ export const useChatHandlers = (
           branched_from_message_id: messageId,
           is_public: false,
           share_slug: null,
+          is_pinned: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: originalSession?.metadata || {},
