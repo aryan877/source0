@@ -652,6 +652,11 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           : undefined;
 
       if (chatId === "new") {
+        if (!user) {
+          router.push("/auth/login");
+          return;
+        }
+
         const newSessionId = uuidv4();
         setMessages(ensureUniqueMessages([messageToAppend]));
         setJustSubmittedMessageId(messageToAppend.id);
@@ -666,16 +671,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
-        if (user) {
-          createSession(user.id, "New Chat", undefined, newSessionId)
-            .then(() => {
-              invalidateSessions();
-              transferModelSelection("new", newSessionId);
-            })
-            .catch((error: unknown) => {
-              console.error("Failed to create new session in background:", error);
-            });
-        }
+        createSession(user.id, "New Chat", undefined, newSessionId)
+          .then(() => {
+            invalidateSessions();
+            transferModelSelection("new", newSessionId);
+          })
+          .catch((error: unknown) => {
+            console.error("Failed to create new session in background:", error);
+          });
 
         setInput("");
         updateState({ attachedFiles: [] });
