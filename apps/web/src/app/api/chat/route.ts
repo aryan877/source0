@@ -13,10 +13,14 @@ import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { saveModelUsageLog } from "@/services/usage-logs.server";
 import { processMessages } from "@/utils/core-message-processor";
-import { convertToAiMessages } from "@/utils/database-message-converter";
+import {
+  buildAssistantMessageFromResponse,
+  convertToAiMessages,
+} from "@/utils/database-message-converter";
 import { pub, sub } from "@/utils/redis";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { createDataStream, generateObject, streamText, type JSONValue, type Message } from "ai";
 import { after } from "next/server";
 import {
@@ -43,6 +47,31 @@ const MessageSummarySchema = z.object({
       "A very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message."
     ),
 });
+
+async function generateAndSaveSummary(
+  supabase: SupabaseClient,
+  message: { id: string; content?: string | null },
+  sessionId: string,
+  userId: string
+) {
+  if (!message.content) return;
+
+  try {
+    const { object } = await generateObject({
+      model: openai("gpt-4o-mini"),
+      schema: MessageSummarySchema,
+      prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${message.content}\n---`,
+    });
+    await saveMessageSummary(supabase, {
+      message_id: message.id,
+      session_id: sessionId,
+      user_id: userId,
+      summary: object.summary,
+    });
+  } catch (e) {
+    console.error(`Failed to generate/save summary for message ${message.id}`, e);
+  }
+}
 
 let streamContext: ResumableStreamContext | undefined;
 if (pub && sub) {
@@ -200,29 +229,12 @@ export async function POST(req: Request): Promise<Response> {
       );
 
       if (showChatNavigator) {
-        try {
-          const userMessageContent =
-            typeof userMessageToSave.content === "string"
-              ? userMessageToSave.content
-              : userMessageToSave.parts?.map((p) => (p.type === "text" ? p.text : "")).join("\n") ||
-                "";
-
-          if (userMessageContent) {
-            const { object } = await generateObject({
-              model: openai("gpt-4o-mini"),
-              schema: MessageSummarySchema,
-              prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${userMessageContent}\n---`,
-            });
-            await saveMessageSummary(supabase, {
-              message_id: savedUserMessage.id,
-              session_id: finalSessionId,
-              user_id: user.id,
-              summary: object.summary,
-            });
-          }
-        } catch (e) {
-          console.error("Failed to generate/save user message summary", e);
-        }
+        await generateAndSaveSummary(
+          supabase,
+          { id: savedUserMessage.id, content: userMessageToSave.content },
+          finalSessionId,
+          user.id
+        );
       }
     }
 
@@ -369,79 +381,10 @@ export async function POST(req: Request): Promise<Response> {
 
                 if (response.messages.length > 0) {
                   try {
-                    // Build the comprehensive assistant message from response.messages inline
-                    const parts: Message["parts"] = [];
-                    let fullContent = "";
-                    let stepCount = 0;
-
-                    for (const message of response.messages) {
-                      if (message.role === "assistant" && Array.isArray(message.content)) {
-                        for (const contentPart of message.content) {
-                          if (contentPart.type === "text") {
-                            parts.push({ type: "text", text: String(contentPart.text) });
-                            fullContent += String(contentPart.text);
-                          } else if (contentPart.type === "tool-call") {
-                            // Find tool result for this tool call by looking in tool messages
-                            let toolResult: unknown = "";
-                            for (const toolMessage of response.messages) {
-                              if (
-                                toolMessage.role === "tool" &&
-                                Array.isArray(toolMessage.content)
-                              ) {
-                                for (const toolPart of toolMessage.content) {
-                                  if (
-                                    toolPart.type === "tool-result" &&
-                                    toolPart.toolCallId === contentPart.toolCallId
-                                  ) {
-                                    toolResult = toolPart.result;
-                                    break;
-                                  }
-                                }
-                              }
-                              if (toolResult) break;
-                            }
-
-                            const toolInvocation = {
-                              state: "result" as const,
-                              step: stepCount,
-                              toolCallId: contentPart.toolCallId,
-                              toolName: contentPart.toolName,
-                              args: contentPart.args,
-                              result: toolResult,
-                            };
-
-                            parts.push({
-                              type: "tool-invocation",
-                              toolInvocation,
-                            });
-                            stepCount++;
-                          } else if (contentPart.type === "reasoning") {
-                            const reasoningContentPart = contentPart as {
-                              text: string;
-                              signature?: string;
-                            };
-                            parts.push({
-                              type: "reasoning",
-                              reasoning: reasoningContentPart.text,
-                              details: [
-                                {
-                                  type: "text",
-                                  text: String(reasoningContentPart.text),
-                                  signature: reasoningContentPart.signature, // Store signature for Claude reasoning models
-                                },
-                              ],
-                            });
-                          }
-                        }
-                      }
-                    }
-
-                    const assistantMessage: Message = {
-                      id: messageId,
-                      role: "assistant" as const,
-                      content: fullContent,
-                      parts,
-                    };
+                    const assistantMessage = buildAssistantMessageFromResponse(
+                      response.messages,
+                      messageId
+                    );
 
                     const savedAssistantMessage = await saveAssistantMessageServer(
                       supabase,
@@ -455,21 +398,12 @@ export async function POST(req: Request): Promise<Response> {
                     );
 
                     if (showChatNavigator && assistantMessage.content) {
-                      try {
-                        const { object } = await generateObject({
-                          model: openai("gpt-4o-mini"),
-                          schema: MessageSummarySchema,
-                          prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
-                        });
-                        await saveMessageSummary(supabase, {
-                          message_id: savedAssistantMessage.id,
-                          session_id: finalSessionId,
-                          user_id: user.id,
-                          summary: object.summary,
-                        });
-                      } catch (e) {
-                        console.error("Failed to generate/save assistant message summary", e);
-                      }
+                      await generateAndSaveSummary(
+                        supabase,
+                        { id: savedAssistantMessage.id, content: assistantMessage.content },
+                        finalSessionId,
+                        user.id
+                      );
                     }
 
                     messageSaved = true;
@@ -501,21 +435,12 @@ export async function POST(req: Request): Promise<Response> {
                     );
 
                     if (showChatNavigator && assistantMessage.content) {
-                      try {
-                        const { object } = await generateObject({
-                          model: openai("gpt-4o-mini"),
-                          schema: MessageSummarySchema,
-                          prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${assistantMessage.content}\n---`,
-                        });
-                        await saveMessageSummary(supabase, {
-                          message_id: savedAssistantMessage.id,
-                          session_id: finalSessionId,
-                          user_id: user.id,
-                          summary: object.summary,
-                        });
-                      } catch (e) {
-                        console.error("Failed to generate/save assistant message summary", e);
-                      }
+                      await generateAndSaveSummary(
+                        supabase,
+                        { id: savedAssistantMessage.id, content: assistantMessage.content },
+                        finalSessionId,
+                        user.id
+                      );
                     }
 
                     messageSaved = true;

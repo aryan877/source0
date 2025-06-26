@@ -2,7 +2,7 @@ import { type ReasoningLevel, getModelById } from "@/config/models";
 import { type ChatMessage, type MessagePart, type ReasoningDetail } from "@/services/chat-messages";
 import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json } from "@/types/supabase-types";
-import { type JSONValue, type Message } from "ai";
+import { type CoreMessage, type JSONValue, type Message } from "ai";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -346,3 +346,93 @@ export const ensureUniqueMessages = (messages: Message[]): Message[] => {
   }, []);
   return uniqueMessages;
 };
+
+/**
+ * Builds a comprehensive assistant message from the raw `CoreMessage` array returned by the AI SDK.
+ *
+ * This function processes the response from `streamText`, which can contain separate
+ * messages for text, tool calls, and tool results. It consolidates them into a
+ * single, structured AI SDK `Message` object with all parts correctly assembled.
+ *
+ * @param responseMessages - The array of `CoreMessage` objects from the `onFinish` callback.
+ * @param messageId - The unique ID to assign to the new assistant message.
+ * @returns A single, consolidated `Message` object for the assistant's turn.
+ */
+export function buildAssistantMessageFromResponse(
+  responseMessages: CoreMessage[],
+  messageId: string
+): Message {
+  const parts: Message["parts"] = [];
+  let fullContent = "";
+  let stepCount = 0;
+
+  for (const message of responseMessages) {
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      for (const contentPart of message.content) {
+        if (contentPart.type === "text") {
+          parts.push({ type: "text", text: String(contentPart.text) });
+          fullContent += String(contentPart.text);
+        } else if (contentPart.type === "tool-call") {
+          // Find tool result for this tool call by looking in the tool messages
+          let toolResult: unknown;
+          let resultFound = false;
+          for (const toolMessage of responseMessages) {
+            if (toolMessage.role === "tool" && Array.isArray(toolMessage.content)) {
+              for (const toolPart of toolMessage.content) {
+                if (
+                  toolPart.type === "tool-result" &&
+                  toolPart.toolCallId === contentPart.toolCallId
+                ) {
+                  toolResult = toolPart.result;
+                  resultFound = true;
+                  break;
+                }
+              }
+            }
+            if (resultFound) break;
+          }
+
+          const toolInvocation = {
+            state: "result" as const,
+            step: stepCount,
+            toolCallId: contentPart.toolCallId,
+            toolName: contentPart.toolName,
+            args: contentPart.args,
+            result: toolResult,
+          };
+
+          parts.push({
+            type: "tool-invocation",
+            toolInvocation,
+          });
+          stepCount++;
+        } else if (contentPart.type === "reasoning") {
+          const reasoningContentPart = contentPart as {
+            text: string;
+            signature?: string;
+          };
+          parts.push({
+            type: "reasoning",
+            reasoning: reasoningContentPart.text,
+            details: [
+              {
+                type: "text",
+                text: String(reasoningContentPart.text),
+                signature: reasoningContentPart.signature,
+              },
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  const assistantMessage: Message = {
+    id: messageId,
+    role: "assistant" as const,
+    content: fullContent,
+    parts,
+  };
+
+  return assistantMessage;
+}
