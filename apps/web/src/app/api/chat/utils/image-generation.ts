@@ -1,6 +1,7 @@
 import { ModelConfig } from "@/config/models";
 import { saveAssistantMessageServer } from "@/services/chat-messages.server";
 import { saveGeneratedImage } from "@/services/generated-images.server";
+import { saveModelUsageLog } from "@/services/usage-logs.server";
 import { CustomFileUIPart } from "@/utils/core-message-processor";
 import { openai } from "@ai-sdk/openai";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
@@ -142,6 +143,21 @@ export async function handleImageGenerationRequest(
           modelConfig.provider,
           { reasoningLevel: "low", searchEnabled: false }
         );
+
+        try {
+          await saveModelUsageLog(supabase, {
+            user_id: user.id,
+            session_id: sessionId,
+            model_id: modelConfig.id,
+            provider: modelConfig.provider,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+          });
+        } catch (logError) {
+          // Log it, but don't fail the whole request because of this
+          console.error("Failed to save image generation usage log", logError);
+        }
 
         try {
           await saveGeneratedImage(supabase, {
