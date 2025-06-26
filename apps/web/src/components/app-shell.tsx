@@ -203,7 +203,7 @@ export function AppShell({ children }: AppShellProps) {
           isSidebarOpen ? "lg:ml-64" : "lg:ml-0"
         }`}
       >
-        <div className="h-full lg:pl-2 lg:pt-2">{children}</div>
+        <div className="h-full lg:pl-4 lg:pt-4">{children}</div>
       </main>
       <OnboardingModal isOpen={isOnboardingOpen} onClose={handleCloseOnboarding} />
       <SearchModal isOpen={isSearchModalOpen} onClose={onSearchModalClose} />
