@@ -15,6 +15,7 @@ import {
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
   EllipsisHorizontalIcon,
+  PhotoIcon,
   PlusIcon,
   UserIcon,
   XMarkIcon,
@@ -36,7 +37,7 @@ import {
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitBranchIcon, ImageIcon, Pin, PinOff } from "lucide-react";
+import { GitBranchIcon, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -230,12 +231,12 @@ const SidebarHeader = memo(
         >
           <Button
             onPress={onOpenGallery}
-            variant="ghost"
+            variant="bordered"
             isIconOnly
             aria-label="Image Gallery"
-            className="h-10 min-w-10"
+            className="h-10 min-w-10 border-primary/20 bg-primary/5 transition-colors hover:border-primary/30 hover:bg-primary/10"
           >
-            <ImageIcon className="h-5 w-5" />
+            <PhotoIcon className="h-5 w-5 text-primary" />
           </Button>
         </Tooltip>
       </div>
