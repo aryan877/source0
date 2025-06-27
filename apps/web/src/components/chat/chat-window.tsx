@@ -1,5 +1,6 @@
 "use client";
 
+import { useSidebarContext } from "@/components/app-shell";
 import { getModelById } from "@/config/models";
 import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSession } from "@/hooks/queries/use-chat-session";
@@ -44,6 +45,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
+  const { isSidebarOpen } = useSidebarContext();
   const {
     state,
     updateState,
@@ -891,7 +893,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   }, []);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden border-divider bg-content1 lg:rounded-tl-2xl lg:border-l lg:border-t">
+    <div
+      className={`relative flex h-full flex-col overflow-hidden border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
+    >
       <ChatHeader
         ref={headerRef}
         chatId={chatId}

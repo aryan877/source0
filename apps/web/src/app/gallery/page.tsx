@@ -1,5 +1,6 @@
 "use client";
 
+import { useSidebarContext } from "@/components/app-shell";
 import { useGeneratedImages } from "@/hooks/queries/use-generated-images";
 import { useAuth } from "@/hooks/useAuth";
 import { type GeneratedImage } from "@/services/generated-images";
@@ -27,6 +28,7 @@ interface ImageModalData {
 }
 
 export default function GalleryPage() {
+  const { isSidebarOpen } = useSidebarContext();
   const { user, loading: isAuthLoading } = useAuth();
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<ImageModalData | null>(null);
@@ -104,10 +106,12 @@ export default function GalleryPage() {
   }, []);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden border-divider bg-content1 lg:rounded-tl-2xl lg:border-l lg:border-t">
+    <div
+      className={`relative flex h-full flex-col overflow-hidden border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
+    >
       {/* Header */}
       <div className="border-b border-divider px-6 py-6">
-        <div className="max-w-7xl">
+        <div className="mx-auto max-w-5xl pl-20 lg:pl-0">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">AI Generated Images</h1>
           <p className="text-muted-foreground mt-2">
             Browse all the images you have generated with AI. Click any image to view full size.
@@ -117,7 +121,7 @@ export default function GalleryPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-6 py-6">
-        <div className="max-w-7xl">
+        <div className="mx-auto max-w-5xl">
           {isLoading && (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">

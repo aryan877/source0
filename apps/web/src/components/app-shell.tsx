@@ -9,10 +9,14 @@ import { MagnifyingGlassIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, useDisclosure } from "@heroui/react";
 import { PanelRight } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { OnboardingModal } from "./onboarding";
 import { SearchModal } from "./search/search-modal";
 import { Sidebar } from "./sidebar";
+
+// Context for sidebar state
+const SidebarContext = createContext<{ isSidebarOpen: boolean }>({ isSidebarOpen: false });
+export const useSidebarContext = () => useContext(SidebarContext);
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -141,72 +145,74 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <div className="fixed left-4 top-4 z-[60]">
-        {isSidebarOpen ? (
-          <Button
-            variant="flat"
-            size="sm"
-            isIconOnly
-            onPress={() => setIsSidebarOpen(false)}
-            className="h-10 w-10 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-md active:scale-95"
-            aria-label="Close menu"
-          >
-            <PanelRight className="h-5 w-5 transition-transform duration-200" />
-          </Button>
-        ) : (
-          <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm backdrop-blur-sm">
+    <SidebarContext.Provider value={{ isSidebarOpen }}>
+      <div className="flex h-screen w-full overflow-hidden">
+        <div className="fixed left-4 top-4 z-[60]">
+          {isSidebarOpen ? (
             <Button
-              variant="light"
+              variant="flat"
               size="sm"
               isIconOnly
-              onPress={() => setIsSidebarOpen(true)}
-              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-sm active:scale-95"
-              aria-label="Open menu"
+              onPress={() => setIsSidebarOpen(false)}
+              className="h-10 w-10 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-md active:scale-95"
+              aria-label="Close menu"
             >
-              <PanelRight className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
+              <PanelRight className="h-5 w-5 transition-transform duration-200" />
             </Button>
-            <Button
-              variant="light"
-              size="sm"
-              isIconOnly
-              onPress={() => {
-                onSearchModalOpen();
-              }}
-              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-primary/10 hover:text-primary hover:shadow-sm active:scale-95"
-              aria-label="Search"
-            >
-              <MagnifyingGlassIcon className="h-5 w-5 transition-all duration-200 hover:rotate-12" />
-            </Button>
-            <Button
-              variant="light"
-              size="sm"
-              isIconOnly
-              onPress={() => router.push("/")}
-              className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-success/10 hover:text-success hover:shadow-sm active:scale-95"
-              aria-label="New Chat"
-            >
-              <PlusIcon className="h-5 w-5 transition-all duration-200 hover:rotate-90" />
-            </Button>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm backdrop-blur-sm">
+              <Button
+                variant="light"
+                size="sm"
+                isIconOnly
+                onPress={() => setIsSidebarOpen(true)}
+                className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-sm active:scale-95"
+                aria-label="Open menu"
+              >
+                <PanelRight className="h-5 w-5 transition-transform duration-200 hover:rotate-12" />
+              </Button>
+              <Button
+                variant="light"
+                size="sm"
+                isIconOnly
+                onPress={() => {
+                  onSearchModalOpen();
+                }}
+                className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-primary/10 hover:text-primary hover:shadow-sm active:scale-95"
+                aria-label="Search"
+              >
+                <MagnifyingGlassIcon className="h-5 w-5 transition-all duration-200 hover:rotate-12" />
+              </Button>
+              <Button
+                variant="light"
+                size="sm"
+                isIconOnly
+                onPress={() => router.push("/")}
+                className="h-8 w-8 transition-all duration-200 hover:scale-110 hover:bg-success/10 hover:text-success hover:shadow-sm active:scale-95"
+                aria-label="New Chat"
+              >
+                <PlusIcon className="h-5 w-5 transition-all duration-200 hover:rotate-90" />
+              </Button>
+            </div>
+          )}
+        </div>
+        <Sidebar
+          selectedChatId={currentChatId}
+          onSelectChat={handleSelectChat}
+          onOpenSettings={handleOpenSettings}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
+        <main
+          className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-in-out ${
+            isSidebarOpen ? "lg:ml-64" : "lg:ml-0"
+          }`}
+        >
+          <div className={`h-full ${isSidebarOpen ? "lg:pl-4 lg:pt-4" : ""}`}>{children}</div>
+        </main>
+        <OnboardingModal isOpen={isOnboardingOpen} onClose={handleCloseOnboarding} />
+        <SearchModal isOpen={isSearchModalOpen} onClose={onSearchModalClose} />
       </div>
-      <Sidebar
-        selectedChatId={currentChatId}
-        onSelectChat={handleSelectChat}
-        onOpenSettings={handleOpenSettings}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
-      <main
-        className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-in-out ${
-          isSidebarOpen ? "lg:ml-64" : "lg:ml-0"
-        }`}
-      >
-        <div className={`h-full ${isSidebarOpen ? "lg:pl-4 lg:pt-4" : ""}`}>{children}</div>
-      </main>
-      <OnboardingModal isOpen={isOnboardingOpen} onClose={handleCloseOnboarding} />
-      <SearchModal isOpen={isSearchModalOpen} onClose={onSearchModalClose} />
-    </div>
+    </SidebarContext.Provider>
   );
 }
