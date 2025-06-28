@@ -740,18 +740,20 @@ const MessageBubble = memo(
 
           {/* Action buttons and model info */}
           <div
-            className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}
+            className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"} ${showBranchOptions ? "z-40" : ""}`}
           >
             {actionButtons}
 
             {/* Branch options panel */}
             {showBranchOptions && (
-              <BranchOptionsPanel
-                chatId={chatId}
-                onBranchWithModel={handleBranchWithModel}
-                onClose={() => setShowBranchOptions(false)}
-                anchorRef={branchButtonRef}
-              />
+              <div className="relative z-50">
+                <BranchOptionsPanel
+                  chatId={chatId}
+                  onBranchWithModel={handleBranchWithModel}
+                  onClose={() => setShowBranchOptions(false)}
+                  anchorRef={branchButtonRef}
+                />
+              </div>
             )}
 
             {modelMetadata && !isUser && (

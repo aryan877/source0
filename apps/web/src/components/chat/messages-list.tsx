@@ -233,7 +233,7 @@ export const MessagesList = memo(
     messagesContainerMinHeight,
   }: MessagesListProps) => {
     return (
-      <div className={`${isBranching ? "overflow-y-hidden" : ""}`} data-messages-container="true">
+      <div className={`${isBranching ? "overflow-y-visible" : ""}`} data-messages-container="true">
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-6 px-4 pb-12 pt-12 sm:pt-16">
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />

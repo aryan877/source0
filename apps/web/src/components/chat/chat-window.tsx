@@ -894,7 +894,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   return (
     <div
-      className={`relative flex h-full flex-col overflow-hidden border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
+      className={`relative flex h-full flex-col ${isBranching ? "overflow-visible" : "overflow-hidden"} border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
     >
       <ChatHeader
         ref={headerRef}
@@ -904,7 +904,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         showNavigatorButton={showChatNavigator && messages.length > 0}
         onToggleNavigator={handleToggleNavigator}
       />
-      <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto">
+      <div
+        ref={messagesContainerRef}
+        className={`relative flex-1 ${isBranching ? "overflow-y-visible" : "overflow-y-auto"}`}
+      >
         {showSamplePrompts ? (
           <HeroSection onPromptSelect={handlePromptSelect} />
         ) : (
