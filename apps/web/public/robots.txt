@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+
+# Disallow private routes
+Disallow: /api/
+Disallow: /settings/
+Disallow: /auth/
+
+# Allow specific API routes that should be indexed
+Allow: /api/opengraph-image
+Allow: /api/twitter-image
+
+# Sitemap location
+Sitemap: https://source0.chat/sitemap.xml
+
+# Crawl delay (optional)
+Crawl-delay: 1 
