@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   description:
     "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://source0.chat"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.source0.chat"),
   keywords: [
     "AI chat",
     "artificial intelligence",
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "/",
+    url: "https://www.source0.chat",
     siteName: "Source0",
     title: "Source0 - AI Chat Interface",
     description:
@@ -145,9 +145,9 @@ export const metadata: Metadata = {
     // yahoo: "your-yahoo-verification-id",
   },
   alternates: {
-    canonical: "/",
+    canonical: "https://www.source0.chat",
     languages: {
-      "en-US": "/",
+      "en-US": "https://www.source0.chat",
     },
   },
   other: {
