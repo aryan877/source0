@@ -204,8 +204,6 @@ interface MessagesListProps {
   isLoadingQuestions: boolean;
   questionsError: string | null;
   onQuestionSelect: (question: string) => void;
-  isBranching: boolean;
-  onBranchOptionsToggle: (isOpen: boolean) => void;
   messagesContainerMinHeight?: number;
 }
 
@@ -228,12 +226,10 @@ export const MessagesList = memo(
     isLoadingQuestions,
     questionsError,
     onQuestionSelect,
-    isBranching,
-    onBranchOptionsToggle,
     messagesContainerMinHeight,
   }: MessagesListProps) => {
     return (
-      <div className={`${isBranching ? "overflow-y-visible" : ""}`} data-messages-container="true">
+      <div data-messages-container="true">
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-6 px-4 pb-12 pt-12 sm:pt-16">
           {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
             <LoadingMessages />
@@ -267,7 +263,6 @@ export const MessagesList = memo(
                       isLoading={isLoading && index === messages.length - 1}
                       isDeleting={isDeletingMessage}
                       chatId={chatId}
-                      onBranchOptionsToggle={onBranchOptionsToggle}
                     />
                   </div>
                 );
@@ -327,7 +322,6 @@ export const MessagesList = memo(
                     isLoading={isLoading && index === messages.length - 1}
                     isDeleting={isDeletingMessage}
                     chatId={chatId}
-                    onBranchOptionsToggle={onBranchOptionsToggle}
                   />
                 </div>
               );

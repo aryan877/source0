@@ -60,7 +60,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
   const lastUserMessageForSuggestions = useRef<Message | null>(null);
-  const [isBranching, setIsBranching] = useState(false);
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
   const navigatorRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -824,10 +823,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   const showSamplePrompts = !isLoadingMessages && !messages.length && chatId === "new";
 
-  const handleBranchOptionsToggle = useCallback((isOpen: boolean) => {
-    setIsBranching(isOpen);
-  }, []);
-
   const handleToggleNavigator = useCallback(() => {
     setIsNavigatorOpen((prev) => !prev);
   }, []);
@@ -894,7 +889,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   return (
     <div
-      className={`relative flex h-full flex-col ${isBranching ? "overflow-visible" : "overflow-hidden"} border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
+      className={`relative flex h-full flex-col overflow-hidden border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
     >
       <ChatHeader
         ref={headerRef}
@@ -904,10 +899,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         showNavigatorButton={showChatNavigator && messages.length > 0}
         onToggleNavigator={handleToggleNavigator}
       />
-      <div
-        ref={messagesContainerRef}
-        className={`relative flex-1 ${isBranching ? "overflow-y-visible" : "overflow-y-auto"}`}
-      >
+      <div ref={messagesContainerRef} className="relative flex-1 overflow-y-auto">
         {showSamplePrompts ? (
           <HeroSection onPromptSelect={handlePromptSelect} />
         ) : (
@@ -929,8 +921,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             isLoadingQuestions={isLoadingQuestions}
             questionsError={questionsError}
             onQuestionSelect={handlePromptSelect}
-            isBranching={isBranching}
-            onBranchOptionsToggle={handleBranchOptionsToggle}
             messagesContainerMinHeight={messagesContainerMinHeight}
           />
         )}

@@ -720,7 +720,7 @@ const MessageBubble = memo(
           }`}
         >
           <div
-            className={`flex h-full flex-col gap-3 ${
+            className={`relative flex h-full flex-col gap-3 ${
               isEditing && isUser
                 ? "w-full max-w-4xl rounded-2xl bg-content1/60 px-6 py-5 shadow-lg backdrop-blur-sm"
                 : isUser
@@ -740,21 +740,23 @@ const MessageBubble = memo(
 
           {/* Action buttons and model info */}
           <div
-            className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"} ${showBranchOptions ? "z-40" : ""}`}
+            className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}
           >
-            {actionButtons}
+            <div className="relative">
+              {actionButtons}
 
-            {/* Branch options panel */}
-            {showBranchOptions && (
-              <div className="relative z-50">
-                <BranchOptionsPanel
-                  chatId={chatId}
-                  onBranchWithModel={handleBranchWithModel}
-                  onClose={() => setShowBranchOptions(false)}
-                  anchorRef={branchButtonRef}
-                />
-              </div>
-            )}
+              {/* Branch options panel - positioned close to action buttons */}
+              {showBranchOptions && (
+                <div className="absolute right-0 top-full z-50 mt-1">
+                  <BranchOptionsPanel
+                    chatId={chatId}
+                    onBranchWithModel={handleBranchWithModel}
+                    onClose={() => setShowBranchOptions(false)}
+                    anchorRef={branchButtonRef}
+                  />
+                </div>
+              )}
+            </div>
 
             {modelMetadata && !isUser && (
               <div
