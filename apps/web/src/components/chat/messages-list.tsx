@@ -1,6 +1,6 @@
 "use client";
 
-import { type Message } from "@ai-sdk/react";
+import { type UIMessage } from "@ai-sdk/react";
 import { motion } from "framer-motion";
 import { memo } from "react";
 import {
@@ -187,7 +187,7 @@ const ImageLoadingSkeleton = memo(() => (
 ImageLoadingSkeleton.displayName = "ImageLoadingSkeleton";
 
 interface MessagesListProps {
-  messages: Message[];
+  messages: UIMessage[];
   isLoading: boolean;
   isLoadingMessages: boolean;
   chatId: string;
@@ -236,7 +236,7 @@ export const MessagesList = memo(
           ) : (
             messages.map((message, index) => {
               const hasImage = message.parts?.some(
-                (p) => p.type === "file" && p.mimeType?.startsWith("image/")
+                (p) => p.type === "file" && p.mediaType?.startsWith("image/")
               );
 
               const isLastMessage = index === messages.length - 1;
@@ -270,12 +270,10 @@ export const MessagesList = memo(
 
               // Only check for pending/error annotations if no image is present.
               // Prioritize error display over pending state.
-              const imageGenErrorAnnotation = message.annotations?.find(
-                (a): a is TypedImageErrorAnnotation =>
-                  typeof a === "object" &&
-                  a !== null &&
-                  (a as { type?: unknown }).type === "image_generation_error"
-              );
+              // In AI SDK v5, check message metadata for error annotation
+              const imageGenErrorAnnotation = message.metadata as
+                | TypedImageErrorAnnotation
+                | undefined;
 
               if (imageGenErrorAnnotation) {
                 return (
@@ -290,12 +288,10 @@ export const MessagesList = memo(
                 );
               }
 
-              const imageGenPendingAnnotation = message.annotations?.find(
-                (a): a is TypedImagePendingAnnotation =>
-                  typeof a === "object" &&
-                  a !== null &&
-                  (a as { type?: unknown }).type === "image_generation_pending"
-              );
+              // Check message metadata for pending annotation
+              const imageGenPendingAnnotation = message.metadata as
+                | TypedImagePendingAnnotation
+                | undefined;
 
               if (imageGenPendingAnnotation) {
                 return <ImageLoadingSkeleton key={`pending-${uniqueKey}`} />;

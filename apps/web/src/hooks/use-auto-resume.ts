@@ -1,8 +1,7 @@
 "use client";
 
 import { getLatestStreamIdWithStatus } from "@/services";
-import { type UseChatHelpers } from "@ai-sdk/react";
-import { type Message as UIMessage } from "ai";
+import { type UIMessage } from "ai";
 import { useEffect } from "react";
 
 export type DataPart = { type: "append-message"; message: string };
@@ -11,9 +10,9 @@ export interface Props {
   autoResume: boolean;
   initialMessages: UIMessage[];
   messages: UIMessage[];
-  experimental_resume: UseChatHelpers["experimental_resume"];
-  data: UseChatHelpers["data"];
-  setMessages: UseChatHelpers["setMessages"];
+  resumeStream: () => void;
+  data: unknown[];
+  setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
   chatId?: string;
 }
 
@@ -21,7 +20,7 @@ export function useAutoResume({
   autoResume,
   initialMessages,
   messages,
-  experimental_resume,
+  resumeStream,
   data,
   setMessages,
   chatId,
@@ -63,13 +62,13 @@ export function useAutoResume({
         }
 
         console.log("Attempting to resume chat stream...");
-        experimental_resume();
+        resumeStream();
       })
       .catch((error) => {
         console.error("Error checking stream status for resume:", error);
         // If we can't check, attempt resume anyway (fallback to previous behavior)
         console.log("Attempting to resume chat stream (fallback)...");
-        experimental_resume();
+        resumeStream();
       });
 
     // we include messages.length to re-run when useChat initializes its messages

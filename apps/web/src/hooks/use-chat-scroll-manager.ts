@@ -1,11 +1,11 @@
-import { type Message } from "@ai-sdk/react";
+import { type UIMessage } from "ai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const SCROLL_THRESHOLD = 100;
 
 interface UseChatScrollManagerProps {
   chatContainerRef: React.RefObject<HTMLDivElement | null>;
-  messages: Message[];
+  messages: UIMessage[];
   chatId: string;
 }
 

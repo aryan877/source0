@@ -6,7 +6,7 @@ import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSession } from "@/hooks/queries/use-chat-session";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useMessageSummaries } from "@/hooks/queries/use-message-summaries";
-import { useAutoResume } from "@/hooks/use-auto-resume";
+
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
@@ -23,8 +23,10 @@ import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/database-message-converter";
-import { useChat, type Message } from "@ai-sdk/react";
+import { prepareMessageForDb } from "@/utils/database-message-converter";
+
+import { useChat, type UIMessage } from "@ai-sdk/react";
+import { DefaultChatTransport, convertToModelMessages } from "ai";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -59,7 +61,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { user } = useAuth();
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
-  const lastUserMessageForSuggestions = useRef<Message | null>(null);
+  const lastUserMessageForSuggestions = useRef<UIMessage | null>(null);
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
   const navigatorRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -130,83 +132,28 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     user
   );
 
-  const {
-    messages,
-    input,
-    setInput,
-    status,
-    stop,
-    error,
-    append,
-    reload,
-    setMessages,
-    experimental_resume,
-    data,
-  } = useChat({
-    api: "/api/chat",
+  const [input, setInput] = useState("");
+
+  const { messages, status, error, sendMessage, stop, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: chatBody,
+    }),
     id: chatId === "new" ? undefined : chatId,
-    initialMessages: [],
-    sendExtraMessageFields: true,
-    generateId: () => uuidv4(),
     experimental_throttle: 100,
-    body: chatBody,
     onError: (error) => {
       // The `useChat` hook's `error` object will be populated.
       // We log it here for debugging, but we don't need to set a separate `uiError`
       // state as that would be redundant. `ErrorDisplay` will use the `error` object.
       console.error("An error occurred in the chat stream:", error);
     },
-    onResponse: (response) => {
-      if (!response.ok) {
-        console.error(
-          "API Response Error",
-          new Error(`HTTP ${response.status}: ${response.statusText}`),
-          {
-            chatId,
-            selectedModel: selectedModel,
-            status: response.status,
-            statusText: response.statusText,
-            url: response.url,
-          }
-        );
-
-        // Clear any existing error first to prevent stacking
-        updateState({ uiError: null });
-
-        if (response.status === 413) {
-          updateState({
-            uiError:
-              "📝 Your message is too long. Please try shortening it or breaking it into smaller parts.",
-          });
-        } else if (response.status === 429) {
-          updateState({
-            uiError: "⏱️ Rate limit exceeded. Please wait a moment before sending another message.",
-          });
-        } else if (response.status >= 500) {
-          updateState({
-            uiError: "🔧 Server error. Please try again in a moment.",
-          });
-        } else if (response.status === 401) {
-          updateState({
-            uiError: "🔐 Authentication error. Please refresh the page and try again.",
-          });
-        } else {
-          // Generic error for other HTTP status codes
-          updateState({
-            uiError: `Request failed with status ${response.status}. Please try again.`,
-          });
-        }
-      }
-    },
-    onFinish: async (message, { usage, finishReason }) => {
-      console.log("onFinish", message, { usage, finishReason });
+    onFinish: async ({ message }: { message: UIMessage }) => {
+      console.log("onFinish", message);
       if (process.env.NODE_ENV === "development") {
         console.log("Chat stream finished", {
           chatId,
           selectedModel: selectedModel,
           messageId: message.id,
-          finishReason,
-          usage,
           timestamp: new Date().toISOString(),
         });
       }
@@ -220,113 +167,90 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
 
-      const imageGenerationAnnotation = message.annotations?.find(
-        (a): a is TypedImageGenerationAnnotation =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: string }).type === "image_generation_complete"
-      );
+      // In AI SDK v5, check message metadata instead of annotations
+      const imageGenerationAnnotation = message.metadata as
+        | TypedImageGenerationAnnotation
+        | undefined;
 
       if (imageGenerationAnnotation) {
         const data = imageGenerationAnnotation.data;
         if (data.databaseId && data.content && data.filePart) {
           const filePart = {
             type: "file" as const,
-            mimeType: data.filePart.mimeType,
+            mediaType: data.filePart.mimeType,
             url: data.filePart.url,
             filename: data.filePart.filename,
           };
 
-          const finalMessage: Message = {
+          const finalMessage: UIMessage = {
             id: data.databaseId,
             role: "assistant",
-            content: data.content,
-            parts: [filePart as unknown] as Message["parts"],
-            createdAt: new Date(),
+            parts: [filePart],
           };
 
           setMessages((currentMessages) => {
             const updatedMessages = currentMessages.map((msg) =>
               msg.id === message.id ? finalMessage : msg
             );
-            return ensureUniqueMessages(updatedMessages);
+            return updatedMessages;
           });
         }
       }
 
-      const messageCompleteAnnotation = message.annotations?.find(
-        (a) =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "message_complete"
-      );
+      // Check for message complete data in metadata
+      const messageCompleteData = message.metadata;
 
       let hasGrounding = false;
 
-      if (messageCompleteAnnotation) {
-        const data = (messageCompleteAnnotation as { data?: unknown }).data;
-        if (typeof data === "object" && data !== null) {
-          const annotationData = data as {
-            databaseId?: string;
-            messageSaved?: boolean;
-            titleGenerated?: string;
-            userId?: string;
-            hasGrounding?: boolean;
-          };
+      if (messageCompleteData && typeof messageCompleteData === "object") {
+        const annotationData = messageCompleteData as {
+          databaseId?: string;
+          messageSaved?: boolean;
+          titleGenerated?: string;
+          userId?: string;
+          hasGrounding?: boolean;
+        };
 
-          hasGrounding = annotationData.hasGrounding ?? false;
+        hasGrounding = annotationData.hasGrounding ?? false;
 
-          console.log("Processing message_complete annotation:", {
-            originalId: message.id,
-            databaseId: annotationData.databaseId,
-            messageSaved: annotationData.messageSaved,
-            hasTitle: !!annotationData.titleGenerated,
-            hasGrounding: annotationData.hasGrounding,
-            annotationCount: message.annotations?.length || 0,
-          });
-
-          if (annotationData.messageSaved && annotationData.databaseId) {
-            const databaseId = annotationData.databaseId;
-            setMessages((currentMessages) => {
-              const updatedMessages = currentMessages.map((msg) =>
-                msg.id === message.id ? { ...msg, id: databaseId } : msg
-              );
-              return ensureUniqueMessages(updatedMessages);
-            });
-          }
-
-          if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
-            const sessionUpdate: ChatSession = {
-              id: chatId,
-              title: annotationData.titleGenerated,
-              updated_at: new Date().toISOString(),
-            } as ChatSession;
-
-            updateSessionInCache(sessionUpdate, annotationData.userId);
-          }
-        }
-      } else {
-        console.log("No message_complete annotation found:", {
-          messageId: message.id,
-          annotationCount: message.annotations?.length || 0,
-          annotationTypes:
-            message.annotations?.map((a) =>
-              typeof a === "object" && a !== null && !Array.isArray(a)
-                ? (a as { type?: unknown }).type
-                : "unknown"
-            ) || [],
+        console.log("Processing message_complete metadata:", {
+          originalId: message.id,
+          databaseId: annotationData.databaseId,
+          messageSaved: annotationData.messageSaved,
+          hasTitle: !!annotationData.titleGenerated,
+          hasGrounding: annotationData.hasGrounding,
         });
+
+        if (annotationData.messageSaved && annotationData.databaseId) {
+          const databaseId = annotationData.databaseId;
+          setMessages((currentMessages) => {
+            const updatedMessages = currentMessages.map((msg) =>
+              msg.id === message.id ? { ...msg, id: databaseId } : msg
+            );
+            return updatedMessages;
+          });
+        }
+
+        if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
+          const sessionUpdate: ChatSession = {
+            id: chatId,
+            title: annotationData.titleGenerated,
+            updated_at: new Date().toISOString(),
+          } as ChatSession;
+
+          updateSessionInCache(sessionUpdate, annotationData.userId);
+        }
       }
 
-      if (message.role === "assistant" && message.content) {
-        const userMessage = lastUserMessageForSuggestions.current;
-        if (userMessage && userMessage.content) {
-          fetchSuggestions(userMessage.content, message.content);
+      if (message.role === "assistant") {
+        const assistantText = message.parts.find((p) => p.type === "text")?.text;
+        const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
+        if (lastUserMessage && assistantText) {
+          const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
+          if (userText) {
+            fetchSuggestions(userText, assistantText);
+          }
         }
-        // Clear the ref after use
-        lastUserMessageForSuggestions.current = null;
       }
 
       if (chatId && chatId !== "new") {
@@ -348,7 +272,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   useEffect(() => {
     if (status === "ready" && initialMessages.length > 0 && messages.length === 0) {
-      setMessages(ensureUniqueMessages(initialMessages));
+      setMessages(initialMessages);
     }
   }, [initialMessages, messages.length, setMessages, status]);
 
@@ -401,8 +325,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const modelConfig = getModelById(selectedModel);
       const modelProvider = modelConfig?.provider || "Unknown";
 
+      const [modelMessage] = convertToModelMessages([lastAssistantMessage]);
+      if (!modelMessage) return;
       const preparedMessage = prepareMessageForDb({
-        message: lastAssistantMessage,
+        message: modelMessage,
         sessionId: chatId,
         userId: user.id,
         model: selectedModel,
@@ -437,24 +363,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     try {
       updateState({ uiError: null });
       stop();
-      await append(lastUserMessage);
+      sendMessage(lastUserMessage);
     } catch (error) {
       console.error("Error during request retry:", error);
       updateState({
         uiError: "Failed to retry request. Please try again.",
       });
     }
-  }, [messages, stop, updateState, append]);
-
-  useAutoResume({
-    autoResume: chatId !== "new" && !isSharedView,
-    initialMessages,
-    messages,
-    experimental_resume,
-    data,
-    setMessages,
-    chatId: chatId !== "new" ? chatId : undefined,
-  });
+  }, [messages, stop, updateState, sendMessage]);
 
   // Message actions
   const handleRetryMessage = useCallback(
@@ -477,7 +393,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           return;
         }
 
-        let userMessageToRetry: Message;
+        let userMessageToRetry: UIMessage;
         let retryFromIndex: number;
 
         if (clickedMessage.role === "user") {
@@ -517,7 +433,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         clearSuggestions();
         setMessages(messagesToKeep);
 
-        await reload();
+        sendMessage(userMessageToRetry, {
+          body: {
+            ...chatBody,
+            isFirstMessage: messagesToKeep.length === 1,
+          },
+        });
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
@@ -528,7 +449,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, clearSuggestions, reload]
+    [
+      messages,
+      stop,
+      chatId,
+      updateState,
+      invalidateMessages,
+      setMessages,
+      clearSuggestions,
+      sendMessage,
+      chatBody,
+    ]
   );
 
   const handleEditMessage = useCallback(
@@ -565,9 +496,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           await deleteFromPoint(messageToEdit.id, true);
         }
 
-        const editedMessage: Message = {
+        const editedMessage: UIMessage = {
           ...messageToEdit,
-          content: newContent,
           parts: [{ type: "text", text: newContent }],
         };
 
@@ -577,7 +507,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         clearSuggestions();
         setMessages(newMessages);
 
-        await reload();
+        sendMessage(editedMessage, {
+          body: {
+            ...chatBody,
+            isFirstMessage: newMessages.length === 1,
+          },
+        });
       } catch (error) {
         console.error("Error during message edit:", error);
         updateState({
@@ -588,7 +523,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, reload, clearSuggestions]
+    [
+      messages,
+      stop,
+      chatId,
+      updateState,
+      invalidateMessages,
+      setMessages,
+      sendMessage,
+      chatBody,
+      clearSuggestions,
+    ]
   );
 
   const handleDeleteMessage = useCallback(
@@ -664,18 +609,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const messageToAppend = {
         id: uuidv4(),
         role: "user" as const,
-        content: input.trim(),
-        parts: [...textPart, ...fileParts] as Message["parts"],
-      } as Message;
+        parts: [...textPart, ...fileParts] as UIMessage["parts"],
+      } as UIMessage;
 
       lastUserMessageForSuggestions.current = messageToAppend;
-
-      const chatRequestOptions =
-        attachments.length > 0
-          ? {
-              experimental_attachments: attachments,
-            }
-          : undefined;
 
       if (chatId === "new") {
         if (!user) {
@@ -684,13 +621,19 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         const newSessionId = uuidv4();
-        setMessages(ensureUniqueMessages([messageToAppend]));
+        setMessages([messageToAppend]);
         setJustSubmittedMessageId(messageToAppend.id);
         router.push(`/chat/${newSessionId}`);
 
         const messageData = {
           message: messageToAppend,
-          chatRequestOptions: { ...chatRequestOptions, isFirstMessage: true },
+          chatRequestOptions: {
+            data: {
+              ...chatBody,
+              isFirstMessage: true,
+              attachments,
+            },
+          },
           selectedModel,
           reasoningLevel,
           searchEnabled,
@@ -715,7 +658,13 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setJustSubmittedMessageId(messageToAppend.id);
 
       lastUserMessageForSuggestions.current = messageToAppend;
-      append(messageToAppend, chatRequestOptions);
+      sendMessage(messageToAppend, {
+        body: {
+          ...chatBody,
+          isFirstMessage: messages.length === 0,
+          attachments,
+        },
+      });
 
       setInput("");
       updateState({ attachedFiles: [] });
@@ -723,7 +672,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setTimeout(() => chatInputRef.current?.focus(), 0);
     },
     [
-      append,
+      sendMessage,
       state.attachedFiles,
       input,
       setInput,
@@ -740,6 +689,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       status,
       clearSuggestions,
       setJustSubmittedMessageId,
+      messages.length,
+      chatBody,
     ]
   );
 
@@ -783,7 +734,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       }
 
       lastUserMessageForSuggestions.current = message;
-      append(message, chatRequestOptions);
+      sendMessage(message, chatRequestOptions);
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
@@ -793,7 +744,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, [
     chatId,
-    append,
+    sendMessage,
     setInput,
     updateState,
     setReasoningLevel,

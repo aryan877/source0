@@ -2,7 +2,7 @@ import { ReasoningLevel } from "@/config/models";
 import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
-import { type Message } from "ai";
+import { type UIMessage, convertToModelMessages } from "ai";
 
 // Types
 export type DBChatMessage = Tables<"chat_messages">;
@@ -24,7 +24,6 @@ export interface MessagePart {
     size: number;
     mimeType: string;
   };
-  toolInvocation?: Record<string, unknown>;
   toolResult?: Record<string, unknown>;
   reasoning?: string;
   details?: ReasoningDetail[];
@@ -297,12 +296,16 @@ export async function getMessageStats(sessionId: string): Promise<{
  * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessage(
-  userMessage: Message,
+  userMessage: UIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
+  const [modelMessage] = convertToModelMessages([userMessage]);
+  if (!modelMessage) {
+    throw new Error("Failed to convert UIMessage to ModelMessage");
+  }
   const preparedMessage = prepareMessageForDb({
-    message: userMessage,
+    message: modelMessage,
     sessionId,
     userId,
   });
@@ -314,7 +317,7 @@ export async function saveUserMessage(
  * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveAssistantMessage(
-  message: Message,
+  message: UIMessage,
   sessionId: string,
   userId: string,
   model: string,
@@ -322,8 +325,12 @@ export async function saveAssistantMessage(
   modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
   options: { fireAndForget?: boolean } = {}
 ): Promise<DBChatMessage | void> {
+  const [modelMessage] = convertToModelMessages([message]);
+  if (!modelMessage) {
+    throw new Error("Failed to convert UIMessage to ModelMessage");
+  }
   const preparedMessage = prepareMessageForDb({
-    message,
+    message: modelMessage,
     sessionId,
     userId,
     model,

@@ -1,10 +1,11 @@
 "use client";
 
+import { convertDbMessagesToUiMessages } from "@/app/api/chat/utils/message-conversion";
 import { deleteMessage, getMessages } from "@/services/chat-messages";
-import { convertToAiMessages } from "@/utils/database-message-converter";
+import { type Tables } from "@/types/supabase-types";
 import { chatMessagesKeys } from "@/utils/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type Message } from "ai";
+import { type UIMessage } from "ai";
 
 // Main hook
 export function useChatMessages(sessionId: string) {
@@ -14,7 +15,12 @@ export function useChatMessages(sessionId: string) {
     queryKey: chatMessagesKeys.byId(sessionId),
     queryFn: async () => {
       const dbMessages = await getMessages(sessionId);
-      return convertToAiMessages(dbMessages);
+      const dbMessagesForTables = dbMessages.map((msg) => ({
+        ...msg,
+        parts: msg.parts as unknown as Tables<"chat_messages">["parts"],
+      })) as Tables<"chat_messages">[];
+
+      return convertDbMessagesToUiMessages(dbMessagesForTables);
     },
     enabled: !!sessionId && sessionId !== "new",
     staleTime: 0, // Refetch on mount
@@ -28,7 +34,7 @@ export function useChatMessages(sessionId: string) {
       await queryClient.cancelQueries({ queryKey: chatMessagesKeys.byId(sessionId) });
 
       // Snapshot the previous value
-      const previousMessages = queryClient.getQueryData<Message[]>(
+      const previousMessages = queryClient.getQueryData<UIMessage[]>(
         chatMessagesKeys.byId(sessionId)
       );
 

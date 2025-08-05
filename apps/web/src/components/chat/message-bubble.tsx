@@ -3,21 +3,18 @@
 import { type GroundingMetadata } from "@/types/provider-metadata";
 import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
-import { CustomFileUIPart } from "@/utils/core-message-processor";
 import {
   ArrowPathIcon,
-  BookmarkIcon,
   CheckIcon,
   ClipboardDocumentIcon,
   CpuChipIcon,
-  MagnifyingGlassIcon,
   PencilIcon,
   TrashIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
-import type { JSONValue, Message, ToolInvocation } from "ai";
+import type { UIMessage } from "ai";
 import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
@@ -25,7 +22,6 @@ import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
 import { MessageContent } from "./message-content";
-import { SecureFileDisplay } from "./secure-file-display";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
 
@@ -45,51 +41,41 @@ interface MessageCompleteData {
 }
 
 /**
- * Safely extracts WebSearchToolData from a tool invocation.
+ * Safely extracts WebSearchToolData from a tool part.
  */
-function getWebSearchData(toolInvocation: ToolInvocation): WebSearchToolData | null {
+function getWebSearchData(toolPart: {
+  type: string;
+  state?: string;
+  output?: unknown;
+  input?: unknown;
+}): WebSearchToolData | null {
   if (
-    toolInvocation.state === "result" &&
-    toolInvocation.toolName === "webSearch" &&
-    toolInvocation.result
+    toolPart.type === "tool-webSearch" &&
+    "state" in toolPart &&
+    toolPart.state === "output-available" &&
+    "output" in toolPart &&
+    toolPart.output
   ) {
-    const result = toolInvocation.result as WebSearchToolData;
+    const result = toolPart.output as WebSearchToolData;
     if (
       result.toolName === "webSearch" &&
       typeof result.originalQuery === "string" &&
       Array.isArray(result.searchResults)
     ) {
-      return result as WebSearchToolData;
+      return result;
     }
   }
   return null;
 }
 
-function getMessageCompleteData(
-  annotations: readonly JSONValue[] | undefined
-): MessageCompleteData | null {
-  if (!annotations) return null;
+function getMessageCompleteData(metadata: unknown): MessageCompleteData | null {
+  if (!metadata || typeof metadata !== "object") return null;
 
-  const annotation = annotations.find(
-    (a) =>
-      typeof a === "object" &&
-      a !== null &&
-      !Array.isArray(a) &&
-      (a as { type?: string }).type === "message_complete"
-  );
-
-  if (annotation) {
-    const data = (annotation as { data?: unknown }).data;
-    if (typeof data === "object" && data !== null) {
-      return data as MessageCompleteData;
-    }
-  }
-
-  return null;
+  return metadata as MessageCompleteData;
 }
 
 interface MessageBubbleProps {
-  message: Message;
+  message: UIMessage;
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string, modelId?: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
@@ -103,14 +89,14 @@ interface MessageBubbleProps {
 /**
  * Extract citations from web search tool invocations in the message
  */
-function getCitationsFromMessage(message: Message): TavilySearchResult[] {
+function getCitationsFromMessage(message: UIMessage): TavilySearchResult[] {
   if (!message.parts) return [];
 
   const citations: TavilySearchResult[] = [];
 
   for (const part of message.parts) {
-    if (part.type === "tool-invocation" && part.toolInvocation.toolName === "webSearch") {
-      const searchData = getWebSearchData(part.toolInvocation);
+    if (part.type === "tool-webSearch") {
+      const searchData = getWebSearchData(part);
       if (searchData) {
         // The searchData contains an array of search results, each with its own array of sources.
         // We need to flatten this into a single list of citable sources.
@@ -141,7 +127,9 @@ const MessageBubble = memo(
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [editContent, setEditContent] = useState(message.content || "");
+    const [editContent, setEditContent] = useState(
+      message.parts?.find((p) => p.type === "text")?.text || ""
+    );
     const [showBranchOptions, setShowBranchOptions] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -178,16 +166,21 @@ const MessageBubble = memo(
     }, [isEditing]);
 
     const handleCopy = useCallback(async () => {
-      if (message.content) {
+      const textContent =
+        message.parts
+          ?.filter((part) => part.type === "text")
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join("") || "";
+      if (textContent) {
         try {
-          await navigator.clipboard.writeText(message.content);
+          await navigator.clipboard.writeText(textContent);
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         } catch (error) {
           console.error("Failed to copy:", error);
         }
       }
-    }, [message.content]);
+    }, [message.parts]);
 
     const handleRetry = useCallback(() => {
       onRetry(message.id);
@@ -206,22 +199,24 @@ const MessageBubble = memo(
     );
 
     const handleStartEdit = useCallback(() => {
-      setEditContent(message.content || "");
+      setEditContent(message.parts?.find((p) => p.type === "text")?.text || "");
       setIsEditing(true);
       setShowActions(false);
-    }, [message.content]);
+    }, [message.parts]);
 
     const handleCancelEdit = useCallback(() => {
       setIsEditing(false);
-      setEditContent(message.content || "");
-    }, [message.content]);
+      const textContent = message.parts?.find((p) => p.type === "text")?.text || "";
+      setEditContent(textContent);
+    }, [message.parts]);
 
     const handleSaveEdit = useCallback(() => {
-      if (onEdit && editContent.trim() !== message.content?.trim()) {
+      const textContent = message.parts?.find((p) => p.type === "text")?.text || "";
+      if (onEdit && editContent.trim() !== textContent.trim()) {
         onEdit(message.id, editContent.trim());
       }
       setIsEditing(false);
-    }, [onEdit, message.id, editContent, message.content]);
+    }, [onEdit, message.id, editContent, message.parts]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
@@ -254,7 +249,7 @@ const MessageBubble = memo(
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
-      const completeData = getMessageCompleteData(message.annotations);
+      const completeData = getMessageCompleteData(message.metadata);
 
       if (!completeData?.modelUsed) {
         return null;
@@ -264,7 +259,7 @@ const MessageBubble = memo(
         modelUsed: completeData.modelUsed,
         modelProvider: completeData.modelProvider,
       };
-    }, [message.annotations, isUser]);
+    }, [message.metadata, isUser]);
 
     // Render message parts using the AI SDK's built-in parts system
     const renderMessageParts = useMemo(() => {
@@ -295,7 +290,11 @@ const MessageBubble = memo(
                 size="sm"
                 color="primary"
                 onPress={handleSaveEdit}
-                isDisabled={!editContent.trim() || editContent.trim() === message.content?.trim()}
+                isDisabled={
+                  !editContent.trim() ||
+                  editContent.trim() ===
+                    (message.parts?.find((p) => p.type === "text")?.text || "").trim()
+                }
                 className="transition-all hover:scale-105"
               >
                 Send
@@ -311,6 +310,28 @@ const MessageBubble = memo(
       }
 
       return message.parts.map((part, index) => {
+        // Handle tool parts with specific tool types
+        if (part.type === "tool-webSearch") {
+          // Check if it's an output-available state for WebSearchDisplay
+          if ("state" in part && part.state === "output-available") {
+            const searchData = getWebSearchData(part);
+            return <WebSearchDisplay key={index} state={part.state} data={searchData} />;
+          } else if (
+            "state" in part &&
+            (part.state === "input-available" || part.state === "input-streaming")
+          ) {
+            // For call or partial-call states
+            return (
+              <WebSearchDisplay
+                key={index}
+                state={part.state}
+                args={"input" in part ? part.input : undefined}
+              />
+            );
+          }
+        }
+
+        // Handle non-tool parts
         switch (part.type) {
           case "text":
             return (
@@ -323,152 +344,7 @@ const MessageBubble = memo(
               </div>
             );
 
-          case "file": {
-            // The AI SDK's `FileUIPart` is for base64 data. Our app uses a custom
-            // structure with a URL. We cast to `unknown` first, then to our custom
-            // type to inform TypeScript that this is an intentional conversion.
-            const filePart = part as unknown as CustomFileUIPart;
-            return (
-              <div key={index} className={`${isUser ? "flex justify-end" : "flex justify-start"}`}>
-                <SecureFileDisplay
-                  url={filePart.url}
-                  mimeType={filePart.mimeType}
-                  fileName={filePart.filename}
-                  isImage={filePart.mimeType?.startsWith("image/")}
-                  className={isUser ? "ml-auto" : "mr-auto"}
-                />
-              </div>
-            );
-          }
-
-          case "tool-invocation": {
-            // Handle tool invocations - only show specific tool displays
-            const toolInvocation = part.toolInvocation;
-            const toolName = toolInvocation.toolName || "Unknown Tool";
-
-            if (toolName === "webSearch") {
-              if (toolInvocation.state === "result") {
-                const searchData = getWebSearchData(toolInvocation);
-                return (
-                  <WebSearchDisplay key={index} state={toolInvocation.state} data={searchData} />
-                );
-              } else {
-                return (
-                  <WebSearchDisplay
-                    key={index}
-                    state={toolInvocation.state}
-                    args={toolInvocation.args}
-                  />
-                );
-              }
-            }
-
-            if (toolName === "memorySave") {
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
-                const content =
-                  toolInvocation.args &&
-                  typeof toolInvocation.args === "object" &&
-                  "content" in toolInvocation.args
-                    ? String(toolInvocation.args.content).slice(0, 50) +
-                      (String(toolInvocation.args.content).length > 50 ? "..." : "")
-                    : "information";
-
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
-                  >
-                    <BookmarkIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">Saving memory...</span>
-                    <span className="text-xs text-foreground/60">({content})</span>
-                  </div>
-                );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2"
-                  >
-                    <BookmarkIcon className="h-4 w-4 text-success" />
-                    <span className="text-sm font-medium text-success">Memory saved</span>
-                  </div>
-                );
-              }
-            }
-
-            if (toolName === "memoryRetrieve") {
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
-                const query =
-                  toolInvocation.args &&
-                  typeof toolInvocation.args === "object" &&
-                  "query" in toolInvocation.args
-                    ? String(toolInvocation.args.query).slice(0, 50) +
-                      (String(toolInvocation.args.query).length > 50 ? "..." : "")
-                    : "memories";
-
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
-                  >
-                    <MagnifyingGlassIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">
-                      Retrieving memories...
-                    </span>
-                    <span className="text-xs text-foreground/60">({query})</span>
-                  </div>
-                );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="border-info/20 bg-info/10 flex items-center gap-2 rounded-full border px-4 py-2"
-                  >
-                    <MagnifyingGlassIcon className="text-info h-4 w-4" />
-                    <span className="text-info text-sm font-medium">Retrieved memories</span>
-                  </div>
-                );
-              }
-            }
-
-            // Handle MCP tools
-            if (toolName.startsWith("mcp_")) {
-              const displayName = toolName
-                .replace(/^mcp_/, "")
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (l) => l.toUpperCase());
-
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
-                  >
-                    <CpuChipIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">Using tool:</span>
-                    <span className="text-xs text-foreground/60">{displayName}</span>
-                  </div>
-                );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2"
-                  >
-                    <CpuChipIcon className="h-4 w-4 text-success" />
-                    <span className="text-sm font-medium text-success">Tool used:</span>
-                    <span className="text-xs text-success/80">{displayName}</span>
-                  </div>
-                );
-              }
-            }
-
-            // No fallback - only show supported tool displays
-            return null;
-          }
-
           case "reasoning":
-            // Handle reasoning parts with minimal, clean display
             return (
               <ExpandableSection
                 key={index}
@@ -478,55 +354,9 @@ const MessageBubble = memo(
                 isLoading={isReasoningStreaming}
                 autoExpand={true}
               >
-                <MessageContent content={part.reasoning} citations={[]} isUser={isUser} />
+                <MessageContent content={part.text} citations={[]} isUser={isUser} />
               </ExpandableSection>
             );
-
-          // case "source": {
-          //   // Handle source parts with expandable section
-          //   const domain = new URL(part.source.url).hostname;
-          //   return (
-          //     <ExpandableSection
-          //       key={index}
-          //       title={part.source.title || domain}
-          //       icon={<LinkIcon className="h-4 w-4" />}
-          //       variant="source"
-          //     >
-          //       <div className="space-y-4">
-          //         <div>
-          //           <a
-          //             href={part.source.url}
-          //             target="_blank"
-          //             rel="noopener noreferrer"
-          //             className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-          //           >
-          //             <LinkIcon className="h-4 w-4" />
-          //             <span className="break-all">{part.source.url}</span>
-          //           </a>
-          //         </div>
-
-          //         {part.source.title && (
-          //           <div>
-          //             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-          //               <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-          //               Title
-          //             </h4>
-          //             <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-          //               <div className="text-sm font-medium">{part.source.title}</div>
-          //             </div>
-          //           </div>
-          //         )}
-
-          //         <div className="flex items-center gap-2 border-t border-divider/20 pt-2">
-          //           <span className="text-xs font-medium text-foreground/60">Source:</span>
-          //           <span className="rounded bg-content2/50 px-2 py-1 font-mono text-xs text-foreground/70">
-          //             {domain}
-          //           </span>
-          //         </div>
-          //       </div>
-          //     </ExpandableSection>
-          //   );
-          // }
 
           case "step-start":
             return null;
@@ -547,7 +377,7 @@ const MessageBubble = memo(
     ]);
 
     const renderGroundingMetadata = useMemo(() => {
-      const completeData = getMessageCompleteData(message.annotations);
+      const completeData = getMessageCompleteData(message.metadata);
       const grounding = completeData?.grounding as GroundingMetadata | undefined;
 
       // Only render if we have actual grounding data with content
@@ -561,7 +391,7 @@ const MessageBubble = memo(
       }
 
       return <GroundingDisplay grounding={grounding} />;
-    }, [message.annotations]);
+    }, [message.metadata]);
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {

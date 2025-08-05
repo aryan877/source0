@@ -2,7 +2,6 @@
  * Type-safe tool system for AI SDK integration
  */
 
-import type { ToolInvocation } from "ai";
 import type { WebSearchResult } from "./web-search";
 
 // =============================================================================
@@ -61,22 +60,4 @@ export interface MemoryRetrieveToolData extends BaseToolData {
   strategy: string;
   success: boolean;
   message: string;
-}
-
-// =============================================================================
-// Generic Tool System
-// =============================================================================
-
-/**
- * Union type of all possible tool data types
- */
-export type ToolDataUnion = WebSearchToolData | MemorySaveToolData | MemoryRetrieveToolData;
-
-/**
- * Type guard to check if a tool invocation is complete and has a result
- */
-export function isCompleteToolInvocation(
-  toolInvocation: ToolInvocation
-): toolInvocation is ToolInvocation & { state: "result"; result: unknown } {
-  return toolInvocation.state === "result" && toolInvocation.result !== undefined;
 }

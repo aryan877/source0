@@ -1,18 +1,17 @@
 import { ReasoningLevel } from "@/config/models";
 import { type ProviderMetadata } from "@/types/provider-metadata";
-import { convertToAiMessages, prepareMessageForDb } from "@/utils/database-message-converter";
+import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { type Message } from "ai";
-import { type ChatMessage, type DBChatMessage } from "./chat-messages";
-
+import { type ModelMessage } from "ai";
+import { ChatMessage, DBChatMessage } from "./chat-messages";
 /**
  * Server-side function to save a user message.
  * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessageServer(
   supabase: SupabaseClient,
-  userMessage: Message,
+  userMessage: ModelMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -30,7 +29,7 @@ export async function saveUserMessageServer(
  */
 export async function saveAssistantMessageServer(
   supabase: SupabaseClient,
-  message: Message,
+  message: ModelMessage,
   sessionId: string,
   userId: string,
   model: string,
@@ -70,7 +69,7 @@ export async function addMessageServer(
 /**
  * Get all messages for a session (server-side version)
  */
-export async function getMessagesServer(sessionId: string): Promise<Message[]> {
+export async function getMessagesServer(sessionId: string): Promise<ChatMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -88,8 +87,5 @@ export async function getMessagesServer(sessionId: string): Promise<Message[]> {
   }
 
   // Cast the untyped 'parts' and 'role' from the DB to our specific app types
-  const chatMessages = data as ChatMessage[];
-
-  // Convert ChatMessage[] to Message[] for the AI SDK
-  return convertToAiMessages(chatMessages);
+  return data as ChatMessage[];
 }

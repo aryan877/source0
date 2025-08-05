@@ -68,20 +68,6 @@ export interface WebSearchToolResult {
 }
 
 /**
- * Type for web search tool invocation data
- */
-export interface WebSearchToolInvocation {
-  state: "result";
-  toolName: "webSearch";
-  args: {
-    query: string;
-    options?: WebSearchOptions;
-  };
-  result: string; // Formatted text result
-  searchData?: WebSearchToolResult; // Structured data for UI
-}
-
-/**
  * Helper type for parsing web search tool results
  */
 export interface ParsedWebSearchResult {

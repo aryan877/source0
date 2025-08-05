@@ -1,6 +1,8 @@
 import { type ModelCapability } from "@/config/models";
+import { google } from "@ai-sdk/google";
 import { tool, type Tool } from "ai";
 import { z } from "zod";
+import { executeImageGeneration } from "./image-generation";
 import { retrieveMemory, saveMemory } from "./memory";
 import { createWebSearchToolData, generateSearchQueries, performWebSearch } from "./web-search";
 
@@ -20,7 +22,7 @@ The 'searchResults' array in the JSON contains the results. Each result in the '
 Cite sources sequentially using [1], [2], [3], etc. The first source is [1], the second is [2], and so on.
 Example response: "The first search result says that X is Y [1]. The second result adds that... [2]."`,
 
-  parameters: z.object({
+  inputSchema: z.object({
     query: z
       .string()
       .describe(
@@ -67,7 +69,7 @@ Example response: "The first search result says that X is Y [1]. The second resu
       .describe("Advanced search configuration options"),
   }),
 
-  execute: async ({ query, options = {} }) => {
+  execute: async ({ query, options }) => {
     console.log(`AI requesting enhanced web search for: "${query}"`);
 
     // Generate intelligent search queries from the user's question
@@ -76,17 +78,17 @@ Example response: "The first search result says that X is Y [1]. The second resu
 
     // Build enhanced search options
     const searchOptions = {
-      topic: options.topic || "general",
-      search_depth: options.search_depth || "advanced", // Default to advanced for better results
-      max_results: options.max_results || 5,
+      topic: options?.topic || "general",
+      search_depth: options?.search_depth || "advanced", // Default to advanced for better results
+      max_results: options?.max_results || 5,
       include_answer: true,
-      include_images: options.include_images || false,
-      include_raw_content: options.enable_detailed_analysis || false,
-      include_image_descriptions: options.include_images || false,
+      include_images: options?.include_images || false,
+      include_raw_content: options?.enable_detailed_analysis || false,
+      include_image_descriptions: options?.include_images || false,
       chunks_per_source: 3, // For advanced search depth
-      include_domains: options.include_domains || [],
-      exclude_domains: options.exclude_domains || [],
-      ...(options.time_range && { time_range: options.time_range }),
+      include_domains: options?.include_domains || [],
+      exclude_domains: options?.exclude_domains || [],
+      ...(options?.time_range && { time_range: options.time_range }),
     };
 
     // Perform the enhanced search
@@ -113,7 +115,7 @@ Example response: "The first search result says that X is Y [1]. The second resu
  * The AI should use this tool when users share personal information, preferences, or important details
  * that would be valuable to remember for providing personalized responses in future interactions.
  */
-const memorySaveParameters = z.object({
+const memorySaveInputSchema = z.object({
   content: z
     .string()
     .describe("The important information to save as memory. Should be clear and specific."),
@@ -131,14 +133,14 @@ const memorySaveParameters = z.object({
 export const memorySaveToolDefinition = {
   description: `Save important user information for personalized future interactions. Use when users share personal info, preferences, goals, constraints, or important context. Do not save generic responses, temporary information, or the assistant's own name.`,
 
-  parameters: memorySaveParameters,
+  inputSchema: memorySaveInputSchema,
 
   execute: async ({
     content,
     userId,
     sessionId,
     metadata = {},
-  }: z.infer<typeof memorySaveParameters>) => {
+  }: z.infer<typeof memorySaveInputSchema>) => {
     console.log(`AI saving memory for user: ${userId}`);
     console.log(`Content: ${content}`);
 
@@ -185,7 +187,7 @@ export const memorySaveTool = tool(memorySaveToolDefinition);
  * Memory retrieve tool that searches for relevant user memories to provide personalized responses.
  * The AI should use this tool when it needs context about the user to provide better, more personalized answers.
  */
-const memoryRetrieveParameters = z.object({
+const memoryRetrieveInputSchema = z.object({
   query: z
     .string()
     .describe(
@@ -206,14 +208,14 @@ const memoryRetrieveParameters = z.object({
 export const memoryRetrieveToolDefinition = {
   description: `Retrieve relevant user memories to provide personalized responses. Use when you need context about user preferences, background, or past conversations for better recommendations and advice.`,
 
-  parameters: memoryRetrieveParameters,
+  inputSchema: memoryRetrieveInputSchema,
 
   execute: async ({
     query,
     userId,
     limit = 5,
     sessionId,
-  }: z.infer<typeof memoryRetrieveParameters>) => {
+  }: z.infer<typeof memoryRetrieveInputSchema>) => {
     console.log(`AI retrieving memories for user: ${userId}`);
     console.log(`Query: ${query}`);
 
@@ -246,12 +248,69 @@ export const memoryRetrieveToolDefinition = {
 export const memoryRetrieveTool = tool(memoryRetrieveToolDefinition);
 
 /**
+ * Image generation tool that creates images based on text prompts.
+ * The AI can use this tool when users request image creation, visualization, or artistic content.
+ */
+export const imageGenerationTool = tool({
+  description: `Generate images from text descriptions. Use this tool when users ask you to create, generate, or visualize images. This tool can create various types of images including artwork, illustrations, photographs, logos, and more based on detailed text prompts.`,
+
+  inputSchema: z.object({
+    prompt: z
+      .string()
+      .min(1)
+      .describe(
+        "Detailed description of the image to generate. Be specific about style, colors, composition, lighting, and other visual elements."
+      ),
+    size: z
+      .enum(["1024x1024", "1024x1792", "1792x1024"])
+      .optional()
+      .default("1024x1024")
+      .describe(
+        "Image dimensions - square (1024x1024), portrait (1024x1792), or landscape (1792x1024)"
+      ),
+    style: z
+      .enum(["natural", "vivid"])
+      .optional()
+      .default("vivid")
+      .describe(
+        "Image style - 'natural' for more natural looking images, 'vivid' for more hyper-real and dramatic images"
+      ),
+  }),
+
+  execute: async ({ prompt, size = "1024x1024", style = "vivid" }) => {
+    console.log(`AI requesting image generation: "${prompt}" (${size}, ${style})`);
+
+    try {
+      const result = await executeImageGeneration({
+        prompt: prompt.trim(),
+        size,
+        style,
+      });
+
+      console.log(`Image generation completed successfully for prompt: "${prompt}"`);
+      return result;
+    } catch (error) {
+      console.error(`Image generation failed for prompt: "${prompt}"`, error);
+      const errorMessage = error instanceof Error ? error.message : "Image generation failed";
+
+      return {
+        success: false,
+        error: errorMessage,
+        prompt,
+        message: `❌ Failed to generate image: ${errorMessage}`,
+      };
+    }
+  },
+});
+
+/**
  * Collection of all available tools
  */
 export const availableTools = {
   webSearch: webSearchTool,
   memorySave: memorySaveTool,
   memoryRetrieve: memoryRetrieveTool,
+  imageGeneration: imageGenerationTool,
 };
 
 /**
@@ -262,7 +321,11 @@ export function getToolsForModel(
   searchEnabled: boolean,
   memoryEnabled: boolean = true,
   consolidatedMcpTools: Record<string, Tool> = {},
-  modelConfig?: { capabilities: ModelCapability[]; supportsFunctions?: boolean }
+  modelConfig?: {
+    capabilities: ModelCapability[];
+    supportsFunctions?: boolean;
+    provider?: string;
+  }
 ) {
   const tools: Record<string, Tool> = {};
 
@@ -272,20 +335,34 @@ export function getToolsForModel(
     return tools;
   }
 
-  // Only add web search tool if:
-  // 1. Search is enabled by user
-  // 2. Model doesn't already have built-in search capabilities
-  const shouldAddWebSearch = searchEnabled && !modelConfig?.capabilities.includes("search");
+  // Handle search tools based on provider and capabilities
+  if (searchEnabled) {
+    // For Google models with built-in search capability, use native Google search grounding
+    if (modelConfig?.provider === "Google" && modelConfig?.capabilities.includes("search")) {
+      tools.google_search = google.tools.googleSearch({});
+      console.log("Using Google native search grounding for Google model");
+    }
+    // For other models (or Google models without built-in search), use custom web search
+    else if (!modelConfig?.capabilities.includes("search")) {
+      tools.webSearch = webSearchTool;
+      console.log("Using custom web search tool");
+    }
+  }
 
-  if (shouldAddWebSearch) {
-    tools.webSearch = webSearchTool;
+  // Add image generation tool if model doesn't have built-in image generation
+  const shouldAddImageGeneration = !modelConfig?.capabilities.includes("image-generation");
+
+  if (shouldAddImageGeneration) {
+    tools.imageGeneration = imageGenerationTool;
   }
 
   if (memoryEnabled) {
     // For memorySave, we create a new tool that doesn't ask the model for userId
     tools.memorySave = tool({
       description: memorySaveToolDefinition.description,
-      parameters: memorySaveToolDefinition.parameters.omit({ userId: true }),
+      inputSchema: memorySaveToolDefinition.inputSchema.omit({
+        userId: true,
+      }),
       execute: async (args) => {
         // We inject the userId here before calling the original execute function
         return memorySaveToolDefinition.execute({ ...args, userId });
@@ -295,7 +372,9 @@ export function getToolsForModel(
     // Do the same for memoryRetrieve
     tools.memoryRetrieve = tool({
       description: memoryRetrieveToolDefinition.description,
-      parameters: memoryRetrieveToolDefinition.parameters.omit({ userId: true }),
+      inputSchema: memoryRetrieveToolDefinition.inputSchema.omit({
+        userId: true,
+      }),
       execute: async (args) => {
         return memoryRetrieveToolDefinition.execute({ ...args, userId });
       },

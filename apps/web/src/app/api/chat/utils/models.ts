@@ -113,23 +113,19 @@ export const buildProviderOptions = (
 
 export const createModelInstance = (
   config: ModelConfig,
-  mapping: ModelMappingResult,
-  searchEnabled: boolean
+  mapping: ModelMappingResult
 ): LanguageModel => {
   const { provider, model } = mapping;
 
   // Handle OpenRouter models
   if (mapping.providerInfo.name === "openrouter") {
-    return (provider as ReturnType<typeof createOpenRouter>).chat(model);
+    return (provider as ReturnType<typeof createOpenRouter>).chat(
+      model
+    ) as unknown as LanguageModel;
   }
 
-  // Handle Google with search grounding
-  if (config.provider === "Google" && config.capabilities.includes("search") && searchEnabled) {
-    return (provider as typeof google)(model, {
-      useSearchGrounding: true,
-      dynamicRetrievalConfig: { mode: "MODE_DYNAMIC" as const, dynamicThreshold: 0.3 },
-    });
-  }
+  // For Google models with search capability, search grounding is now handled
+  // via tools (google.tools.googleSearch({})) in AI SDK v5, not model configuration
 
   return (
     provider as
