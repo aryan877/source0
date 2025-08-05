@@ -204,22 +204,6 @@ export const MODELS: ModelConfig[] = [
     }
   ),
 
-  // Image Generation
-  createModel(
-    "gpt-image-1",
-    "GPT Image 1",
-    "Advanced AI image generation model from OpenAI",
-    "OpenAI",
-    "gpt-image-1",
-    {
-      capabilities: ["image-generation", "image"],
-      maxTokens: 4096,
-      supportsStreaming: false,
-      supportsFunctions: false,
-      category: "vision",
-    }
-  ),
-
   // Anthropic Models
   createModel(
     "claude-3.5-sonnet",

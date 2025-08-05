@@ -1,13 +1,12 @@
 import { ReasoningLevel } from "@/config/models";
-import { type ChatMessage } from "@/services/chat-messages";
+import { type DBChatMessage } from "@/services/chat-messages";
 import { type ProviderMetadata } from "@/types/provider-metadata";
 import { type Json } from "@/types/supabase-types";
-import { type ModelMessage } from "ai";
-import { v4 as uuidv4 } from "uuid";
+import { type UIMessage, generateId } from "ai";
 
 /**
- * Prepare a message for database storage using AI SDK native format
- * Since our database schema matches AI SDK structure, minimal conversion is needed
+ * Prepare a UIMessage for database storage.
+ * Simplified for AI SDK v5 - only handles UIMessage objects since that's all we use.
  */
 export function prepareMessageForDb({
   message,
@@ -19,7 +18,7 @@ export function prepareMessageForDb({
   searchEnabled,
   providerMetadata,
 }: {
-  message: ModelMessage;
+  message: UIMessage;
   sessionId: string;
   userId: string;
   model?: string;
@@ -27,30 +26,36 @@ export function prepareMessageForDb({
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
   providerMetadata?: ProviderMetadata;
-}): Omit<ChatMessage, "created_at"> {
-  const messageId = uuidv4();
+}): Omit<DBChatMessage, "updated_at"> {
+  // Use existing ID if present, otherwise generate a new one using AI SDK's generateId
+  // This ensures consistency with the AI SDK v5 ID generation pattern
+  const messageId = message.id || generateId();
 
-  // Build model config if provided
-  const modelConfig =
-    reasoningLevel || searchEnabled !== undefined
-      ? {
-          ...(reasoningLevel && { reasoningLevel }),
-          ...(searchEnabled !== undefined && { searchEnabled }),
-        }
-      : null;
+  const modelConfig = {
+    ...(reasoningLevel && { reasoningLevel }),
+    ...(searchEnabled !== undefined && { searchEnabled }),
+  };
 
-  // Store the message in AI SDK native format - minimal conversion needed
-  // The AI SDK message format matches our database schema
+  // In AI SDK v5, all content is stored in parts
+  const parts = message.parts || [];
+
+  // Legacy content field - extract text from parts for backward compatibility
+  const textParts = parts.filter((part) => part.type === "text");
+  const content = textParts.length > 0 ? textParts.map((part) => part.text).join(" ") : null;
+
   return {
     id: messageId,
     session_id: sessionId,
     user_id: userId,
     role: message.role,
-    content: typeof message.content === "string" ? message.content : null,
-    parts: JSON.parse(JSON.stringify(message.content || [])),
+    content,
+    parts: parts as Json,
     model_used: model || null,
     model_provider: modelProvider || null,
-    model_config: modelConfig,
-    metadata: JSON.parse(JSON.stringify(providerMetadata || {})) as Json,
+    model_config: modelConfig as Json,
+    metadata: (providerMetadata as Json) || {},
+    // Explicitly set created_at to ensure consistent ordering
+    // especially important when saving user and assistant messages close together
+    created_at: new Date().toISOString(),
   };
 }

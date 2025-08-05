@@ -1,6 +1,3 @@
-import { openai } from "@ai-sdk/openai";
-import { experimental_generateImage as generateImage } from "ai";
-
 interface ImageGenerationOptions {
   prompt: string;
   size?: "1024x1024" | "1024x1792" | "1792x1024";
@@ -27,7 +24,7 @@ export interface ImageGenerationError {
 export type ImageGenerationResponse = ImageGenerationResult | ImageGenerationError;
 
 /**
- * Execute image generation using DALL-E 3
+ * Execute image generation using OpenAI's REST API directly
  */
 export async function executeImageGeneration({
   prompt,
@@ -37,24 +34,72 @@ export async function executeImageGeneration({
   try {
     console.log(`Generating image with prompt: "${prompt}" (${size}, ${style})`);
 
-    const { image } = await generateImage({
-      model: openai.image("dall-e-3"),
-      prompt: prompt.trim(),
-      size: size as "1024x1024" | "1024x1792" | "1792x1024",
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+    if (!OPENAI_API_KEY) {
+      return {
+        success: false,
+        error: "Missing OpenAI API key",
+        prompt,
+        message: `❌ OpenAI API key not configured in environment variables`,
+      };
+    }
+
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: prompt.trim(),
+        n: 1,
+        size,
+        style,
+        response_format: "b64_json",
+      }),
     });
 
-    // Convert the generated image to a data URL for display
-    const base64 = Buffer.from(image.uint8Array).toString("base64");
-    const imageUrl = `data:image/png;base64,${base64}`;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage =
+        errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+      console.error("OpenAI API error:", errorData);
+
+      return {
+        success: false,
+        error: errorMessage,
+        prompt,
+        message: `❌ Failed to generate image: ${errorMessage}`,
+      };
+    }
+
+    const data = await response.json();
+
+    if (!data.data || !data.data[0]?.b64_json) {
+      return {
+        success: false,
+        error: "No image data returned",
+        prompt,
+        message: `❌ No image data received from OpenAI`,
+      };
+    }
+
+    const base64Data = data.data[0].b64_json;
+    const imageUrl = `data:image/png;base64,${base64Data}`;
+    const imageData = new Uint8Array(Buffer.from(base64Data, "base64"));
+
+    console.log(`✅ Image generation successful for prompt: "${prompt}"`);
 
     return {
       success: true,
       imageUrl,
-      imageData: image.uint8Array,
-      prompt,
+      imageData,
+      prompt: prompt.trim(),
       size,
       style,
-      message: `Successfully generated image: "${prompt}"`,
+      message: `✅ Successfully generated image: "${prompt}"`,
     };
   } catch (error) {
     console.error("Image generation failed:", error);
@@ -64,7 +109,7 @@ export async function executeImageGeneration({
       success: false,
       error: errorMessage,
       prompt,
-      message: `Failed to generate image: ${errorMessage}`,
+      message: `❌ Failed to generate image: ${errorMessage}`,
     };
   }
 }

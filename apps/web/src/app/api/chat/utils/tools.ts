@@ -280,26 +280,13 @@ export const imageGenerationTool = tool({
   execute: async ({ prompt, size = "1024x1024", style = "vivid" }) => {
     console.log(`AI requesting image generation: "${prompt}" (${size}, ${style})`);
 
-    try {
-      const result = await executeImageGeneration({
-        prompt: prompt.trim(),
-        size,
-        style,
-      });
+    const result = await executeImageGeneration({
+      prompt: prompt.trim(),
+      size,
+      style,
+    });
 
-      console.log(`Image generation completed successfully for prompt: "${prompt}"`);
-      return result;
-    } catch (error) {
-      console.error(`Image generation failed for prompt: "${prompt}"`, error);
-      const errorMessage = error instanceof Error ? error.message : "Image generation failed";
-
-      return {
-        success: false,
-        error: errorMessage,
-        prompt,
-        message: `❌ Failed to generate image: ${errorMessage}`,
-      };
-    }
+    return result;
   },
 });
 
@@ -335,17 +322,17 @@ export function getToolsForModel(
     return tools;
   }
 
-  // Handle search tools based on provider and capabilities
+  // Handle search tools based on provider
   if (searchEnabled) {
-    // For Google models with built-in search capability, use native Google search grounding
-    if (modelConfig?.provider === "Google" && modelConfig?.capabilities.includes("search")) {
+    // For Google models, use native Google search grounding
+    if (modelConfig?.provider === "Google") {
       tools.google_search = google.tools.googleSearch({});
       console.log("Using Google native search grounding for Google model");
     }
-    // For other models (or Google models without built-in search), use custom web search
-    else if (!modelConfig?.capabilities.includes("search")) {
+    // For all other models that support function calling, use custom web search
+    else {
       tools.webSearch = webSearchTool;
-      console.log("Using custom web search tool");
+      console.log("Using custom web search tool for non-Google model");
     }
   }
 

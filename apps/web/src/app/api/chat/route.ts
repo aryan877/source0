@@ -6,14 +6,11 @@ import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
-import { type SupabaseClient } from "@supabase/supabase-js";
-import { convertToModelMessages, generateObject, streamText, type UIMessage } from "ai";
+import { createIdGenerator, generateObject, stepCountIs, streamText, type UIMessage } from "ai";
 import { z } from "zod";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
-
 import { discoverMcpTools } from "./utils/mcp-tools";
-import { processMessages } from "./utils/message-conversion";
-
+import { convertToModelMessages as convertToModelMessagesUtil } from "./utils/message-conversion";
 import { buildSystemMessage, createModelInstance, getModelMapping } from "./utils/models";
 import { getToolsForModel } from "./utils/tools";
 
@@ -22,20 +19,16 @@ const MessageSummarySchema = z.object({
 });
 
 async function generateAndSaveSummary(
-  supabase: SupabaseClient,
-  message: { id: string; content?: unknown },
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  message: { id: string; content: string },
   sessionId: string,
   userId: string
 ) {
-  if (!message.content) return;
-
   try {
     const { object } = await generateObject({
       model: openai("gpt-4o-mini"),
       schema: MessageSummarySchema,
-      prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${JSON.stringify(
-        message.content
-      )}\n---`,
+      prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${message.content}\n---`,
     });
     await saveMessageSummary(supabase, {
       message_id: message.id,
@@ -72,26 +65,24 @@ export async function POST(req: Request): Promise<Response> {
       searchEnabled = false,
       memoryEnabled = true,
       showChatNavigator = false,
-      id,
+      id: sessionId,
       isFirstMessage = false,
       apiKey,
       assistantName,
       userTraits,
     } = body;
 
-    const sessionId = id;
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
     if (!user) {
       return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
     }
 
     const { sessionId: finalSessionId } = await createOrGetSession(user.id, sessionId);
 
-    // Fetch active MCP servers and discover their tools
     const mcpServerList = await getActiveMcpServersForUser(user.id);
     const { tools: consolidatedMcpTools, errors: mcpConnectionErrors } =
       await discoverMcpTools(mcpServerList);
@@ -114,30 +105,39 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(mapping.message, 400);
     }
 
-    const { coreMessages, userMessageToSave } = processMessages(messages);
+    const coreMessages = convertToModelMessagesUtil(messages);
 
-    if (userMessageToSave) {
-      // Convert UIMessage to ModelMessage using AI SDK's built-in converter
-      const [modelMessage] = convertToModelMessages([userMessageToSave]);
-      if (modelMessage) {
-        const savedUserMessage = await saveUserMessageServer(
+    // Save the user message (last message in the array)
+    const userMessageToSave = messages.at(-1);
+    if (userMessageToSave && userMessageToSave.role === "user") {
+      console.log("Saving user message:", {
+        messageId: userMessageToSave.id,
+        sessionId: finalSessionId,
+        userId: user.id,
+        partsCount: userMessageToSave.parts?.length || 0,
+      });
+
+      const savedUserMessage = await saveUserMessageServer(
+        supabase,
+        userMessageToSave,
+        finalSessionId,
+        user.id
+      );
+
+      console.log("User message saved with DB ID:", savedUserMessage.id);
+
+      if (showChatNavigator) {
+        const textPart = userMessageToSave.parts.find((p) => p.type === "text");
+        const userMessageText = textPart?.text || JSON.stringify(userMessageToSave.parts);
+        await generateAndSaveSummary(
           supabase,
-          modelMessage,
+          {
+            id: savedUserMessage.id,
+            content: userMessageText,
+          },
           finalSessionId,
           user.id
         );
-
-        if (showChatNavigator) {
-          await generateAndSaveSummary(
-            supabase,
-            {
-              id: savedUserMessage.id,
-              content: userMessageToSave.parts.find((p) => p.type === "text")?.text || "",
-            },
-            finalSessionId,
-            user.id
-          );
-        }
       }
     }
 
@@ -153,26 +153,40 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = streamText({
       model: modelInstance,
-      messages: [{ role: "system" as const, content: systemMessage }, ...coreMessages],
+      messages: [{ role: "system", content: systemMessage }, ...coreMessages],
       tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
         capabilities: modelConfig.capabilities,
         supportsFunctions: modelConfig.supportsFunctions,
         provider: modelConfig.provider,
       }),
+      stopWhen: stepCountIs(10), // Enable multi-step execution with up to 10 steps
     });
 
-    result.consumeStream();
+    // Consume the stream to ensure it runs to completion & triggers onFinish
+    // even when the client response is aborted (AI SDK v5 best practice)
+    result.consumeStream(); // no await
 
     return result.toUIMessageStreamResponse({
       originalMessages: messages,
-      onFinish: async ({ messages }) => {
-        const assistantMessage = messages.at(-1);
-        if (assistantMessage) {
-          const [assistantModelMessage] = convertToModelMessages([assistantMessage]);
-          if (assistantModelMessage) {
-            await saveAssistantMessageServer(
+      // Generate consistent server-side IDs for persistence (AI SDK v5 best practice)
+      generateMessageId: createIdGenerator({
+        prefix: "msg",
+        size: 16,
+      }),
+      onFinish: async ({ messages: allMessages, responseMessage }) => {
+        try {
+          // Save the assistant message using the UIMessage from the response
+          if (responseMessage) {
+            console.log("Saving assistant message:", {
+              messageId: responseMessage.id,
+              sessionId: finalSessionId,
+              userId: user.id,
+              partsCount: responseMessage.parts?.length || 0,
+            });
+
+            const savedAssistantMessage = await saveAssistantMessageServer(
               supabase,
-              assistantModelMessage,
+              responseMessage,
               finalSessionId,
               user.id,
               model,
@@ -180,33 +194,39 @@ export async function POST(req: Request): Promise<Response> {
               { reasoningLevel, searchEnabled }
             );
 
-            const assistantText = assistantMessage.parts.find((p) => p.type === "text")?.text;
-            if (showChatNavigator && assistantText) {
-              await generateAndSaveSummary(
-                supabase,
-                {
-                  id: assistantMessage.id,
-                  content: assistantText,
-                },
-                finalSessionId,
-                user.id
-              );
+            console.log("Assistant message saved with DB ID:", savedAssistantMessage.id);
+
+            if (showChatNavigator && responseMessage.parts) {
+              const textPart = responseMessage.parts.find((p) => p.type === "text");
+              if (textPart) {
+                await generateAndSaveSummary(
+                  supabase,
+                  { id: savedAssistantMessage.id, content: textPart.text },
+                  finalSessionId,
+                  user.id
+                );
+              }
             }
           }
-        }
 
-        // Handle title generation for first message
-        if (isFirstMessage && userMessageToSave) {
-          const firstUserMessage =
-            userMessageToSave.parts.find((p) => p.type === "text")?.text || "";
-
-          const generatedTitle = await generateTitleOnly(firstUserMessage);
-
-          // Update the title in the database using server-side client
-          await supabase
-            .from("chat_sessions")
-            .update({ title: generatedTitle })
-            .eq("id", finalSessionId);
+          // Handle title generation for first message
+          if (isFirstMessage && allMessages.length > 0) {
+            const firstUserMessage = allMessages.find((msg) => msg.role === "user");
+            if (firstUserMessage && firstUserMessage.parts) {
+              const firstUserMessageTextPart = firstUserMessage.parts.find(
+                (p) => p.type === "text"
+              );
+              if (firstUserMessageTextPart) {
+                const generatedTitle = await generateTitleOnly(firstUserMessageTextPart.text);
+                await supabase
+                  .from("chat_sessions")
+                  .update({ title: generatedTitle })
+                  .eq("id", finalSessionId);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error in onFinish callback:", error);
         }
       },
     });

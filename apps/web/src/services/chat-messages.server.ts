@@ -3,15 +3,41 @@ import { type ProviderMetadata } from "@/types/provider-metadata";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { type ModelMessage } from "ai";
-import { ChatMessage, DBChatMessage } from "./chat-messages";
+import { type UIMessage } from "ai";
+import { type DBChatMessage } from "./chat-messages";
+
+/**
+ * Converts a DBChatMessage to a UIMessage.
+ */
+function toUIMessage(dbMessage: DBChatMessage): UIMessage {
+  return {
+    id: dbMessage.id,
+    role: dbMessage.role as "user" | "assistant" | "system",
+    parts: (dbMessage.parts as UIMessage["parts"]) || [],
+  };
+}
+
+/**
+ * Adds a prepared message to the database.
+ */
+async function addMessageServer(
+  supabase: SupabaseClient,
+  message: ReturnType<typeof prepareMessageForDb>
+): Promise<DBChatMessage> {
+  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
+  if (error) {
+    console.error("Error upserting message:", error);
+    throw new Error(`Failed to upsert message: ${error.message}`);
+  }
+  return data;
+}
+
 /**
  * Server-side function to save a user message.
- * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessageServer(
   supabase: SupabaseClient,
-  userMessage: ModelMessage,
+  userMessage: UIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -25,11 +51,10 @@ export async function saveUserMessageServer(
 
 /**
  * Server-side function to save an assistant message.
- * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveAssistantMessageServer(
   supabase: SupabaseClient,
-  message: ModelMessage,
+  message: UIMessage,
   sessionId: string,
   userId: string,
   model: string,
@@ -51,25 +76,26 @@ export async function saveAssistantMessageServer(
 }
 
 /**
- * Add a message to the database (server-side version)
+ * Server-side function to save a tool message.
  */
-export async function addMessageServer(
+export async function saveToolMessageServer(
   supabase: SupabaseClient,
-  message: Omit<ChatMessage, "created_at">
+  message: UIMessage,
+  sessionId: string,
+  userId: string
 ): Promise<DBChatMessage> {
-  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
-
-  if (error) {
-    console.error("Error upserting message:", error);
-    throw new Error(`Failed to upsert message: ${error.message}`);
-  }
-  return data;
+  const preparedMessage = prepareMessageForDb({
+    message,
+    sessionId,
+    userId,
+  });
+  return addMessageServer(supabase, preparedMessage);
 }
 
 /**
- * Get all messages for a session (server-side version)
+ * Get all messages for a session as UIMessages (server-side version).
  */
-export async function getMessagesServer(sessionId: string): Promise<ChatMessage[]> {
+export async function getMessagesServer(sessionId: string): Promise<UIMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -86,6 +112,5 @@ export async function getMessagesServer(sessionId: string): Promise<ChatMessage[
     return [];
   }
 
-  // Cast the untyped 'parts' and 'role' from the DB to our specific app types
-  return data as ChatMessage[];
+  return data.map(toUIMessage);
 }

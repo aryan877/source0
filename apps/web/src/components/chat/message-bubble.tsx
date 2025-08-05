@@ -48,9 +48,15 @@ function getWebSearchData(toolPart: {
   state?: string;
   output?: unknown;
   input?: unknown;
+  toolName?: string;
 }): WebSearchToolData | null {
+  // Handle both AI SDK v4 and v5 tool types
+  const isWebSearchTool =
+    toolPart.type === "tool-webSearch" ||
+    (toolPart.type === "dynamic-tool" && toolPart.toolName === "webSearch");
+
   if (
-    toolPart.type === "tool-webSearch" &&
+    isWebSearchTool &&
     "state" in toolPart &&
     toolPart.state === "output-available" &&
     "output" in toolPart &&
@@ -310,8 +316,11 @@ const MessageBubble = memo(
       }
 
       return message.parts.map((part, index) => {
-        // Handle tool parts with specific tool types
-        if (part.type === "tool-webSearch") {
+        // Handle tool parts - in AI SDK v5, check for both specific tool types and dynamic tools
+        if (
+          part.type === "tool-webSearch" ||
+          (part.type === "dynamic-tool" && "toolName" in part && part.toolName === "webSearch")
+        ) {
           // Check if it's an output-available state for WebSearchDisplay
           if ("state" in part && part.state === "output-available") {
             const searchData = getWebSearchData(part);

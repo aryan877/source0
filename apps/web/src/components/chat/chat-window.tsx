@@ -26,7 +26,7 @@ import { TypedImageGenerationAnnotation } from "@/types/annotations";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 
 import { useChat, type UIMessage } from "@ai-sdk/react";
-import { DefaultChatTransport, convertToModelMessages } from "ai";
+import { DefaultChatTransport } from "ai";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -325,10 +325,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const modelConfig = getModelById(selectedModel);
       const modelProvider = modelConfig?.provider || "Unknown";
 
-      const [modelMessage] = convertToModelMessages([lastAssistantMessage]);
-      if (!modelMessage) return;
+      // In AI SDK v5, work with UIMessages directly
       const preparedMessage = prepareMessageForDb({
-        message: modelMessage,
+        message: lastAssistantMessage,
         sessionId: chatId,
         userId: user.id,
         model: selectedModel,
@@ -337,7 +336,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         searchEnabled: searchEnabled,
       });
 
-      if (preparedMessage.parts.length > 0) {
+      if (Array.isArray(preparedMessage.parts) && preparedMessage.parts.length > 0) {
         saveAssistantMessage(
           lastAssistantMessage,
           chatId,
