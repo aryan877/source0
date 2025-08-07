@@ -22,10 +22,10 @@ import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
-import { TypedImageGenerationAnnotation } from "@/types/annotations";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 
-import { useChat, type UIMessage } from "@ai-sdk/react";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
+import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -61,7 +61,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { user } = useAuth();
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
-  const lastUserMessageForSuggestions = useRef<UIMessage | null>(null);
+  const lastUserMessageForSuggestions = useRef<CustomUIMessage | null>(null);
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
   const navigatorRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -134,7 +134,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   const [input, setInput] = useState("");
 
-  const { messages, status, error, sendMessage, stop, setMessages } = useChat({
+  const { messages, status, error, sendMessage, stop, setMessages } = useChat<CustomUIMessage>({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: chatBody,
@@ -147,7 +147,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       // state as that would be redundant. `ErrorDisplay` will use the `error` object.
       console.error("An error occurred in the chat stream:", error);
     },
-    onFinish: async ({ message }: { message: UIMessage }) => {
+    onFinish: async ({ message }: { message: CustomUIMessage }) => {
       console.log("onFinish", message);
       if (process.env.NODE_ENV === "development") {
         console.log("Chat stream finished", {
@@ -167,35 +167,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
 
-      // In AI SDK v5, check message metadata instead of annotations
-      const imageGenerationAnnotation = message.metadata as
-        | TypedImageGenerationAnnotation
-        | undefined;
-
-      if (imageGenerationAnnotation) {
-        const data = imageGenerationAnnotation.data;
-        if (data.databaseId && data.content && data.filePart) {
-          const filePart = {
-            type: "file" as const,
-            mediaType: data.filePart.mimeType,
-            url: data.filePart.url,
-            filename: data.filePart.filename,
-          };
-
-          const finalMessage: UIMessage = {
-            id: data.databaseId,
-            role: "assistant",
-            parts: [filePart],
-          };
-
-          setMessages((currentMessages) => {
-            const updatedMessages = currentMessages.map((msg) =>
-              msg.id === message.id ? finalMessage : msg
-            );
-            return updatedMessages;
-          });
-        }
-      }
 
       // Check for message complete data in metadata
       const messageCompleteData = message.metadata;
@@ -392,7 +363,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           return;
         }
 
-        let userMessageToRetry: UIMessage;
+        let userMessageToRetry: CustomUIMessage;
         let retryFromIndex: number;
 
         if (clickedMessage.role === "user") {
@@ -495,7 +466,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           await deleteFromPoint(messageToEdit.id, true);
         }
 
-        const editedMessage: UIMessage = {
+        const editedMessage: CustomUIMessage = {
           ...messageToEdit,
           parts: [{ type: "text", text: newContent }],
         };
@@ -608,8 +579,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const messageToAppend = {
         id: uuidv4(),
         role: "user" as const,
-        parts: [...textPart, ...fileParts] as UIMessage["parts"],
-      } as UIMessage;
+        parts: [...textPart, ...fileParts] as CustomUIMessage["parts"],
+      } as CustomUIMessage;
 
       lastUserMessageForSuggestions.current = messageToAppend;
 

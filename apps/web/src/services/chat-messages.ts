@@ -1,21 +1,12 @@
+import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
 import { ReasoningLevel } from "@/config/models";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
 import { type UIMessage } from "ai";
 
 export type DBChatMessage = Tables<"chat_messages">;
-
-/**
- * Converts a DBChatMessage to a UIMessage.
- */
-function toUIMessage(dbMessage: DBChatMessage): UIMessage {
-  return {
-    id: dbMessage.id,
-    role: dbMessage.role as "user" | "assistant" | "system",
-    parts: (dbMessage.parts as UIMessage["parts"]) || [],
-  };
-}
 
 /**
  * Adds a UIMessage to the database.
@@ -41,9 +32,9 @@ async function addMessage(
 }
 
 /**
- * Get all messages for a session as UIMessages.
+ * Get all messages for a session as CustomUIMessages with full metadata.
  */
-export async function getMessages(sessionId: string): Promise<UIMessage[]> {
+export async function getMessages(sessionId: string): Promise<CustomUIMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -60,13 +51,13 @@ export async function getMessages(sessionId: string): Promise<UIMessage[]> {
     return [];
   }
 
-  return data.map(toUIMessage);
+  return data.map(toCustomUIMessage);
 }
 
 /**
- * Get a specific message by ID as a UIMessage.
+ * Get a specific message by ID as a CustomUIMessage.
  */
-export async function getMessage(messageId: string): Promise<UIMessage | null> {
+export async function getMessage(messageId: string): Promise<CustomUIMessage | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_messages")
@@ -79,7 +70,7 @@ export async function getMessage(messageId: string): Promise<UIMessage | null> {
     return null;
   }
 
-  return toUIMessage(data);
+  return toCustomUIMessage(data);
 }
 
 /**

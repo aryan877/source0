@@ -4,9 +4,10 @@ import { createOrGetSession } from "@/services/chat-sessions.server";
 import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
+import { CustomUIMessage } from "@/types/custom-ui-message";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
-import { createIdGenerator, generateObject, stepCountIs, streamText, type UIMessage } from "ai";
+import { createIdGenerator, generateObject, stepCountIs, streamText } from "ai";
 import { z } from "zod";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
 import { discoverMcpTools } from "./utils/mcp-tools";
@@ -42,7 +43,7 @@ async function generateAndSaveSummary(
 }
 
 interface ChatRequest {
-  messages: UIMessage[];
+  messages: CustomUIMessage[];
   model?: string;
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
@@ -173,6 +174,29 @@ export async function POST(req: Request): Promise<Response> {
         prefix: "msg",
         size: 16,
       }),
+      // Send model metadata with the message
+      messageMetadata: ({ part }) => {
+        if (part.type === "start") {
+          return {
+            model: modelConfig.id,
+            modelProvider: modelConfig.provider,
+            createdAt: Date.now(),
+            reasoningLevel: reasoningLevel,
+            searchEnabled: searchEnabled,
+          };
+        }
+
+        if (part.type === "finish") {
+          return {
+            model: modelConfig.id,
+            modelProvider: modelConfig.provider,
+            totalTokens: part.totalUsage?.totalTokens,
+            promptTokens: part.totalUsage?.inputTokens,
+            completionTokens: part.totalUsage?.outputTokens,
+            userId: user.id,
+          };
+        }
+      },
       onFinish: async ({ messages: allMessages, responseMessage }) => {
         try {
           // Save the assistant message using the UIMessage from the response
@@ -184,6 +208,17 @@ export async function POST(req: Request): Promise<Response> {
               partsCount: responseMessage.parts?.length || 0,
             });
 
+            // Extract metadata for provider information (includes token usage and model info)
+            const providerMetadata = responseMessage.metadata ? {
+              model: responseMessage.metadata.model || model,
+              modelProvider: responseMessage.metadata.modelProvider || modelConfig.provider,
+              totalTokens: responseMessage.metadata.totalTokens,
+              promptTokens: responseMessage.metadata.promptTokens,
+              completionTokens: responseMessage.metadata.completionTokens,
+              // Include any other relevant metadata
+              createdAt: responseMessage.metadata.createdAt,
+            } : undefined;
+
             const savedAssistantMessage = await saveAssistantMessageServer(
               supabase,
               responseMessage,
@@ -191,7 +226,8 @@ export async function POST(req: Request): Promise<Response> {
               user.id,
               model,
               modelConfig.provider,
-              { reasoningLevel, searchEnabled }
+              { reasoningLevel, searchEnabled },
+              providerMetadata
             );
 
             console.log("Assistant message saved with DB ID:", savedAssistantMessage.id);
@@ -222,6 +258,14 @@ export async function POST(req: Request): Promise<Response> {
                   .from("chat_sessions")
                   .update({ title: generatedTitle })
                   .eq("id", finalSessionId);
+
+                // Also update the response message metadata to include the generated title
+                if (responseMessage) {
+                  responseMessage.metadata = {
+                    ...responseMessage.metadata,
+                    titleGenerated: generatedTitle,
+                  };
+                }
               }
             }
           }

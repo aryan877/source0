@@ -4,18 +4,10 @@ import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type UIMessage } from "ai";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
+import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
 import { type DBChatMessage } from "./chat-messages";
 
-/**
- * Converts a DBChatMessage to a UIMessage.
- */
-function toUIMessage(dbMessage: DBChatMessage): UIMessage {
-  return {
-    id: dbMessage.id,
-    role: dbMessage.role as "user" | "assistant" | "system",
-    parts: (dbMessage.parts as UIMessage["parts"]) || [],
-  };
-}
 
 /**
  * Adds a prepared message to the database.
@@ -93,9 +85,9 @@ export async function saveToolMessageServer(
 }
 
 /**
- * Get all messages for a session as UIMessages (server-side version).
+ * Get all messages for a session as CustomUIMessages (server-side version).
  */
-export async function getMessagesServer(sessionId: string): Promise<UIMessage[]> {
+export async function getMessagesServer(sessionId: string): Promise<CustomUIMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -112,5 +104,5 @@ export async function getMessagesServer(sessionId: string): Promise<UIMessage[]>
     return [];
   }
 
-  return data.map(toUIMessage);
+  return data.map(toCustomUIMessage);
 }

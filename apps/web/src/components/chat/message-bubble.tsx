@@ -1,5 +1,6 @@
 "use client";
 
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { type GroundingMetadata } from "@/types/provider-metadata";
 import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
@@ -14,7 +15,6 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
-import type { UIMessage } from "ai";
 import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
@@ -32,12 +32,6 @@ export interface ImagePendingData {
 export interface ImageErrorData {
   type: "image_generation_error";
   error: string;
-}
-
-interface MessageCompleteData {
-  modelUsed?: string;
-  modelProvider?: string;
-  grounding?: GroundingMetadata;
 }
 
 /**
@@ -74,14 +68,8 @@ function getWebSearchData(toolPart: {
   return null;
 }
 
-function getMessageCompleteData(metadata: unknown): MessageCompleteData | null {
-  if (!metadata || typeof metadata !== "object") return null;
-
-  return metadata as MessageCompleteData;
-}
-
 interface MessageBubbleProps {
-  message: UIMessage;
+  message: CustomUIMessage;
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string, modelId?: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
@@ -95,7 +83,7 @@ interface MessageBubbleProps {
 /**
  * Extract citations from web search tool invocations in the message
  */
-function getCitationsFromMessage(message: UIMessage): TavilySearchResult[] {
+function getCitationsFromMessage(message: CustomUIMessage): TavilySearchResult[] {
   if (!message.parts) return [];
 
   const citations: TavilySearchResult[] = [];
@@ -255,15 +243,17 @@ const MessageBubble = memo(
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
-      const completeData = getMessageCompleteData(message.metadata);
+      // AI SDK v5 - use metadata
+      const modelUsed = message.metadata?.model;
+      const modelProvider = message.metadata?.modelProvider;
 
-      if (!completeData?.modelUsed) {
+      if (!modelUsed) {
         return null;
       }
 
       return {
-        modelUsed: completeData.modelUsed,
-        modelProvider: completeData.modelProvider,
+        modelUsed,
+        modelProvider,
       };
     }, [message.metadata, isUser]);
 
@@ -386,8 +376,8 @@ const MessageBubble = memo(
     ]);
 
     const renderGroundingMetadata = useMemo(() => {
-      const completeData = getMessageCompleteData(message.metadata);
-      const grounding = completeData?.grounding as GroundingMetadata | undefined;
+      // AI SDK v5 - access grounding directly from metadata
+      const grounding = message.metadata?.grounding as GroundingMetadata | undefined;
 
       // Only render if we have actual grounding data with content
       if (
@@ -577,7 +567,20 @@ const MessageBubble = memo(
             {!isUser && renderGroundingMetadata}
           </div>
 
-          {/* Action buttons and model info */}
+          {/* Model info for assistant messages */}
+          {!isUser && message.metadata?.model && (
+            <div className="flex items-center gap-2 text-xs text-default-500">
+              <CpuChipIcon className="h-3 w-3" />
+              <span>
+                {message.metadata.model}
+                {message.metadata.totalTokens && (
+                  <span className="ml-2">({message.metadata.totalTokens} tokens)</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Action buttons */}
           <div
             className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}
           >
