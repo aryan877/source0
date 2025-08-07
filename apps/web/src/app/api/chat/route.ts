@@ -5,6 +5,7 @@ import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { CustomUIMessage } from "@/types/custom-ui-message";
+import { type GoogleProviderMetadata, hasGroundingData } from "@/types/provider-metadata";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
 import { createIdGenerator, generateObject, stepCountIs, streamText } from "ai";
@@ -198,6 +199,31 @@ export async function POST(req: Request): Promise<Response> {
         }
       },
       onFinish: async ({ messages: allMessages, responseMessage }) => {
+        // Access provider metadata from the result (available after stream completion)
+        const providerMetadataResult = await result.providerMetadata;
+        const googleMetadata = providerMetadataResult?.google as GoogleProviderMetadata | undefined;
+        let hasGrounding = false;
+
+        if (googleMetadata?.groundingMetadata) {
+          hasGrounding = hasGroundingData(googleMetadata.groundingMetadata);
+
+          console.log("Google grounding metadata detected:", {
+            hasGrounding,
+            webSearchQueries: Array.isArray(googleMetadata.groundingMetadata.webSearchQueries)
+              ? googleMetadata.groundingMetadata.webSearchQueries.length
+              : 0,
+            retrievalQueries: Array.isArray(googleMetadata.groundingMetadata.retrievalQueries)
+              ? googleMetadata.groundingMetadata.retrievalQueries.length
+              : 0,
+            groundingChunks: Array.isArray(googleMetadata.groundingMetadata.groundingChunks)
+              ? googleMetadata.groundingMetadata.groundingChunks.length
+              : 0,
+            groundingSupports: Array.isArray(googleMetadata.groundingMetadata.groundingSupports)
+              ? googleMetadata.groundingMetadata.groundingSupports.length
+              : 0,
+          });
+        }
+
         try {
           // Save the assistant message using the UIMessage from the response
           if (responseMessage) {
@@ -208,17 +234,6 @@ export async function POST(req: Request): Promise<Response> {
               partsCount: responseMessage.parts?.length || 0,
             });
 
-            // Extract metadata for provider information (includes token usage and model info)
-            const providerMetadata = responseMessage.metadata ? {
-              model: responseMessage.metadata.model || model,
-              modelProvider: responseMessage.metadata.modelProvider || modelConfig.provider,
-              totalTokens: responseMessage.metadata.totalTokens,
-              promptTokens: responseMessage.metadata.promptTokens,
-              completionTokens: responseMessage.metadata.completionTokens,
-              // Include any other relevant metadata
-              createdAt: responseMessage.metadata.createdAt,
-            } : undefined;
-
             const savedAssistantMessage = await saveAssistantMessageServer(
               supabase,
               responseMessage,
@@ -227,7 +242,7 @@ export async function POST(req: Request): Promise<Response> {
               model,
               modelConfig.provider,
               { reasoningLevel, searchEnabled },
-              providerMetadata
+              providerMetadataResult // Pass full provider metadata (includes grounding data)
             );
 
             console.log("Assistant message saved with DB ID:", savedAssistantMessage.id);
@@ -242,6 +257,17 @@ export async function POST(req: Request): Promise<Response> {
                   user.id
                 );
               }
+            }
+
+            // Always update response message metadata with grounding data
+            if (responseMessage) {
+              responseMessage.metadata = {
+                ...responseMessage.metadata,
+                hasGrounding,
+                ...(googleMetadata?.groundingMetadata && {
+                  grounding: googleMetadata.groundingMetadata,
+                }),
+              };
             }
           }
 
@@ -264,6 +290,10 @@ export async function POST(req: Request): Promise<Response> {
                   responseMessage.metadata = {
                     ...responseMessage.metadata,
                     titleGenerated: generatedTitle,
+                    hasGrounding,
+                    ...(googleMetadata?.groundingMetadata && {
+                      grounding: googleMetadata.groundingMetadata,
+                    }),
                   };
                 }
               }

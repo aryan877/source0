@@ -43,6 +43,15 @@ export function prepareMessageForDb({
   const textParts = parts.filter((part) => part.type === "text");
   const content = textParts.length > 0 ? textParts.map((part) => part.text).join(" ") : null;
 
+  // Combine message metadata with provider metadata
+  // Message metadata (from AI SDK) takes precedence over provider metadata
+  const combinedMetadata = {
+    // Provider metadata (grounding, safety ratings, etc.)
+    ...(providerMetadata || {}),
+    // Message metadata (tokens, model info, etc.) - takes precedence
+    ...(message.metadata || {}),
+  };
+
   return {
     id: messageId,
     session_id: sessionId,
@@ -53,7 +62,7 @@ export function prepareMessageForDb({
     model_used: model || null,
     model_provider: modelProvider || null,
     model_config: modelConfig as Json,
-    metadata: (providerMetadata as Json) || {},
+    metadata: combinedMetadata as Json,
     // Explicitly set created_at to ensure consistent ordering
     // especially important when saving user and assistant messages close together
     created_at: new Date().toISOString(),

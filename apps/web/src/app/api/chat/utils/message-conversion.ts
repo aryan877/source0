@@ -1,5 +1,6 @@
 import { type DBChatMessage } from "@/services/chat-messages";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
+import { type GoogleProviderMetadata } from "@/types/provider-metadata";
 import { type Tables } from "@/types/supabase-types";
 import {
   type ModelMessage,
@@ -33,6 +34,13 @@ export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
         }
       : {};
 
+  // Extract grounding data from provider metadata (for Google models)
+  let grounding;
+  const googleMetadata = metadataFromColumn.google as GoogleProviderMetadata | undefined;
+  if (googleMetadata?.groundingMetadata) {
+    grounding = googleMetadata.groundingMetadata;
+  }
+
   // Combine all metadata, with metadata column taking precedence for tokens
   const combinedMetadata = {
     // Model info from dedicated columns (fallback)
@@ -42,6 +50,8 @@ export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
     ...modelConfigData,
     // Provider metadata (tokens, timestamps, etc.) from metadata column - this should override
     ...metadataFromColumn,
+    // Grounding data for easy access in UI
+    ...(grounding && { grounding }),
   };
 
   return {

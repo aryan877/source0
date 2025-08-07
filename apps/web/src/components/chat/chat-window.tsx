@@ -167,7 +167,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
 
-
       // Check for message complete data in metadata
       const messageCompleteData = message.metadata;
 
@@ -394,19 +393,23 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           retryFromIndex = userMessageIndex;
         }
 
-        const messagesToKeep = messages.slice(0, retryFromIndex + 1);
+        // Keep messages up to but NOT including the user message we're retrying
+        const messagesToKeep = messages.slice(0, retryFromIndex);
 
         if (chatId && chatId !== "new") {
-          await deleteFromPoint(userMessageToRetry.id);
+          // Delete from the user message we're retrying (inclusive)
+          await deleteFromPoint(userMessageToRetry.id, true);
         }
 
         clearSuggestions();
+        // Set messages to exclude the retry point and everything after
         setMessages(messagesToKeep);
 
+        // Resend the same user message (this will add it back and generate new response)
         sendMessage(userMessageToRetry, {
           body: {
             ...chatBody,
-            isFirstMessage: messagesToKeep.length === 1,
+            isFirstMessage: messagesToKeep.length === 0,
           },
         });
       } catch (error) {

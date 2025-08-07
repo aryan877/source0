@@ -22,6 +22,17 @@ export const messageMetadataSchema = z.object({
 
   // Grounding (for web search results)
   grounding: z.custom<GroundingMetadata>().optional(),
+  hasGrounding: z.boolean().optional(),
+  
+  // Step-level grounding for multi-step executions
+  stepGrounding: z.object({
+    hasGrounding: z.boolean(),
+    grounding: z.custom<GroundingMetadata>(),
+    stepIndex: z.number(),
+  }).optional(),
+
+  // Safety ratings from Google models
+  safetyRatings: z.record(z.unknown()).optional(),
 
   // Internal database fields (for onFinish callback)
   userId: z.string().optional(),
