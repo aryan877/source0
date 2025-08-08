@@ -7,11 +7,11 @@ import { useChatSession } from "@/hooks/queries/use-chat-session";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useMessageSummaries } from "@/hooks/queries/use-message-summaries";
 
+import { useAuth } from "@/hooks/use-auth";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
-import { useAuth } from "@/hooks/useAuth";
 import {
   createSession,
   deleteFromPoint,
@@ -148,6 +148,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       console.error("An error occurred in the chat stream:", error);
     },
     onFinish: async ({ message }: { message: CustomUIMessage }) => {
+      console.log(message);
       console.log("onFinish", message);
       if (process.env.NODE_ENV === "development") {
         console.log("Chat stream finished", {
@@ -178,14 +179,15 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         const latestGrounding = groundingParts[groundingParts.length - 1];
         if (latestGrounding && latestGrounding.data) {
           hasGrounding = latestGrounding.data.hasGrounding ?? false;
-
-          console.log("Processing grounding data part:", {
-            originalId: message.id,
-            hasGrounding: latestGrounding.data.hasGrounding,
-            groundingId: latestGrounding.id,
-          });
         }
       }
+
+      // Extract metadata from message
+      const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
+        databaseId?: string;
+        messageSaved?: boolean;
+        userId?: string;
+      };
 
       // Handle title generation data parts
       if (titleParts.length > 0 && chatId !== "new") {
@@ -193,49 +195,22 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         if (latestTitle && latestTitle.data) {
           const generatedTitle = latestTitle.data.title;
 
-          if (generatedTitle && user?.id) {
-            console.log("Processing title generation data part:", {
-              originalId: message.id,
-              title: generatedTitle,
-              titleId: latestTitle.id,
-            });
-
+          if (generatedTitle && userId) {
             const sessionUpdate: ChatSession = {
               id: chatId,
               title: generatedTitle,
               updated_at: new Date().toISOString(),
             } as ChatSession;
 
-            updateSessionInCache(sessionUpdate, user.id);
+            updateSessionInCache(sessionUpdate, userId);
           }
         }
       }
 
-      // Check for message saved notification in metadata
-      const messageCompleteData = message.metadata;
-      if (messageCompleteData && typeof messageCompleteData === "object") {
-        const annotationData = messageCompleteData as {
-          databaseId?: string;
-          messageSaved?: boolean;
-          userId?: string;
-        };
-
-        console.log("Processing message_complete metadata:", {
-          originalId: message.id,
-          databaseId: annotationData.databaseId,
-          messageSaved: annotationData.messageSaved,
-          hasGrounding,
-        });
-
-        if (annotationData.messageSaved && annotationData.databaseId) {
-          const databaseId = annotationData.databaseId;
-          setMessages((currentMessages) => {
-            const updatedMessages = currentMessages.map((msg) =>
-              msg.id === message.id ? { ...msg, id: databaseId } : msg
-            );
-            return updatedMessages;
-          });
-        }
+      if (messageSaved && databaseId) {
+        setMessages((current) =>
+          current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
+        );
       }
 
       if (message.role === "assistant") {
@@ -251,9 +226,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
       if (chatId && chatId !== "new") {
         const delay = hasGrounding ? 200 : 100;
-        console.log(
-          `Scheduling invalidateMessages with ${delay}ms delay (hasGrounding: ${hasGrounding})`
-        );
 
         setTimeout(() => {
           invalidateMessages();

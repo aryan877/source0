@@ -1,9 +1,9 @@
 "use client";
 
 import { SHORTCUTS } from "@/config/shortcuts";
+import { useAuth } from "@/hooks/use-auth";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
-import { useAuth } from "@/hooks/useAuth";
 import { useUiStore } from "@/stores/ui-store";
 import { MagnifyingGlassIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, useDisclosure } from "@heroui/react";

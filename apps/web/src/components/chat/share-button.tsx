@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { makePrivate, makePublic, type ChatSession } from "@/services/chat-sessions";
 import { chatSessionsKeys } from "@/utils/query-keys";
 import {

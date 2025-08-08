@@ -16,7 +16,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
-import { useAuth } from "../useAuth";
+import { useAuth } from "../use-auth";
 
 type Page = { data: ChatSession[]; nextCursor: string | null };
 

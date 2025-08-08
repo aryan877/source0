@@ -2,7 +2,7 @@
 
 import { useSidebarContext } from "@/components/app-shell";
 import { useGeneratedImages } from "@/hooks/queries/use-generated-images";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { type GeneratedImage } from "@/services/generated-images";
 import { ArrowDownTrayIcon, EyeIcon } from "@heroicons/react/24/outline";
 import {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { memo } from "react";
 

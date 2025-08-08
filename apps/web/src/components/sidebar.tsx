@@ -2,8 +2,8 @@
 
 import { SHORTCUTS } from "@/config/shortcuts";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
+import { useAuth } from "@/hooks/use-auth";
 import { useWindow } from "@/hooks/use-window";
-import { useAuth } from "@/hooks/useAuth";
 import { ChatSession } from "@/services";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
