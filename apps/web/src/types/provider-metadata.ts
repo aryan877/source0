@@ -7,7 +7,7 @@ export interface GroundingSegment {
   endIndex?: number;
 }
 
-// Support information for grounded text segments  
+// Support information for grounded text segments
 export interface GroundingSupport {
   segment?: GroundingSegment;
   groundingChunkIndices?: number[];
@@ -55,12 +55,12 @@ export interface ProviderMetadata {
 // Type guards for grounding data
 export function hasGroundingData(metadata: GroundingMetadata | undefined): boolean {
   if (!metadata) return false;
-  
+
   return Boolean(
     (metadata.webSearchQueries && metadata.webSearchQueries.length > 0) ||
-    (metadata.retrievalQueries && metadata.retrievalQueries.length > 0) ||
-    (metadata.groundingChunks && metadata.groundingChunks.length > 0) ||
-    (metadata.groundingSupports && metadata.groundingSupports.length > 0)
+      (metadata.retrievalQueries && metadata.retrievalQueries.length > 0) ||
+      (metadata.groundingChunks && metadata.groundingChunks.length > 0) ||
+      (metadata.groundingSupports && metadata.groundingSupports.length > 0)
   );
 }
 

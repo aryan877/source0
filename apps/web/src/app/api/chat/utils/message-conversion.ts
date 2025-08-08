@@ -1,12 +1,6 @@
 import { type DBChatMessage } from "@/services/chat-messages";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
-import { type GoogleProviderMetadata } from "@/types/provider-metadata";
 import { type Tables } from "@/types/supabase-types";
-import {
-  type ModelMessage,
-  type UIMessage,
-  convertToModelMessages as sdkConvertToModelMessages,
-} from "ai";
 
 /**
  * Converts a single DBChatMessage to a CustomUIMessage with full metadata.
@@ -34,13 +28,6 @@ export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
         }
       : {};
 
-  // Extract grounding data from provider metadata (for Google models)
-  let grounding;
-  const googleMetadata = metadataFromColumn.google as GoogleProviderMetadata | undefined;
-  if (googleMetadata?.groundingMetadata) {
-    grounding = googleMetadata.groundingMetadata;
-  }
-
   // Combine all metadata, with metadata column taking precedence for tokens
   const combinedMetadata = {
     // Model info from dedicated columns (fallback)
@@ -50,8 +37,6 @@ export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
     ...modelConfigData,
     // Provider metadata (tokens, timestamps, etc.) from metadata column - this should override
     ...metadataFromColumn,
-    // Grounding data for easy access in UI
-    ...(grounding && { grounding }),
   };
 
   return {
@@ -70,14 +55,4 @@ export function convertDbMessagesToUiMessages(
   dbMessages: Tables<"chat_messages">[]
 ): CustomUIMessage[] {
   return dbMessages.map((msg) => toCustomUIMessage(msg as DBChatMessage));
-}
-
-/**
- * A wrapper around the AI SDK's convertToModelMessages for sending to LLMs.
- * In AI SDK v5, UIMessages are the source of truth for persistence.
- * Only convert to ModelMessages when sending to the LLM.
- */
-export function convertToModelMessages(messages: UIMessage | UIMessage[]): ModelMessage[] {
-  const messageArray = Array.isArray(messages) ? messages : [messages];
-  return sdkConvertToModelMessages(messageArray);
 }

@@ -167,28 +167,64 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
 
-      // Check for message complete data in metadata
-      const messageCompleteData = message.metadata;
+      // Check for grounding and title data in data parts (AI SDK v5)
+      const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
+      const titleParts = message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
 
       let hasGrounding = false;
 
+      // Handle grounding data parts
+      if (groundingParts.length > 0) {
+        const latestGrounding = groundingParts[groundingParts.length - 1];
+        if (latestGrounding && latestGrounding.data) {
+          hasGrounding = latestGrounding.data.hasGrounding ?? false;
+
+          console.log("Processing grounding data part:", {
+            originalId: message.id,
+            hasGrounding: latestGrounding.data.hasGrounding,
+            groundingId: latestGrounding.id,
+          });
+        }
+      }
+
+      // Handle title generation data parts
+      if (titleParts.length > 0 && chatId !== "new") {
+        const latestTitle = titleParts[titleParts.length - 1];
+        if (latestTitle && latestTitle.data) {
+          const generatedTitle = latestTitle.data.title;
+
+          if (generatedTitle && user?.id) {
+            console.log("Processing title generation data part:", {
+              originalId: message.id,
+              title: generatedTitle,
+              titleId: latestTitle.id,
+            });
+
+            const sessionUpdate: ChatSession = {
+              id: chatId,
+              title: generatedTitle,
+              updated_at: new Date().toISOString(),
+            } as ChatSession;
+
+            updateSessionInCache(sessionUpdate, user.id);
+          }
+        }
+      }
+
+      // Check for message saved notification in metadata
+      const messageCompleteData = message.metadata;
       if (messageCompleteData && typeof messageCompleteData === "object") {
         const annotationData = messageCompleteData as {
           databaseId?: string;
           messageSaved?: boolean;
-          titleGenerated?: string;
           userId?: string;
-          hasGrounding?: boolean;
         };
-
-        hasGrounding = annotationData.hasGrounding ?? false;
 
         console.log("Processing message_complete metadata:", {
           originalId: message.id,
           databaseId: annotationData.databaseId,
           messageSaved: annotationData.messageSaved,
-          hasTitle: !!annotationData.titleGenerated,
-          hasGrounding: annotationData.hasGrounding,
+          hasGrounding,
         });
 
         if (annotationData.messageSaved && annotationData.databaseId) {
@@ -199,16 +235,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             );
             return updatedMessages;
           });
-        }
-
-        if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
-          const sessionUpdate: ChatSession = {
-            id: chatId,
-            title: annotationData.titleGenerated,
-            updated_at: new Date().toISOString(),
-          } as ChatSession;
-
-          updateSessionInCache(sessionUpdate, annotationData.userId);
         }
       }
 

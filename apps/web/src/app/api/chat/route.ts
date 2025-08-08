@@ -8,11 +8,18 @@ import { CustomUIMessage } from "@/types/custom-ui-message";
 import { type GoogleProviderMetadata, hasGroundingData } from "@/types/provider-metadata";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
-import { createIdGenerator, generateObject, stepCountIs, streamText } from "ai";
+import {
+  convertToModelMessages,
+  createIdGenerator,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateObject,
+  stepCountIs,
+  streamText,
+} from "ai";
 import { z } from "zod";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
 import { discoverMcpTools } from "./utils/mcp-tools";
-import { convertToModelMessages as convertToModelMessagesUtil } from "./utils/message-conversion";
 import { buildSystemMessage, createModelInstance, getModelMapping } from "./utils/models";
 import { getToolsForModel } from "./utils/tools";
 
@@ -107,7 +114,7 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(mapping.message, 400);
     }
 
-    const coreMessages = convertToModelMessagesUtil(messages);
+    const coreMessages = convertToModelMessages(messages);
 
     // Save the user message (last message in the array)
     const userMessageToSave = messages.at(-1);
@@ -153,75 +160,102 @@ export async function POST(req: Request): Promise<Response> {
 
     const modelInstance = createModelInstance(modelConfig, mapping);
 
-    const result = streamText({
-      model: modelInstance,
-      messages: [{ role: "system", content: systemMessage }, ...coreMessages],
-      tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
-        capabilities: modelConfig.capabilities,
-        supportsFunctions: modelConfig.supportsFunctions,
-        provider: modelConfig.provider,
-      }),
-      stopWhen: stepCountIs(10), // Enable multi-step execution with up to 10 steps
-    });
-
-    // Consume the stream to ensure it runs to completion & triggers onFinish
-    // even when the client response is aborted (AI SDK v5 best practice)
-    result.consumeStream(); // no await
-
-    return result.toUIMessageStreamResponse({
+    // Use the correct AI SDK v5 pattern for streaming with data parts
+    const stream = createUIMessageStream({
       originalMessages: messages,
-      // Generate consistent server-side IDs for persistence (AI SDK v5 best practice)
-      generateMessageId: createIdGenerator({
-        prefix: "msg",
-        size: 16,
-      }),
-      // Send model metadata with the message
-      messageMetadata: ({ part }) => {
-        if (part.type === "start") {
-          return {
-            model: modelConfig.id,
-            modelProvider: modelConfig.provider,
-            createdAt: Date.now(),
-            reasoningLevel: reasoningLevel,
-            searchEnabled: searchEnabled,
-          };
-        }
+      execute: async ({ writer }) => {
+        const result = streamText({
+          model: modelInstance,
+          messages: [{ role: "system", content: systemMessage }, ...coreMessages],
+          tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
+            capabilities: modelConfig.capabilities,
+            supportsFunctions: modelConfig.supportsFunctions,
+            provider: modelConfig.provider,
+          }),
+          stopWhen: stepCountIs(10), // Enable multi-step execution with up to 10 steps
+          // Write grounding data parts in streamText onFinish (AI SDK v5)
+          onFinish: async ({ providerMetadata }) => {
+            console.log("StreamText finished - processing provider metadata");
 
-        if (part.type === "finish") {
-          return {
-            model: modelConfig.id,
-            modelProvider: modelConfig.provider,
-            totalTokens: part.totalUsage?.totalTokens,
-            promptTokens: part.totalUsage?.inputTokens,
-            completionTokens: part.totalUsage?.outputTokens,
-            userId: user.id,
-          };
-        }
+            // Handle Google grounding metadata
+            const googleMetadata = providerMetadata?.google as GoogleProviderMetadata | undefined;
+            if (googleMetadata?.groundingMetadata) {
+              const hasGrounding = hasGroundingData(googleMetadata.groundingMetadata);
+
+              // Write grounding data part for UI consumption
+              writer.write({
+                type: "data-grounding",
+                data: {
+                  hasGrounding,
+                  grounding: googleMetadata.groundingMetadata,
+                  timestamp: Date.now(),
+                },
+              });
+
+              console.log("Grounding data part written:", {
+                hasGrounding,
+                webSearchQueries: Array.isArray(googleMetadata.groundingMetadata.webSearchQueries)
+                  ? googleMetadata.groundingMetadata.webSearchQueries.length
+                  : 0,
+                groundingChunks: Array.isArray(googleMetadata.groundingMetadata.groundingChunks)
+                  ? googleMetadata.groundingMetadata.groundingChunks.length
+                  : 0,
+              });
+            }
+          },
+        });
+
+        // Consume the stream to ensure it runs to completion & triggers onFinish
+        // even when the client response is aborted (AI SDK v5 best practice)
+        result.consumeStream(); // no await
+
+        // Merge the streamText result into our custom stream
+        writer.merge(
+          result.toUIMessageStream({
+            // Generate consistent server-side IDs for persistence (AI SDK v5 best practice)
+            generateMessageId: createIdGenerator({
+              prefix: "msg",
+              size: 16,
+            }),
+            // Send model metadata with the message
+            messageMetadata: ({ part }) => {
+              if (part.type === "start") {
+                return {
+                  model: modelConfig.id,
+                  modelProvider: modelConfig.provider,
+                  createdAt: Date.now(),
+                  reasoningLevel: reasoningLevel,
+                  searchEnabled: searchEnabled,
+                };
+              }
+
+              if (part.type === "finish") {
+                return {
+                  model: modelConfig.id,
+                  modelProvider: modelConfig.provider,
+                  totalTokens: part.totalUsage?.totalTokens,
+                  promptTokens: part.totalUsage?.inputTokens,
+                  completionTokens: part.totalUsage?.outputTokens,
+                  userId: user.id,
+                };
+              }
+            },
+          })
+        );
       },
-      onFinish: async ({ messages: allMessages, responseMessage }) => {
-        // Access provider metadata from the result (available after stream completion)
-        const providerMetadataResult = await result.providerMetadata;
-        const googleMetadata = providerMetadataResult?.google as GoogleProviderMetadata | undefined;
-        let hasGrounding = false;
+      onFinish: async ({ responseMessage }) => {
+        // Access grounding data from data parts (AI SDK v5)
+        const groundingParts =
+          responseMessage.parts?.filter((part) => part.type === "data-grounding") || [];
 
-        if (googleMetadata?.groundingMetadata) {
-          hasGrounding = hasGroundingData(googleMetadata.groundingMetadata);
-
-          console.log("Google grounding metadata detected:", {
-            hasGrounding,
-            webSearchQueries: Array.isArray(googleMetadata.groundingMetadata.webSearchQueries)
-              ? googleMetadata.groundingMetadata.webSearchQueries.length
-              : 0,
-            retrievalQueries: Array.isArray(googleMetadata.groundingMetadata.retrievalQueries)
-              ? googleMetadata.groundingMetadata.retrievalQueries.length
-              : 0,
-            groundingChunks: Array.isArray(googleMetadata.groundingMetadata.groundingChunks)
-              ? googleMetadata.groundingMetadata.groundingChunks.length
-              : 0,
-            groundingSupports: Array.isArray(googleMetadata.groundingMetadata.groundingSupports)
-              ? googleMetadata.groundingMetadata.groundingSupports.length
-              : 0,
-          });
+        if (groundingParts.length > 0) {
+          const latestGrounding = groundingParts[groundingParts.length - 1];
+          if (latestGrounding && latestGrounding.data) {
+            console.log("Grounding data part detected in response:", {
+              hasGrounding: latestGrounding.data.hasGrounding,
+              groundingId: latestGrounding.id,
+            });
+          }
         }
 
         try {
@@ -242,14 +276,14 @@ export async function POST(req: Request): Promise<Response> {
               model,
               modelConfig.provider,
               { reasoningLevel, searchEnabled },
-              providerMetadataResult // Pass full provider metadata (includes grounding data)
+              undefined // Provider metadata now handled via data parts
             );
 
             console.log("Assistant message saved with DB ID:", savedAssistantMessage.id);
 
             if (showChatNavigator && responseMessage.parts) {
               const textPart = responseMessage.parts.find((p) => p.type === "text");
-              if (textPart) {
+              if (textPart && "text" in textPart) {
                 await generateAndSaveSummary(
                   supabase,
                   { id: savedAssistantMessage.id, content: textPart.text },
@@ -258,45 +292,19 @@ export async function POST(req: Request): Promise<Response> {
                 );
               }
             }
-
-            // Always update response message metadata with grounding data
-            if (responseMessage) {
-              responseMessage.metadata = {
-                ...responseMessage.metadata,
-                hasGrounding,
-                ...(googleMetadata?.groundingMetadata && {
-                  grounding: googleMetadata.groundingMetadata,
-                }),
-              };
-            }
           }
 
           // Handle title generation for first message
-          if (isFirstMessage && allMessages.length > 0) {
-            const firstUserMessage = allMessages.find((msg) => msg.role === "user");
-            if (firstUserMessage && firstUserMessage.parts) {
-              const firstUserMessageTextPart = firstUserMessage.parts.find(
-                (p) => p.type === "text"
-              );
-              if (firstUserMessageTextPart) {
-                const generatedTitle = await generateTitleOnly(firstUserMessageTextPart.text);
-                await supabase
-                  .from("chat_sessions")
-                  .update({ title: generatedTitle })
-                  .eq("id", finalSessionId);
+          if (isFirstMessage && responseMessage) {
+            const textPart = responseMessage.parts?.find((p) => p.type === "text");
+            if (textPart && "text" in textPart) {
+              const generatedTitle = await generateTitleOnly(textPart.text);
+              await supabase
+                .from("chat_sessions")
+                .update({ title: generatedTitle })
+                .eq("id", finalSessionId);
 
-                // Also update the response message metadata to include the generated title
-                if (responseMessage) {
-                  responseMessage.metadata = {
-                    ...responseMessage.metadata,
-                    titleGenerated: generatedTitle,
-                    hasGrounding,
-                    ...(googleMetadata?.groundingMetadata && {
-                      grounding: googleMetadata.groundingMetadata,
-                    }),
-                  };
-                }
-              }
+              console.log("Title generated and saved:", generatedTitle);
             }
           }
         } catch (error) {
@@ -304,6 +312,8 @@ export async function POST(req: Request): Promise<Response> {
         }
       },
     });
+
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     return getErrorResponse(err, {

@@ -1,7 +1,6 @@
 "use client";
 
 import { type CustomUIMessage } from "@/types/custom-ui-message";
-import { type GroundingMetadata } from "@/types/provider-metadata";
 import type { WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
@@ -376,8 +375,19 @@ const MessageBubble = memo(
     ]);
 
     const renderGroundingMetadata = useMemo(() => {
-      // AI SDK v5 - access grounding directly from metadata
-      const grounding = message.metadata?.grounding as GroundingMetadata | undefined;
+      // AI SDK v5 - access grounding from data parts instead of metadata
+      const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
+
+      if (groundingParts.length === 0) {
+        return null;
+      }
+
+      // Use the latest grounding data part
+      const latestGrounding = groundingParts[groundingParts.length - 1];
+      if (!latestGrounding || !latestGrounding.data) {
+        return null;
+      }
+      const grounding = latestGrounding.data.grounding;
 
       // Only render if we have actual grounding data with content
       if (
@@ -390,7 +400,7 @@ const MessageBubble = memo(
       }
 
       return <GroundingDisplay grounding={grounding} />;
-    }, [message.metadata]);
+    }, [message.parts]);
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
