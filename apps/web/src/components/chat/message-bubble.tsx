@@ -1,7 +1,7 @@
 "use client";
 
 import { type CustomUIMessage } from "@/types/custom-ui-message";
-import type { WebSearchToolData } from "@/types/tools";
+import type { ImageGenerationToolData, WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
   ArrowPathIcon,
@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Avatar, Button, Tooltip } from "@heroui/react";
 import { GitBranchIcon } from "lucide-react";
+import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { BranchOptionsPanel } from "./branch-options-panel";
@@ -325,6 +326,76 @@ const MessageBubble = memo(
                 state={part.state}
                 args={"input" in part ? part.input : undefined}
               />
+            );
+          }
+        }
+
+        // Handle image generation tool
+        if (
+          part.type === "tool-imageGeneration" ||
+          (part.type === "dynamic-tool" &&
+            "toolName" in part &&
+            part.toolName === "imageGeneration")
+        ) {
+          if ("state" in part && part.state === "output-available" && "output" in part) {
+            // Show the generated image
+            const output = part.output as ImageGenerationToolData;
+            if (output.success && output.imageUrl) {
+              return (
+                <div key={index} className="my-4">
+                  <div className="rounded-lg bg-content1 p-4 shadow-sm">
+                    <div className="mb-2 text-sm font-medium text-foreground/80">
+                      Generated Image
+                    </div>
+                    <Image
+                      src={output.imageUrl}
+                      alt={output.prompt || "Generated image"}
+                      width={1024}
+                      height={1024}
+                      className="max-w-full rounded-lg shadow-md"
+                      priority={false}
+                    />
+                    {output.prompt && (
+                      <div className="mt-2 text-xs text-foreground/60">{output.prompt}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            } else if (output.success === false) {
+              // Show error state
+              return (
+                <div key={index} className="my-4">
+                  <div className="rounded-lg border border-danger-200 bg-danger-50 p-4">
+                    <div className="text-sm font-medium text-danger-700">
+                      Image Generation Failed
+                    </div>
+                    <div className="mt-1 text-sm text-danger-600">
+                      {output.error || "Unknown error occurred"}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+          } else if (
+            "state" in part &&
+            (part.state === "input-available" || part.state === "input-streaming")
+          ) {
+            // Show loading state for image generation
+            const input = "input" in part ? (part.input as { prompt?: string }) : undefined;
+            return (
+              <div key={index} className="my-4">
+                <div className="rounded-lg bg-content1 p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <div className="text-sm font-medium text-foreground/80">
+                      Generating image...
+                    </div>
+                  </div>
+                  {input?.prompt && (
+                    <div className="mt-2 text-xs text-foreground/60">{input.prompt}</div>
+                  )}
+                </div>
+              </div>
             );
           }
         }

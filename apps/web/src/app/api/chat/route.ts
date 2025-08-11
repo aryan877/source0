@@ -55,6 +55,7 @@ interface ChatRequest {
   model?: string;
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
+  imageGenerationEnabled?: boolean;
   memoryEnabled?: boolean;
   showChatNavigator?: boolean;
   id?: string;
@@ -72,6 +73,7 @@ export async function POST(req: Request): Promise<Response> {
       model = "gemini-2.5-flash",
       reasoningLevel = "medium",
       searchEnabled = false,
+      imageGenerationEnabled = false,
       memoryEnabled = true,
       showChatNavigator = false,
       id: sessionId,
@@ -166,11 +168,20 @@ export async function POST(req: Request): Promise<Response> {
         const result = streamText({
           model: modelInstance,
           messages: [{ role: "system", content: systemMessage }, ...coreMessages],
-          tools: getToolsForModel(user.id, searchEnabled, memoryEnabled, consolidatedMcpTools, {
-            capabilities: modelConfig.capabilities,
-            supportsFunctions: modelConfig.supportsFunctions,
-            provider: modelConfig.provider,
-          }),
+          tools: getToolsForModel(
+            user.id, 
+            searchEnabled, 
+            imageGenerationEnabled,
+            memoryEnabled, 
+            consolidatedMcpTools, 
+            {
+              capabilities: modelConfig.capabilities,
+              supportsFunctions: modelConfig.supportsFunctions,
+              provider: modelConfig.provider,
+            },
+            finalSessionId,
+            userMessageToSave?.id
+          ),
           stopWhen: stepCountIs(10),
           onFinish: async ({ providerMetadata, text }) => {
             // Stream grounding data if available
@@ -214,6 +225,7 @@ export async function POST(req: Request): Promise<Response> {
                   createdAt: Date.now(),
                   reasoningLevel,
                   searchEnabled,
+                  imageGenerationEnabled,
                 };
               }
               if (part.type === "finish") {
@@ -242,7 +254,7 @@ export async function POST(req: Request): Promise<Response> {
             user.id,
             model,
             modelConfig.provider,
-            { reasoningLevel, searchEnabled }
+            { reasoningLevel, searchEnabled, imageGenerationEnabled }
           );
 
           // Generate summary if navigator enabled

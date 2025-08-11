@@ -16,6 +16,7 @@ export function prepareMessageForDb({
   modelProvider,
   reasoningLevel,
   searchEnabled,
+  imageGenerationEnabled,
   providerMetadata,
 }: {
   message: UIMessage;
@@ -25,6 +26,7 @@ export function prepareMessageForDb({
   modelProvider?: string;
   reasoningLevel?: ReasoningLevel;
   searchEnabled?: boolean;
+  imageGenerationEnabled?: boolean;
   providerMetadata?: ProviderMetadata;
 }): Omit<DBChatMessage, "updated_at"> {
   // Use existing ID if present, otherwise generate a new one using AI SDK's generateId
@@ -34,6 +36,7 @@ export function prepareMessageForDb({
   const modelConfig = {
     ...(reasoningLevel && { reasoningLevel }),
     ...(searchEnabled !== undefined && { searchEnabled }),
+    ...(imageGenerationEnabled !== undefined && { imageGenerationEnabled }),
   };
 
   // In AI SDK v5, all content is stored in parts

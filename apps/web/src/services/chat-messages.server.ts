@@ -51,7 +51,7 @@ export async function saveAssistantMessageServer(
   userId: string,
   model: string,
   modelProvider: string,
-  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean; imageGenerationEnabled?: boolean },
   providerMetadata?: ProviderMetadata
 ): Promise<DBChatMessage> {
   const preparedMessage = prepareMessageForDb({
@@ -62,6 +62,7 @@ export async function saveAssistantMessageServer(
     modelProvider,
     reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
     searchEnabled: modelConfig.searchEnabled,
+    imageGenerationEnabled: modelConfig.imageGenerationEnabled,
     providerMetadata,
   });
   return addMessageServer(supabase, preparedMessage);

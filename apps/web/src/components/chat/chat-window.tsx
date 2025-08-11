@@ -56,6 +56,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     setReasoningLevel,
     searchEnabled,
     setSearchEnabled,
+    imageGenerationEnabled,
+    setImageGenerationEnabled,
   } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
@@ -96,6 +98,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       model: selectedModel,
       reasoningLevel: reasoningLevel,
       searchEnabled: searchEnabled,
+      imageGenerationEnabled: imageGenerationEnabled,
       memoryEnabled: memoryEnabled,
       showChatNavigator: showChatNavigator,
       id: chatId === "new" ? undefined : chatId,
@@ -108,6 +111,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     selectedModel,
     reasoningLevel,
     searchEnabled,
+    imageGenerationEnabled,
     memoryEnabled,
     showChatNavigator,
     chatId,
@@ -311,12 +315,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           user.id,
           selectedModel,
           modelProvider,
-          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
+          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled, imageGenerationEnabled: imageGenerationEnabled },
           { fireAndForget: true }
         );
       }
     }
-  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
+  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled, imageGenerationEnabled]);
 
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
@@ -608,6 +612,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           selectedModel,
           reasoningLevel,
           searchEnabled,
+          imageGenerationEnabled,
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
@@ -653,6 +658,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       selectedModel,
       reasoningLevel,
       searchEnabled,
+      imageGenerationEnabled,
       router,
       invalidateSessions,
       transferModelSelection,
@@ -688,6 +694,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         chatRequestOptions,
         reasoningLevel,
         searchEnabled,
+        imageGenerationEnabled,
         selectedModel: storedModel,
       } = JSON.parse(pendingMessageData);
 
@@ -699,13 +706,22 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       if (searchEnabled !== undefined) {
         setSearchEnabled(searchEnabled);
       }
+      if (imageGenerationEnabled !== undefined) {
+        setImageGenerationEnabled(imageGenerationEnabled);
+      }
 
       if (storedModel && storedModel !== selectedModel) {
         handleModelChange(storedModel);
       }
 
       lastUserMessageForSuggestions.current = message;
-      sendMessage(message, chatRequestOptions);
+      sendMessage(message, {
+        ...chatRequestOptions,
+        body: {
+          ...chatRequestOptions.data,
+          model: storedModel, // Use the stored model instead of the one in chatBody
+        },
+      });
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
@@ -720,6 +736,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     updateState,
     setReasoningLevel,
     setSearchEnabled,
+    setImageGenerationEnabled,
     handleModelChange,
     selectedModel,
     clearSuggestions,
@@ -859,12 +876,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             selectedModel={selectedModel}
             reasoningLevel={reasoningLevel}
             searchEnabled={searchEnabled}
+            imageGenerationEnabled={imageGenerationEnabled}
             chatId={chatId}
             onSubmit={handleFormSubmit}
             onKeyDown={handleKeyDown}
             onModelChange={handleModelChange}
             onReasoningLevelChange={setReasoningLevel}
             onSearchToggle={setSearchEnabled}
+            onImageGenerationToggle={setImageGenerationEnabled}
             onFileAttach={handleFileAttach}
             onFileDrop={handleFileDrop}
             onRemoveFile={handleRemoveFile}

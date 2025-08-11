@@ -306,13 +306,16 @@ export const availableTools = {
 export function getToolsForModel(
   userId: string,
   searchEnabled: boolean,
+  imageGenerationEnabled: boolean,
   memoryEnabled: boolean = true,
   consolidatedMcpTools: Record<string, Tool> = {},
   modelConfig?: {
     capabilities: ModelCapability[];
     supportsFunctions?: boolean;
     provider?: string;
-  }
+  },
+  sessionId?: string,
+  messageId?: string
 ) {
   const tools: Record<string, Tool> = {};
 
@@ -336,11 +339,50 @@ export function getToolsForModel(
     }
   }
 
-  // Add image generation tool if model doesn't have built-in image generation
-  const shouldAddImageGeneration = !modelConfig?.capabilities.includes("image-generation");
+  // Add image generation tool if enabled (it's now purely tool-based)
+  if (imageGenerationEnabled) {
+    // Create a contextual image generation tool that includes user/session info
+    tools.imageGeneration = tool({
+      description: `Generate images from text descriptions. Use this tool when users ask you to create, generate, or visualize images. This tool can create various types of images including artwork, illustrations, photographs, logos, and more based on detailed text prompts.`,
 
-  if (shouldAddImageGeneration) {
-    tools.imageGeneration = imageGenerationTool;
+      inputSchema: z.object({
+        prompt: z
+          .string()
+          .min(1)
+          .describe(
+            "Detailed description of the image to generate. Be specific about style, colors, composition, lighting, and other visual elements."
+          ),
+        size: z
+          .enum(["1024x1024", "1024x1792", "1792x1024"])
+          .optional()
+          .default("1024x1024")
+          .describe(
+            "Image dimensions - square (1024x1024), portrait (1024x1792), or landscape (1792x1024)"
+          ),
+        style: z
+          .enum(["natural", "vivid"])
+          .optional()
+          .default("vivid")
+          .describe(
+            "Image style - 'natural' for more natural looking images, 'vivid' for more hyper-real and dramatic images"
+          ),
+      }),
+
+      execute: async ({ prompt, size = "1024x1024", style = "vivid" }) => {
+        console.log(`AI requesting image generation: "${prompt}" (${size}, ${style})`);
+
+        const result = await executeImageGeneration({
+          prompt: prompt.trim(),
+          size,
+          style,
+          userId,
+          sessionId,
+          messageId,
+        });
+
+        return result;
+      },
+    });
   }
 
   if (memoryEnabled) {

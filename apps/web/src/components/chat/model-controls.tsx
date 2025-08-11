@@ -9,10 +9,11 @@ import {
   TEXT_EXTENSIONS,
   TEXT_MIME_TYPES,
 } from "@/config/supported-files";
-import { ChevronDownIcon, GlobeAltIcon, PaperClipIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, GlobeAltIcon, PaperClipIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import {
   CpuChipIcon as CpuChipIconSolid,
   GlobeAltIcon as GlobeAltIconSolid,
+  PhotoIcon as PhotoIconSolid,
 } from "@heroicons/react/24/solid";
 import {
   Button,
@@ -30,6 +31,8 @@ interface ModelControlsProps {
   onReasoningLevelChange: (level: ReasoningLevel) => void;
   searchEnabled: boolean;
   onSearchToggle: (enabled: boolean) => void;
+  imageGenerationEnabled: boolean;
+  onImageGenerationToggle: (enabled: boolean) => void;
   onFileAttach: (event: React.ChangeEvent<HTMLInputElement>) => void;
   isLoading?: boolean;
 }
@@ -40,6 +43,8 @@ export const ModelControls = ({
   onReasoningLevelChange,
   searchEnabled,
   onSearchToggle,
+  imageGenerationEnabled,
+  onImageGenerationToggle,
   onFileAttach,
   isLoading = false,
 }: ModelControlsProps) => {
@@ -92,7 +97,7 @@ export const ModelControls = ({
 
     const fileAccept = [...new Set([...acceptedMimeTypes, ...acceptedExtensions])].join(",");
     const showAttachment = true; // Always show the control area
-    const showControls = hasReasoning || hasSearch || showAttachment;
+    const showControls = hasReasoning || hasSearch || modelConfig.supportsFunctions || showAttachment;
 
     return {
       hasReasoning,
@@ -238,6 +243,55 @@ export const ModelControls = ({
             onPress={() => onSearchToggle(!searchEnabled)}
           >
             <span className="hidden sm:inline">{searchEnabled ? "Search ON" : "Search"}</span>
+          </Button>
+        </Tooltip>
+      )}
+
+      {/* Image Generation Toggle */}
+      {modelConfig?.supportsFunctions && (
+        <Tooltip
+          content={
+            <div className="flex max-w-xs flex-col gap-2 p-2">
+              <div className="flex items-center gap-2">
+                {imageGenerationEnabled ? (
+                  <PhotoIconSolid className="h-4 w-4 text-warning" />
+                ) : (
+                  <PhotoIcon className="h-4 w-4 text-foreground/60" />
+                )}
+                <span className="text-sm font-medium">
+                  {imageGenerationEnabled ? "Image Generation: ON" : "Image Generation: OFF"}
+                </span>
+              </div>
+              <span className="text-xs leading-relaxed text-foreground/70">
+                {imageGenerationEnabled
+                  ? "AI can generate images using DALL-E when requested"
+                  : "Enable image generation to create images from text descriptions"}
+              </span>
+            </div>
+          }
+          placement="top"
+          delay={200}
+          closeDelay={100}
+          showArrow
+        >
+          <Button
+            variant="flat"
+            size="sm"
+            className={`h-8 min-w-0 rounded-lg border px-3 text-xs font-medium transition-all duration-200 hover:scale-105 ${
+              imageGenerationEnabled
+                ? "border-warning/30 bg-warning/10 text-warning hover:border-warning/50 hover:bg-warning/20"
+                : "border-content2 bg-content2/60 text-foreground/70 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
+            }`}
+            startContent={
+              imageGenerationEnabled ? (
+                <PhotoIconSolid className="h-4 w-4" />
+              ) : (
+                <PhotoIcon className="h-4 w-4" />
+              )
+            }
+            onPress={() => onImageGenerationToggle(!imageGenerationEnabled)}
+          >
+            <span className="hidden sm:inline">{imageGenerationEnabled ? "Images ON" : "Images"}</span>
           </Button>
         </Tooltip>
       )}

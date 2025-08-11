@@ -61,3 +61,34 @@ export interface MemoryRetrieveToolData extends BaseToolData {
   success: boolean;
   message: string;
 }
+
+/**
+ * Image generation tool data - success case
+ */
+export interface ImageGenerationToolResult extends BaseToolData {
+  toolName: "imageGeneration";
+  success: true;
+  imageUrl: string;
+  imageId: string;
+  filePath: string;
+  prompt: string;
+  size: string;
+  style: string;
+  message: string;
+}
+
+/**
+ * Image generation tool data - error case
+ */
+export interface ImageGenerationToolError extends BaseToolData {
+  toolName: "imageGeneration";
+  success: false;
+  error: string;
+  prompt: string;
+  message: string;
+}
+
+/**
+ * Union type for image generation tool responses
+ */
+export type ImageGenerationToolData = ImageGenerationToolResult | ImageGenerationToolError;

@@ -44,7 +44,11 @@ export const useChatState = (chatId: string) => {
     useCallback((state) => state.getSelectedSearchEnabled(chatId), [chatId])
   );
 
-  const { setSelectedReasoningLevel, setSelectedSearchEnabled } = useModelSelectorStore();
+  const imageGenerationEnabled = useModelSelectorStore(
+    useCallback((state) => state.getSelectedImageGenerationEnabled(chatId), [chatId])
+  );
+
+  const { setSelectedReasoningLevel, setSelectedSearchEnabled, setSelectedImageGenerationEnabled } = useModelSelectorStore();
 
   const setReasoningLevel = useCallback(
     (level: ReasoningLevel) => {
@@ -60,6 +64,13 @@ export const useChatState = (chatId: string) => {
     [chatId, setSelectedSearchEnabled]
   );
 
+  const setImageGenerationEnabled = useCallback(
+    (enabled: boolean) => {
+      setSelectedImageGenerationEnabled(chatId, enabled);
+    },
+    [chatId, setSelectedImageGenerationEnabled]
+  );
+
   return {
     state,
     updateState,
@@ -68,5 +79,7 @@ export const useChatState = (chatId: string) => {
     setReasoningLevel,
     searchEnabled,
     setSearchEnabled,
+    imageGenerationEnabled,
+    setImageGenerationEnabled,
   };
 };

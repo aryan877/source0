@@ -1,4 +1,4 @@
-export type ModelCapability = "image" | "pdf" | "search" | "reasoning" | "image-generation";
+export type ModelCapability = "image" | "pdf" | "search" | "reasoning";
 
 export type ReasoningLevel = "low" | "medium" | "high";
 
@@ -8,7 +8,6 @@ export const CAPABILITY_LABELS = {
   pdf: "PDFs",
   search: "Search",
   reasoning: "Reasoning",
-  "image-generation": "Image Gen",
 } as const;
 
 // Provider mapping for AI SDK
@@ -407,9 +406,7 @@ export const REASONING_MODELS = MODELS.filter((m) => m.capabilities.includes("re
 export const VISION_MODELS = MODELS.filter((m) => m.capabilities.includes("image")).map(
   (m) => m.id
 );
-export const IMAGE_GEN_MODELS = MODELS.filter((m) =>
-  m.capabilities.includes("image-generation")
-).map((m) => m.id);
+export const IMAGE_GEN_MODELS: string[] = []; // Image generation is now tool-based, not model-specific
 
 // Defaults
 export const DEFAULT_MODEL = "gemini-2.5-flash";
@@ -429,6 +426,5 @@ export const MODEL_GROUPS = {
   Recommended: ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-3.3-70b-groq"],
   Reasoning: REASONING_MODELS,
   "Vision & Multimodal": VISION_MODELS,
-  "Image Generation": IMAGE_GEN_MODELS,
   "All Models": MODELS.map((m) => m.id),
 } as const;
