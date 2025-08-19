@@ -5,7 +5,6 @@ import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAuth } from "@/hooks/use-auth";
 import { useWindow } from "@/hooks/use-window";
 import { ChatSession } from "@/services";
-import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
@@ -87,7 +86,7 @@ const useSidebarState = () => {
   const queryClient = useQueryClient();
 
   // Store reset functions
-  const resetApiKeysStore = useApiKeysStore((state) => state.resetStore);
+  // Note: API keys now stored in database, no local store to reset
   const resetModelSelectorStore = useModelSelectorStore((state) => state.resetStore);
   const resetUiStore = useUiStore((state) => state.resetStore);
   const resetUserPreferencesStore = useUserPreferencesStore((state) => state.resetStore);
@@ -106,7 +105,7 @@ const useSidebarState = () => {
 
   const handleSignOut = useCallback(() => {
     // Clear all stores before signing out
-    resetApiKeysStore();
+    // API keys now stored in database, cleared on logout automatically
     resetModelSelectorStore();
     resetUiStore();
     resetUserPreferencesStore();
@@ -120,7 +119,6 @@ const useSidebarState = () => {
     // Then sign out
     signOut();
   }, [
-    resetApiKeysStore,
     resetModelSelectorStore,
     resetUiStore,
     resetUserPreferencesStore,
@@ -736,6 +734,7 @@ export const Sidebar = memo(
       onModalClose,
       windowObj,
       router,
+      mounted,
       searchQuery,
       setSearchQuery,
       debouncedSearchQuery,
@@ -794,22 +793,26 @@ export const Sidebar = memo(
         >
           <SidebarHeader onNewChat={handleNewChat} onOpenGallery={handleOpenGallery} onCloseSidebar={onClose} />
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
-          {!user ? (
-            <div className="flex-1 px-3 py-2">
-              <div className="rounded-lg bg-content2/50 p-4 text-center">
-                <p className="text-sm font-medium text-default-500">Sign in to view your chats</p>
+          {!mounted ? (
+            <div className="flex-1 px-2 py-1.5">
+              <LoadingSkeleton />
+            </div>
+          ) : !user ? (
+            <div className="flex-1 px-2 py-1.5">
+              <div className="rounded-lg bg-content2/50 p-3 text-center">
+                <p className="text-xs font-medium text-default-500">Sign in to view your chats</p>
               </div>
             </div>
           ) : isLoadingChats ? (
-            <div className="flex-1 px-3 py-2">
+            <div className="flex-1 px-2 py-1.5">
               <LoadingSkeleton />
             </div>
           ) : chatsError ? (
-            <div className="flex-1 px-3 py-2">
+            <div className="flex-1 px-2 py-1.5">
               <ErrorState onRetry={() => invalidateSessions()} />
             </div>
           ) : chats.length === 0 ? (
-            <div className="flex-1 px-3 py-2">
+            <div className="flex-1 px-2 py-1.5">
               <EmptyState />
             </div>
           ) : (

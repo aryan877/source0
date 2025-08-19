@@ -134,7 +134,7 @@ export const ModelControls = ({
   } as const;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       {/* Hidden file input */}
       <input
         type="file"
@@ -150,17 +150,13 @@ export const ModelControls = ({
       {computedValues.hasReasoning && computedValues.availableReasoningLevels.length > 0 && (
         <Dropdown placement="top-start">
           <DropdownTrigger>
-            <Button
-              variant="flat"
-              size="sm"
-              className="h-8 min-w-0 rounded-lg border border-primary/20 bg-content2/60 px-3 text-primary transition-all duration-200 hover:border-primary/40 hover:bg-content2"
-              startContent={<CpuChipIconSolid className="h-4 w-4 text-primary" />}
-              endContent={<ChevronDownIcon className="h-3 w-3 text-primary/70" />}
+            <button
+              className="flex items-center gap-1.5 rounded-full border border-content3/50 bg-content2/60 px-2.5 py-1 text-sm font-medium text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
             >
-              <span className="hidden text-xs font-medium sm:inline">
-                {reasoningLevelLabels[reasoningLevel]}
-              </span>
-            </Button>
+              <CpuChipIconSolid className="h-3.5 w-3.5" />
+              <span>{reasoningLevelLabels[reasoningLevel]}</span>
+              <ChevronDownIcon className="h-3 w-3" />
+            </button>
           </DropdownTrigger>
           <DropdownMenu
             selectedKeys={[reasoningLevel]}
@@ -225,25 +221,21 @@ export const ModelControls = ({
           closeDelay={100}
           showArrow
         >
-          <Button
-            variant="flat"
-            size="sm"
-            className={`h-8 min-w-0 rounded-lg border px-3 text-xs font-medium transition-all duration-200 hover:scale-105 ${
+          <button
+            onClick={() => onSearchToggle(!searchEnabled)}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
               searchEnabled
-                ? "border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/20"
-                : "border-content2 bg-content2/60 text-foreground/70 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
+                ? "border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15"
+                : "border-content3/50 bg-content2/60 text-foreground/70 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
             }`}
-            startContent={
-              searchEnabled ? (
-                <GlobeAltIconSolid className="h-4 w-4" />
-              ) : (
-                <GlobeAltIcon className="h-4 w-4" />
-              )
-            }
-            onPress={() => onSearchToggle(!searchEnabled)}
           >
-            <span className="hidden sm:inline">{searchEnabled ? "Search ON" : "Search"}</span>
-          </Button>
+            {searchEnabled ? (
+              <GlobeAltIconSolid className="h-3.5 w-3.5" />
+            ) : (
+              <GlobeAltIcon className="h-3.5 w-3.5" />
+            )}
+            <span>Search</span>
+          </button>
         </Tooltip>
       )}
 
@@ -274,25 +266,21 @@ export const ModelControls = ({
           closeDelay={100}
           showArrow
         >
-          <Button
-            variant="flat"
-            size="sm"
-            className={`h-8 min-w-0 rounded-lg border px-3 text-xs font-medium transition-all duration-200 hover:scale-105 ${
+          <button
+            onClick={() => onImageGenerationToggle(!imageGenerationEnabled)}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
               imageGenerationEnabled
-                ? "border-warning/30 bg-warning/10 text-warning hover:border-warning/50 hover:bg-warning/20"
-                : "border-content2 bg-content2/60 text-foreground/70 hover:border-default-300 hover:bg-content2 hover:text-foreground/90"
+                ? "border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15"
+                : "border-content3/50 bg-content2/60 text-foreground/70 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
             }`}
-            startContent={
-              imageGenerationEnabled ? (
-                <PhotoIconSolid className="h-4 w-4" />
-              ) : (
-                <PhotoIcon className="h-4 w-4" />
-              )
-            }
-            onPress={() => onImageGenerationToggle(!imageGenerationEnabled)}
           >
-            <span className="hidden sm:inline">{imageGenerationEnabled ? "Images ON" : "Images"}</span>
-          </Button>
+            {imageGenerationEnabled ? (
+              <PhotoIconSolid className="h-3.5 w-3.5" />
+            ) : (
+              <PhotoIcon className="h-3.5 w-3.5" />
+            )}
+            <span>Create Image</span>
+          </button>
         </Tooltip>
       )}
 
@@ -325,11 +313,11 @@ export const ModelControls = ({
           variant="flat"
           size="sm"
           isIconOnly
-          className="h-8 w-8 flex-shrink-0 rounded-lg border border-content2 bg-content2/60 text-foreground/70 transition-all duration-200 hover:scale-105 hover:border-default-300 hover:bg-content2 hover:text-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-7 w-7 flex-shrink-0 rounded-full border border-content3/50 bg-content2/60 text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80 disabled:cursor-not-allowed disabled:opacity-50"
           onPress={() => fileInputRef.current?.click()}
           isDisabled={isLoading || !computedValues.canAttachFiles}
         >
-          <PaperClipIcon className="h-4 w-4" />
+          <PaperClipIcon className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
     </div>

@@ -14,7 +14,6 @@ import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
-import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
@@ -82,12 +81,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const chatBody = useMemo(() => {
-    const modelConfig = getModelById(selectedModel);
-    const provider = modelConfig?.provider;
-    const apiKey =
-      provider && useApiKeysStore.getState().shouldUseProviderKey(provider)
-        ? useApiKeysStore.getState().getApiKey(provider)
-        : undefined;
+    // API keys are now handled server-side from database
+    const apiKey = undefined;
 
     return {
       model: selectedModel,

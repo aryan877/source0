@@ -12,6 +12,7 @@ export const messageMetadataSchema = z.object({
   totalTokens: z.number().optional(),
   promptTokens: z.number().optional(),
   completionTokens: z.number().optional(),
+  reasoningTokens: z.number().optional(),
 
   // Duration (AI SDK standard)
   duration: z.number().optional(),

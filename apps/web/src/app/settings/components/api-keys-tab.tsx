@@ -1,37 +1,57 @@
 "use client";
 
 import { ProviderIcon } from "@/components/chat/provider-icon";
+import { PROVIDER_MAPPING, type Provider } from "@/config/models";
+import {
+  useClearAllApiKeys,
+  useRemoveApiKey,
+  useSetApiKey,
+  useSetByokSettings,
+  useToggleProvider,
+  useUserApiKeys,
+  useUserByokSettings
+} from "@/hooks/queries/use-user-api-keys";
 import { getApiKeySchema } from "@/lib/validations/api-keys";
-import { useApiKeysStore, type SupportedProvider } from "@/stores/api-keys-store";
 import { EyeIcon, EyeSlashIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { addToast, Alert, Button, Card, CardBody, Input, Switch } from "@heroui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+
+export type SupportedProvider = Provider;
 
 export function ApiKeysTab() {
-  const {
-    apiKeys,
-    globalByokEnabled,
-    setApiKey,
-    removeApiKey,
-    setGlobalByokEnabled,
-    isProviderKeySet,
-    getSupportedProviders,
-    clearAllKeys,
-  } = useApiKeysStore();
+  const [showApiKeys, setShowApiKeys] = useState<Partial<Record<SupportedProvider, boolean>>>({});
+  const [apiKeyInputs, setApiKeyInputs] = useState<Partial<Record<SupportedProvider, string>>>({});
 
-  const [showApiKeys, setShowApiKeys] = useState<Record<SupportedProvider, boolean>>(
-    {} as Record<SupportedProvider, boolean>
-  );
-  const [apiKeyInputs, setApiKeyInputs] = useState<Record<SupportedProvider, string>>(
-    {} as Record<SupportedProvider, string>
-  );
+  const supportedProviders = useMemo(() => {
+    return Object.keys(PROVIDER_MAPPING).filter(
+      (provider) => PROVIDER_MAPPING[provider as SupportedProvider].supported
+    ) as SupportedProvider[];
+  }, []);
 
-  const supportedProviders = useMemo(() => getSupportedProviders(), [getSupportedProviders]);
+  // Hooks
+  const { data: apiKeysData = [] } = useUserApiKeys();
+  const { data: byokSettings } = useUserByokSettings();
+  const setApiKeyMutation = useSetApiKey();
+  const removeApiKeyMutation = useRemoveApiKey();
+  const setByokMutation = useSetByokSettings();
+  const clearAllKeysMutation = useClearAllApiKeys();
+  const toggleProviderMutation = useToggleProvider();
 
-  useEffect(() => {
-    setApiKeyInputs(apiKeys);
-  }, [apiKeys]);
+  // Transform API keys data for easier access
+  const apiKeysMap = useMemo(() => {
+    const map: Record<string, { key: string; enabled: boolean }> = {};
+    apiKeysData.forEach((key) => {
+      if (key.provider) {
+        map[key.provider] = { 
+          key: key.api_key_encrypted || '',
+          enabled: key.is_enabled ?? true 
+        };
+      }
+    });
+    return map;
+  }, [apiKeysData]);
 
+  // Handlers
   const handleApiKeyChange = (provider: SupportedProvider, value: string) => {
     setApiKeyInputs((prev) => ({ ...prev, [provider]: value }));
   };
@@ -56,25 +76,17 @@ export function ApiKeysTab() {
         description: validationResult.error.errors[0]?.message || "Invalid format.",
         color: "danger",
       });
-    } else {
-      if (typeof validationResult.data === "string") {
-        setApiKey(provider, validationResult.data);
-        addToast({
-          title: "API Key Saved",
-          description: `Your ${provider} API key has been saved.`,
-          color: "success",
-        });
-      }
+      return;
     }
+
+    setApiKeyMutation.mutate({ provider, key: validationResult.data });
   };
 
   const handleRemoveApiKey = (provider: SupportedProvider) => {
-    removeApiKey(provider);
-    setApiKeyInputs((prev) => ({ ...prev, [provider]: "" }));
-    addToast({
-      title: "API Key Removed",
-      description: `Your ${provider} API key has been removed.`,
-      color: "warning",
+    removeApiKeyMutation.mutate(provider, {
+      onSuccess: () => {
+        setApiKeyInputs((prev) => ({ ...prev, [provider]: "" }));
+      }
     });
   };
 
@@ -83,21 +95,28 @@ export function ApiKeysTab() {
   };
 
   const handleClearAllKeys = () => {
-    clearAllKeys();
-    setApiKeyInputs({} as Record<SupportedProvider, string>);
-    addToast({
-      title: "All Keys Cleared",
-      description: "All personal API keys have been removed.",
-      color: "warning",
+    clearAllKeysMutation.mutate(undefined, {
+      onSuccess: () => {
+        setApiKeyInputs({} as Partial<Record<SupportedProvider, string>>);
+      }
     });
   };
+
+  const isProviderKeySet = (provider: SupportedProvider) => {
+    return !!apiKeysMap[provider]?.key?.trim();
+  };
+
+  const isProviderEnabled = (provider: SupportedProvider) => {
+    return apiKeysMap[provider]?.enabled ?? true;
+  };
+
+
   return (
     <div className="space-y-8">
       <Alert>
         <div className="flex items-center">
           <span className="ml-2 text-sm">
-            Your API keys are stored securely in your browser&apos;s local storage and are are sent
-            to our server on per request basis.
+            Your API keys are stored securely in the database and are encrypted at rest.
           </span>
         </div>
       </Alert>
@@ -117,13 +136,10 @@ export function ApiKeysTab() {
             </p>
           </div>
           <Switch
-            isSelected={globalByokEnabled}
+            isSelected={byokSettings?.global_byok_enabled || false}
             onValueChange={(isSelected) => {
-              setGlobalByokEnabled(isSelected);
-              addToast({
-                title: "Setting Changed",
-                description: `Bring Your Own Key is now ${isSelected ? "enabled" : "disabled"}.`,
-                color: "primary",
+              setByokMutation.mutate({ 
+                enabled: isSelected
               });
             }}
           />
@@ -162,7 +178,7 @@ export function ApiKeysTab() {
                     type={showApiKeys[provider] ? "text" : "password"}
                     label={`${provider} API Key`}
                     placeholder={`Enter your ${provider} API key`}
-                    value={apiKeyInputs[provider] || ""}
+                    value={apiKeyInputs[provider] ?? apiKeysMap[provider]?.key ?? ""}
                     onValueChange={(value) => handleApiKeyChange(provider, value)}
                     variant="bordered"
                     endContent={
@@ -202,6 +218,29 @@ export function ApiKeysTab() {
                       Remove Key
                     </Button>
                   </div>
+
+                  {/* Provider-level toggle - only show if provider has API key */}
+                  {isProviderKeySet(provider) && (
+                    <div className="mt-4 border-t border-divider pt-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground">Enable {provider}</h4>
+                          <p className="text-xs text-default-500">
+                            Toggle to enable/disable all {provider} models at once.
+                          </p>
+                        </div>
+                        <Switch
+                          isSelected={isProviderEnabled(provider)}
+                          onValueChange={(checked) => {
+                            toggleProviderMutation.mutate({
+                              provider,
+                              enabled: checked,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardBody>
             </Card>

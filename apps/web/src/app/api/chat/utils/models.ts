@@ -1,4 +1,6 @@
 import { PROVIDER_MAPPING, type ModelConfig, type ReasoningLevel } from "@/config/models";
+import { isModelEnabledForUser } from "@/services/user-api-keys.server";
+import { type Database } from "@/types/supabase-types";
 import { anthropic } from "@ai-sdk/anthropic";
 import { deepseek } from "@ai-sdk/deepseek";
 import { google } from "@ai-sdk/google";
@@ -6,6 +8,7 @@ import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { type JSONValue, type LanguageModel } from "ai";
 
 const PROVIDERS = { google, openai, anthropic, xai, deepseek, groq } as const;
@@ -65,6 +68,40 @@ export const getModelMapping = (config: ModelConfig, apiKey?: string): ModelMapp
     model: config.apiModelName,
     providerInfo,
   };
+};
+
+// Enhanced function that checks both model availability and user permissions
+export const getModelMappingWithPermissions = async (
+  config: ModelConfig, 
+  apiKey: string | undefined, 
+  supabase: SupabaseClient<Database>, 
+  userId: string
+): Promise<ModelMapping> => {
+  // First check basic model mapping
+  const basicMapping = getModelMapping(config, apiKey);
+  if (!basicMapping.supported) {
+    return basicMapping;
+  }
+
+  // If user has BYOK enabled for this model, check if it's allowed
+  try {
+    const isEnabled = await isModelEnabledForUser(supabase, userId, config.id, config.provider);
+    if (!isEnabled) {
+      // Check if user is trying to use BYOK but model is disabled
+      const hasUserKey = !!apiKey; // apiKey would be from user's database
+      if (hasUserKey) {
+        return {
+          supported: false,
+          message: `${config.name} is disabled in your BYOK settings. Enable it in Settings > API Keys.`,
+        };
+      }
+    }
+  } catch (error) {
+    // If permission check fails, continue with basic mapping (fallback to default keys)
+    console.warn('Failed to check model permissions:', error);
+  }
+
+  return basicMapping;
 };
 
 export const buildProviderOptions = (

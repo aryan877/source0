@@ -262,16 +262,6 @@ export default function LoginPage() {
                 <LoginButton />
               </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 1.1 }}
-                className="text-center"
-              >
-                <p className="text-xs text-default-500">
-                  Built for the <span className="font-semibold text-primary">T3 Cloneathon</span>
-                </p>
-              </motion.div>
             </motion.div>
           </motion.div>
         </div>

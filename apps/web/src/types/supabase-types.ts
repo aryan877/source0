@@ -322,6 +322,7 @@ export type Database = {
           model_id: string
           prompt_tokens: number
           provider: string
+          reasoning_tokens: number | null
           session_id: string
           total_tokens: number
           user_id: string
@@ -333,6 +334,7 @@ export type Database = {
           model_id: string
           prompt_tokens: number
           provider: string
+          reasoning_tokens?: number | null
           session_id: string
           total_tokens: number
           user_id: string
@@ -344,6 +346,7 @@ export type Database = {
           model_id?: string
           prompt_tokens?: number
           provider?: string
+          reasoning_tokens?: number | null
           session_id?: string
           total_tokens?: number
           user_id?: string
@@ -357,6 +360,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_api_keys: {
+        Row: {
+          api_key_encrypted: string
+          created_at: string | null
+          id: string
+          is_enabled: boolean
+          provider: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          provider: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key_encrypted?: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          provider?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_byok_settings: {
+        Row: {
+          created_at: string | null
+          global_byok_enabled: boolean
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          global_byok_enabled?: boolean
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          global_byok_enabled?: boolean
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {
@@ -429,9 +483,14 @@ export type Database = {
         Returns: {
           total_completion_tokens: number
           total_prompt_tokens: number
+          total_reasoning_tokens: number
           total_requests: number
           total_tokens: number
         }[]
+      }
+      get_user_api_key: {
+        Args: { p_provider: string; p_user_id: string }
+        Returns: string
       }
       gtrgm_compress: {
         Args: { "": unknown }
@@ -484,6 +543,10 @@ export type Database = {
       hnswhandler: {
         Args: { "": unknown }
         Returns: unknown
+      }
+      is_model_enabled_for_user: {
+        Args: { p_model_id: string; p_provider: string; p_user_id: string }
+        Returns: boolean
       }
       ivfflat_bit_support: {
         Args: { "": unknown }

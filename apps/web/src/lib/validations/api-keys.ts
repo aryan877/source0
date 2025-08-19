@@ -1,41 +1,52 @@
+import { type Provider } from "@/config/models";
 import { z } from "zod";
 
-const openAIKeySchema = z
-  .string()
-  .trim()
-  .refine(
-    (key) => key.startsWith("sk-proj-") || key.startsWith("sk-"),
-    "Invalid OpenAI key format."
-  );
+// Provider key validation patterns - derived from models config
+const PROVIDER_KEY_PATTERNS: Record<Provider, { prefixes: string[]; message: string }> = {
+  OpenAI: {
+    prefixes: ["sk-proj-", "sk-"],
+    message: "Invalid OpenAI key format."
+  },
+  Google: {
+    prefixes: ["AIzaSy"],
+    message: "Invalid Google API key format."
+  },
+  Anthropic: {
+    prefixes: ["sk-ant-"],
+    message: "Invalid Anthropic API key format."
+  },
+  xAI: {
+    prefixes: ["xai-"],
+    message: "Invalid xAI API key format."
+  },
+  Groq: {
+    prefixes: ["gsk_"],
+    message: "Invalid Groq API key format."
+  },
+  DeepSeek: {
+    prefixes: ["sk-"],
+    message: "Invalid DeepSeek API key format."
+  },
+  OpenRouter: {
+    prefixes: ["sk-or-"],
+    message: "Invalid OpenRouter API key format."
+  }
+} as const;
 
-const googleKeySchema = z.string().trim().startsWith("AIzaSy", "Invalid Google API key format.");
-
-const anthropicKeySchema = z
-  .string()
-  .trim()
-  .startsWith("sk-ant-", "Invalid Anthropic API key format.");
-
-const xaiKeySchema = z.string().trim().startsWith("xai-", "Invalid xAI API key format.");
-
-const groqKeySchema = z.string().trim().startsWith("gsk_", "Invalid Groq API key format.");
-
-const deepSeekKeySchema = z.string().trim().startsWith("sk-", "Invalid DeepSeek API key format.");
-
-const openRouterKeySchema = z
-  .string()
-  .trim()
-  .startsWith("sk-or-", "Invalid OpenRouter API key format.");
-
-export const apiKeySchema = z.object({
-  OpenAI: openAIKeySchema.optional().or(z.literal("")),
-  Google: googleKeySchema.optional().or(z.literal("")),
-  Anthropic: anthropicKeySchema.optional().or(z.literal("")),
-  xAI: xaiKeySchema.optional().or(z.literal("")),
-  Groq: groqKeySchema.optional().or(z.literal("")),
-  DeepSeek: deepSeekKeySchema.optional().or(z.literal("")),
-  OpenRouter: openRouterKeySchema.optional().or(z.literal("")),
-});
-
-export const getApiKeySchema = (provider: keyof typeof apiKeySchema.shape) => {
-  return apiKeySchema.shape[provider];
+// Create validation schema for a provider
+const createProviderKeySchema = (provider: Provider) => {
+  const { prefixes, message } = PROVIDER_KEY_PATTERNS[provider];
+  return z
+    .string()
+    .trim()
+    .refine(
+      (key) => prefixes.some(prefix => key.startsWith(prefix)),
+      message
+    );
 };
+
+
+export const getApiKeySchema = (provider: Provider) => {
+  return createProviderKeySchema(provider);
+};
+ 

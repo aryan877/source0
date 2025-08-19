@@ -1,4 +1,4 @@
-import { ModelConfig } from "@/config/models";
+import { getShowcaseModels, type ModelConfig } from "@/config/models";
 import { themeColorMap, themeOptions } from "@/stores/user-preferences-store";
 import {
   ArrowPathIcon,
@@ -30,15 +30,8 @@ export interface Feature {
     | "tokenSaving";
 }
 
-const showcaseData: { provider: ModelConfig["provider"]; model: string }[] = [
-  { provider: "OpenAI", model: "GPT-4o" },
-  { provider: "Anthropic", model: "Claude 3.5 Sonnet" },
-  { provider: "Google", model: "Gemini 2.5 Pro" },
-  { provider: "xAI", model: "Grok 3" },
-  { provider: "Groq", model: "Llama 3.3 70B" },
-  { provider: "DeepSeek", model: "DeepSeek R1 Preview" },
-  { provider: "OpenRouter", model: "Qwen3 30B" },
-];
+const showcaseData = getShowcaseModels()
+  .map((m: ModelConfig) => ({ provider: m.provider, model: m.name }));
 
 const ProviderShowcase = () => {
   const [currentProvider, setCurrentProvider] = useState(0);
@@ -96,7 +89,7 @@ const ProviderShowcase = () => {
         </AnimatePresence>
 
         <div className="flex gap-1">
-          {showcaseData.map((_, index) => (
+          {showcaseData.map((_: unknown, index: number) => (
             <motion.div
               key={index}
               animate={{
@@ -127,7 +120,7 @@ const ThemeShowcase = () => {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="flex gap-3">
-        {themeOptions.slice(2, 7).map((theme, index) => {
+        {themeOptions.slice(2, 7).map((theme, index: number) => {
           const colors = themeColorMap[theme.key as keyof typeof themeColorMap];
           const isSelected = selectedTheme === index;
 
@@ -257,74 +250,50 @@ const StreamingAnimation = () => {
   );
 };
 
-const SettingsAnimation = () => {
-  const [settings, setSettings] = useState({
-    hidePersonalInfo: false,
-    showSamplePrompts: true,
-    memoryEnabled: true,
-    suggestQuestions: true,
-    showChatNavigator: false,
-  });
+const settings = [
+  { key: 'memory', label: 'Memory Enabled', default: true },
+  { key: 'prompts', label: 'Sample Prompts', default: true },
+  { key: 'questions', label: 'Suggest Questions', default: true },
+  { key: 'privacy', label: 'Hide Personal Info', default: false },
+  { key: 'navigator', label: 'Chat Navigator', default: false },
+];
 
-  const settingLabels = {
-    hidePersonalInfo: "Hide Personal Info",
-    showSamplePrompts: "Sample Prompts",
-    memoryEnabled: "Memory Enabled",
-    suggestQuestions: "Suggest Questions",
-    showChatNavigator: "Chat Navigator",
-  };
+const SettingsAnimation = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const settingKeys = Object.keys(settings) as Array<keyof typeof settings>;
-      const randomKey = settingKeys[Math.floor(Math.random() * settingKeys.length)];
-      if (randomKey) {
-        setSettings((prev) => ({
-          ...prev,
-          [randomKey]: !prev[randomKey],
-        }));
-      }
+      setActiveIndex((prev) => (prev + 1) % settings.length);
     }, 2000);
-
     return () => clearInterval(interval);
-  }, [settings]);
+  }, []);
 
   return (
     <div className="flex h-full items-center justify-center p-2">
-      <div className="w-full max-w-xs">
-        <div className="rounded-xl bg-content1 p-4 shadow-lg">
-          <div className="mb-4 flex items-center gap-2">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            >
-              <Cog6ToothIcon className="h-5 w-5 text-primary" />
-            </motion.div>
-            <span className="text-sm font-semibold">Settings</span>
-          </div>
-
-          <div className="space-y-3">
-            {Object.entries(settings).map(([key, value]) => (
-              <motion.div key={key} layout className="flex items-center justify-between gap-4">
-                <span className="text-xs text-default-600">
-                  {settingLabels[key as keyof typeof settingLabels]}
-                </span>
-                <motion.div
-                  className={`relative h-4 w-7 cursor-pointer rounded-full transition-colors ${
-                    value ? "bg-primary" : "bg-default-300"
-                  }`}
-                >
+      <div className="w-full max-w-xs rounded-xl bg-content1 p-4 shadow-lg">
+        <div className="mb-4 flex items-center gap-2">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }}>
+            <Cog6ToothIcon className="h-5 w-5 text-primary" />
+          </motion.div>
+          <span className="text-sm font-semibold">Settings</span>
+        </div>
+        <div className="space-y-3">
+          {settings.map((setting, index) => {
+            const isActive = index === activeIndex;
+            const isEnabled = isActive ? !setting.default : setting.default;
+            return (
+              <motion.div key={setting.key} layout className="flex items-center justify-between gap-4">
+                <span className="text-xs text-default-600">{setting.label}</span>
+                <div className={`relative h-4 w-7 rounded-full transition-colors ${isEnabled ? "bg-primary" : "bg-default-300"}`}>
                   <motion.div
-                    animate={{
-                      x: value ? 12 : 0,
-                    }}
+                    animate={{ x: isEnabled ? 12 : 0 }}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                     className="absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-content1 shadow-sm"
                   />
-                </motion.div>
+                </div>
               </motion.div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -738,48 +707,27 @@ const ImageGenerationAnimation = () => {
 
 const TokenSavingAnimation = () => {
   const [step, setStep] = useState(0);
-  const [tokensUsed, setTokensUsed] = useState(0);
-  const [streamText, setStreamText] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const streamingText =
-    "This is a long AI response that would consume many tokens if allowed to complete...";
+  const [progress, setProgress] = useState(0);
+  const steps = ["Ready", "Streaming...", "Stopped", "Tokens Saved!"];
 
   useEffect(() => {
     const sequence = async () => {
-      // Reset state
       setStep(0);
-      setTokensUsed(0);
-      setStreamText("");
-      setIsStreaming(false);
+      setProgress(0);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Start streaming
       setStep(1);
-      setIsStreaming(true);
+      // Simulate streaming progress
+      for (let i = 0; i <= 60; i += 10) {
+        setProgress(i);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
 
-      // Simulate token counting and text streaming
-      let currentTokens = 0;
-      let currentText = "";
-      const streamInterval = setInterval(() => {
-        if (currentText.length < streamingText.length) {
-          currentText += streamingText[currentText.length];
-          currentTokens += Math.random() > 0.7 ? 2 : 1; // Simulate token usage
-          setStreamText(currentText);
-          setTokensUsed(currentTokens);
-        }
-      }, 100);
-
-      // Let it stream for a bit
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // User presses stop
-      clearInterval(streamInterval);
       setStep(2);
-      setIsStreaming(false);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Show savings
       setStep(3);
+      setProgress(100);
       await new Promise((resolve) => setTimeout(resolve, 2500));
     };
 
@@ -788,112 +736,51 @@ const TokenSavingAnimation = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const estimatedTotalTokens = Math.floor(streamingText.length * 1.3);
-  const tokensSaved = estimatedTotalTokens - tokensUsed;
-
+  const statusColor = step === 0 ? "bg-default-300" : step === 1 ? "bg-primary" : step === 2 ? "bg-warning" : "bg-success";
+  
   return (
     <div className="flex h-full items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="rounded-2xl bg-content1 p-4 shadow-lg">
-          {/* Header with status */}
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <motion.div
-                animate={{
-                  scale: isStreaming ? [1, 1.2, 1] : 1,
-                  rotate: isStreaming ? 360 : 0,
-                }}
-                transition={{
-                  duration: isStreaming ? 2 : 0.3,
-                  repeat: isStreaming ? Infinity : 0,
-                  ease: "linear",
-                }}
-              >
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    step === 0
-                      ? "bg-default-300"
-                      : step === 1
-                        ? "bg-primary"
-                        : step === 2
-                          ? "bg-warning"
-                          : "bg-success"
-                  }`}
-                />
-              </motion.div>
-              <span className="text-xs font-medium">
-                {step === 0 && "Ready"}
-                {step === 1 && "Streaming..."}
-                {step === 2 && "Stopped"}
-                {step === 3 && "Tokens Saved!"}
-              </span>
-            </div>
-
-            {/* Token counter */}
-            <div className="text-xs text-default-500">{tokensUsed} tokens</div>
+      <div className="w-full max-w-sm rounded-2xl bg-content1 p-4 shadow-lg">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <motion.div animate={{ scale: step === 1 ? [1, 1.2, 1] : 1 }} transition={{ duration: 2, repeat: step === 1 ? Infinity : 0 }}>
+              <div className={`h-2 w-2 rounded-full ${statusColor}`} />
+            </motion.div>
+            <span className="text-xs font-medium">{steps[step]}</span>
           </div>
+          <div className="text-xs text-default-500">{Math.floor(progress * 1.5)} tokens</div>
+        </div>
 
-          {/* Streaming content */}
-          <div className="mb-4 min-h-[4rem] rounded-lg bg-content2 p-3">
-            <div className="text-xs text-default-700">
-              {streamText}
-              {isStreaming && (
-                <motion.span
-                  animate={{ opacity: [0, 1, 0] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                  className="text-primary"
-                >
-                  |
-                </motion.span>
-              )}
-            </div>
-          </div>
-
-          {/* Action button */}
-          <div className="flex justify-center">
-            <AnimatePresence mode="wait">
-              {step === 1 && (
-                <motion.button
-                  key="stop"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className="rounded-lg bg-danger px-4 py-2 text-xs font-medium text-danger-foreground shadow-lg transition-all hover:bg-danger/90"
-                >
-                  Stop Generation
-                </motion.button>
-              )}
-              {step >= 2 && (
-                <motion.div
-                  key="savings"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center"
-                >
-                  <div className="text-xs font-medium text-success">
-                    💰 {tokensSaved} tokens saved!
-                  </div>
-                  <div className="mt-1 text-xs text-default-500">Redis-powered cancellation</div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+        <div className="mb-4 min-h-[4rem] rounded-lg bg-content2 p-3">
+          <div className="text-xs text-default-700">
+            This is a long AI response that would consume many tokens...
+            {step === 1 && <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity }} className="text-primary">|</motion.span>}
           </div>
         </div>
 
-        {/* Progress visualization */}
+        <div className="flex justify-center">
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div key="stop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+                className="rounded-lg bg-danger px-4 py-2 text-xs font-medium text-danger-foreground">
+                Stop Generation
+              </motion.div>
+            )}
+            {step >= 2 && (
+              <motion.div key="savings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+                <div className="text-xs font-medium text-success">💰 {Math.floor((100 - progress) * 1.2)} tokens saved!</div>
+                <div className="mt-1 text-xs text-default-500">Automatic cancellation</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <div className="mt-4 flex items-center gap-2">
           <div className="flex-1 rounded-full bg-content2 p-1">
-            <motion.div
-              className="h-1 rounded-full bg-gradient-to-r from-primary to-success"
-              animate={{
-                width: step >= 3 ? "100%" : `${(tokensUsed / estimatedTotalTokens) * 100}%`,
-              }}
-              transition={{ duration: 0.3 }}
-            />
+            <motion.div className="h-1 rounded-full bg-gradient-to-r from-primary to-success" 
+              animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
           </div>
-          <span className="text-xs text-default-500">
-            {step >= 3 ? "Optimized!" : `${Math.round((tokensUsed / estimatedTotalTokens) * 100)}%`}
-          </span>
+          <span className="text-xs text-default-500">{step >= 3 ? "Optimized!" : `${Math.round(progress)}%`}</span>
         </div>
       </div>
     </div>
@@ -951,3 +838,4 @@ export function FeatureCard({ title, description, visual }: Feature) {
     </motion.div>
   );
 }
+

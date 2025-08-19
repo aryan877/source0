@@ -6,6 +6,7 @@ import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
 import { saveModelUsageLog } from "@/services/usage-logs.server";
+import { getUserApiKey, shouldUseUserApiKey } from "@/services/user-api-keys.server";
 import { CustomUIMessage, type MessageMetadata } from "@/types/custom-ui-message";
 import { type GoogleProviderMetadata, hasGroundingData } from "@/types/provider-metadata";
 import { createClient } from "@/utils/supabase/server";
@@ -25,7 +26,7 @@ import { createResumableStreamContext } from "resumable-stream";
 import { z } from "zod/v3";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
 import { discoverMcpTools } from "./utils/mcp-tools";
-import { buildSystemMessage, createModelInstance, getModelMapping } from "./utils/models";
+import { buildProviderOptions, buildSystemMessage, createModelInstance, getModelMappingWithPermissions } from "./utils/models";
 import { getToolsForModel } from "./utils/tools";
 
 const MessageSummarySchema = z.object({
@@ -156,7 +157,16 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse(`Model ${model} not found`, 400);
     }
 
-    const mapping = getModelMapping(modelConfig, apiKey);
+    // Check if user should use their own API key for this provider
+    let effectiveApiKey = apiKey;
+    if (await shouldUseUserApiKey(supabase, user.id, modelConfig.provider)) {
+      const userApiKeyData = await getUserApiKey(supabase, user.id, modelConfig.provider);
+      if (userApiKeyData) {
+        effectiveApiKey = userApiKeyData.api_key_encrypted; // Already decrypted by the service
+      }
+    }
+
+    const mapping = await getModelMappingWithPermissions(modelConfig, effectiveApiKey, supabase, user.id);
     if (!mapping.supported) {
       return createErrorResponse(mapping.message, 400);
     }
@@ -230,6 +240,7 @@ export async function POST(req: Request): Promise<Response> {
             userMessageToSave?.id
           ),
           stopWhen: stepCountIs(10),
+          providerOptions: buildProviderOptions(modelConfig, reasoningLevel, effectiveApiKey),
           onFinish: async ({ providerMetadata, text }) => {
             // Stream grounding data if available
             const googleMetadata = providerMetadata?.google as GoogleProviderMetadata | undefined;
@@ -264,6 +275,7 @@ export async function POST(req: Request): Promise<Response> {
         writer.merge(
           result.toUIMessageStream({
             generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
+            sendReasoning: true, // Enable reasoning tokens streaming
             messageMetadata: ({ part }) => {
               if (part.type === "start") {
                 return {
@@ -282,6 +294,7 @@ export async function POST(req: Request): Promise<Response> {
                   totalTokens: part.totalUsage?.totalTokens,
                   promptTokens: part.totalUsage?.inputTokens,
                   completionTokens: part.totalUsage?.outputTokens,
+                  reasoningTokens: part.totalUsage?.reasoningTokens,
                   userId: user.id,
                 };
               }
@@ -315,6 +328,7 @@ export async function POST(req: Request): Promise<Response> {
               prompt_tokens: tokenUsage.promptTokens,
               completion_tokens: tokenUsage.completionTokens,
               total_tokens: tokenUsage.totalTokens,
+              reasoning_tokens: tokenUsage.reasoningTokens || 0,
             });
           }
 
@@ -367,6 +381,9 @@ export async function POST(req: Request): Promise<Response> {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-Vercel-AI-Data-Stream": "v1",
+        "Content-Encoding": "none",
+        "Transfer-Encoding": "chunked", 
+        "Connection": "keep-alive",
       },
     });
   } catch (error) {

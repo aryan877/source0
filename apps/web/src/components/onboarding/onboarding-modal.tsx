@@ -24,7 +24,7 @@ const features: Feature[] = [
     id: "token-saving",
     title: "Smart Token Management",
     description:
-      "Save costs by instantly canceling AI streams server-side when you press stop. Our Redis-powered architecture ensures no wasted tokens.",
+      "Save costs by instantly stopping AI generation when you press stop. Automatic cancellation ensures no wasted tokens.",
     visual: "tokenSaving",
   },
   {
@@ -89,9 +89,6 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
                 Welcome to <span className="font-orbitron font-black tracking-widest">SOURCE0</span>
                 !
               </h2>
-              <span className="rounded-full bg-gradient-to-r from-primary to-secondary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                Built for T3 Cloneathon
-              </span>
             </div>
             <p className="text-sm text-default-500">
               Here&apos;s a quick tour of the powerful features at your fingertips.

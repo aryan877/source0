@@ -39,53 +39,140 @@ export default {
       typography: (theme) => ({
         DEFAULT: {
           css: {
-            // Override all text colors to use foreground
+            // Base text styling
             color: theme("colors.foreground"),
+            lineHeight: "1.7",
             '[class~="lead"]': {
-              color: theme("colors.foreground"),
+              color: theme("colors.foreground.800"),
+              fontSize: "1.1em",
             },
+            
+            // Enhanced links
             a: {
               color: theme("colors.primary.DEFAULT"),
+              textDecoration: "none",
+              fontWeight: "500",
+              borderBottom: `1px solid transparent`,
+              transition: "all 0.2s ease",
               "&:hover": {
                 color: theme("colors.primary.600"),
+                borderBottomColor: theme("colors.primary.400"),
               },
             },
+            
+            // Strong text
             strong: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
             },
-            "ol > li::before": {
-              color: theme("colors.foreground"),
-            },
-            "ul > li::before": {
-              backgroundColor: theme("colors.foreground"),
-            },
-            blockquote: {
-              color: theme("colors.foreground"),
-              borderLeftColor: theme("colors.divider"),
-            },
+            
+            // Enhanced headings
             h1: {
               color: theme("colors.foreground"),
+              fontWeight: "700",
+              fontSize: "2em",
+              marginTop: "0",
+              marginBottom: "0.75em",
+              lineHeight: "1.2",
             },
             h2: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
+              fontSize: "1.5em",
+              marginTop: "1.5em",
+              marginBottom: "0.75em",
+              lineHeight: "1.3",
+              paddingBottom: "0.3em",
+              borderBottom: `2px solid ${theme("colors.content3")}`,
             },
             h3: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
+              fontSize: "1.25em",
+              marginTop: "1.25em",
+              marginBottom: "0.5em",
+              lineHeight: "1.4",
             },
             h4: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
+              fontSize: "1.1em",
+              marginTop: "1em",
+              marginBottom: "0.5em",
             },
             h5: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
+              fontSize: "1em",
             },
             h6: {
               color: theme("colors.foreground"),
+              fontWeight: "600",
+              fontSize: "0.9em",
             },
-            "figure figcaption": {
+            
+            // Enhanced lists
+            "ol > li::before": {
+              color: theme("colors.primary.DEFAULT"),
+              fontWeight: "600",
+            },
+            "ul > li::before": {
+              backgroundColor: theme("colors.primary.DEFAULT"),
+              borderRadius: "50%",
+              width: "0.375rem",
+              height: "0.375rem",
+            },
+            "ul > li": {
+              paddingLeft: "0.375rem",
+            },
+            "ol > li": {
+              paddingLeft: "0.375rem",
+            },
+            li: {
               color: theme("colors.foreground"),
+              marginTop: "0.5em",
+              marginBottom: "0.5em",
             },
+            "li p": {
+              marginTop: "0.5em",
+              marginBottom: "0.5em",
+            },
+            "ul ul, ul ol, ol ul, ol ol": {
+              marginTop: "0.5em",
+              marginBottom: "0.5em",
+            },
+            
+            // Enhanced blockquotes
+            blockquote: {
+              color: theme("colors.foreground"),
+              borderLeftColor: theme("colors.primary.DEFAULT"),
+              borderLeftWidth: "4px",
+              fontStyle: "italic",
+              backgroundColor: theme("colors.content1"),
+              padding: "1rem 1.5rem",
+              borderRadius: "0.5rem",
+              margin: "1.5rem 0",
+              position: "relative",
+              "&::before": {
+                content: '"\\201C"',
+                position: "absolute",
+                top: "0.5rem",
+                left: "1rem",
+                fontSize: "1.5rem",
+                color: theme("colors.primary.DEFAULT"),
+                opacity: "0.3",
+              },
+            },
+            
+            // Enhanced code
             code: {
-              color: theme("colors.foreground"),
+              color: theme("colors.primary.DEFAULT"),
+              backgroundColor: theme("colors.content2"),
+              padding: "0.2em 0.4em",
+              borderRadius: "0.25rem",
+              fontSize: "0.875em",
+              fontWeight: "500",
+              border: `1px solid ${theme("colors.content3")}`,
             },
             "a code": {
               color: theme("colors.primary.DEFAULT"),
@@ -93,292 +180,101 @@ export default {
             pre: {
               color: theme("colors.foreground"),
               backgroundColor: theme("colors.content1"),
+              borderRadius: "0.5rem",
+              padding: "1.25rem",
+              border: `1px solid ${theme("colors.content3")}`,
+              overflow: "auto",
             },
             "pre code": {
               color: theme("colors.foreground"),
+              backgroundColor: "transparent",
+              border: "none",
+              padding: "0",
+            },
+            
+            // Enhanced tables
+            table: {
+              borderCollapse: "collapse",
+              width: "100%",
+              marginTop: "1.5rem",
+              marginBottom: "1.5rem",
             },
             thead: {
               color: theme("colors.foreground"),
-              borderBottomColor: theme("colors.divider"),
+              borderBottomColor: theme("colors.content3"),
+              borderBottomWidth: "2px",
+            },
+            "thead th": {
+              backgroundColor: theme("colors.content2"),
+              padding: "0.75rem 1rem",
+              textAlign: "left",
+              fontWeight: "600",
             },
             "tbody tr": {
-              borderBottomColor: theme("colors.divider"),
+              borderBottomColor: theme("colors.content2"),
+              borderBottomWidth: "1px",
+            },
+            "tbody tr:hover": {
+              backgroundColor: theme("colors.content1"),
             },
             "tbody td": {
               color: theme("colors.foreground"),
+              padding: "0.75rem 1rem",
             },
+            
+            // Paragraphs
             p: {
               color: theme("colors.foreground"),
+              marginTop: "1em",
+              marginBottom: "1em",
             },
-            li: {
-              color: theme("colors.foreground"),
-            },
+            
+            // Emphasis
             em: {
               color: theme("colors.foreground"),
+              fontStyle: "italic",
             },
+            
+            // Horizontal rules
             hr: {
-              borderColor: theme("colors.divider"),
+              borderColor: theme("colors.content3"),
+              borderTopWidth: "2px",
+              marginTop: "2rem",
+              marginBottom: "2rem",
+            },
+            
+            // Figure captions
+            "figure figcaption": {
+              color: theme("colors.foreground.600"),
+              fontSize: "0.875em",
+              textAlign: "center",
+              marginTop: "0.5rem",
+              fontStyle: "italic",
             },
           },
         },
         sm: {
           css: {
-            color: theme("colors.foreground"),
-            '[class~="lead"]': {
-              color: theme("colors.foreground"),
-            },
-            a: {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            strong: {
-              color: theme("colors.foreground"),
-            },
-            "ol > li::before": {
-              color: theme("colors.foreground"),
-            },
-            "ul > li::before": {
-              backgroundColor: theme("colors.foreground"),
-            },
-            blockquote: {
-              color: theme("colors.foreground"),
-            },
-            h1: {
-              color: theme("colors.foreground"),
-            },
-            h2: {
-              color: theme("colors.foreground"),
-            },
-            h3: {
-              color: theme("colors.foreground"),
-            },
-            h4: {
-              color: theme("colors.foreground"),
-            },
-            "figure figcaption": {
-              color: theme("colors.foreground"),
-            },
-            code: {
-              color: theme("colors.foreground"),
-            },
-            "a code": {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            pre: {
-              color: theme("colors.foreground"),
-            },
-            "pre code": {
-              color: theme("colors.foreground"),
-            },
-            thead: {
-              color: theme("colors.foreground"),
-            },
-            "tbody td": {
-              color: theme("colors.foreground"),
-            },
-            p: {
-              color: theme("colors.foreground"),
-            },
-            li: {
-              color: theme("colors.foreground"),
-            },
-            em: {
-              color: theme("colors.foreground"),
-            },
+            fontSize: "0.875rem",
+            lineHeight: "1.6",
           },
         },
         lg: {
           css: {
-            color: theme("colors.foreground"),
-            '[class~="lead"]': {
-              color: theme("colors.foreground"),
-            },
-            a: {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            strong: {
-              color: theme("colors.foreground"),
-            },
-            "ol > li::before": {
-              color: theme("colors.foreground"),
-            },
-            "ul > li::before": {
-              backgroundColor: theme("colors.foreground"),
-            },
-            blockquote: {
-              color: theme("colors.foreground"),
-            },
-            h1: {
-              color: theme("colors.foreground"),
-            },
-            h2: {
-              color: theme("colors.foreground"),
-            },
-            h3: {
-              color: theme("colors.foreground"),
-            },
-            h4: {
-              color: theme("colors.foreground"),
-            },
-            "figure figcaption": {
-              color: theme("colors.foreground"),
-            },
-            code: {
-              color: theme("colors.foreground"),
-            },
-            "a code": {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            pre: {
-              color: theme("colors.foreground"),
-            },
-            "pre code": {
-              color: theme("colors.foreground"),
-            },
-            thead: {
-              color: theme("colors.foreground"),
-            },
-            "tbody td": {
-              color: theme("colors.foreground"),
-            },
-            p: {
-              color: theme("colors.foreground"),
-            },
-            li: {
-              color: theme("colors.foreground"),
-            },
-            em: {
-              color: theme("colors.foreground"),
-            },
+            fontSize: "1.125rem",
+            lineHeight: "1.8",
           },
         },
         xl: {
           css: {
-            color: theme("colors.foreground"),
-            '[class~="lead"]': {
-              color: theme("colors.foreground"),
-            },
-            a: {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            strong: {
-              color: theme("colors.foreground"),
-            },
-            "ol > li::before": {
-              color: theme("colors.foreground"),
-            },
-            "ul > li::before": {
-              backgroundColor: theme("colors.foreground"),
-            },
-            blockquote: {
-              color: theme("colors.foreground"),
-            },
-            h1: {
-              color: theme("colors.foreground"),
-            },
-            h2: {
-              color: theme("colors.foreground"),
-            },
-            h3: {
-              color: theme("colors.foreground"),
-            },
-            h4: {
-              color: theme("colors.foreground"),
-            },
-            "figure figcaption": {
-              color: theme("colors.foreground"),
-            },
-            code: {
-              color: theme("colors.foreground"),
-            },
-            "a code": {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            pre: {
-              color: theme("colors.foreground"),
-            },
-            "pre code": {
-              color: theme("colors.foreground"),
-            },
-            thead: {
-              color: theme("colors.foreground"),
-            },
-            "tbody td": {
-              color: theme("colors.foreground"),
-            },
-            p: {
-              color: theme("colors.foreground"),
-            },
-            li: {
-              color: theme("colors.foreground"),
-            },
-            em: {
-              color: theme("colors.foreground"),
-            },
+            fontSize: "1.25rem",
+            lineHeight: "1.8",
           },
         },
         "2xl": {
           css: {
-            color: theme("colors.foreground"),
-            '[class~="lead"]': {
-              color: theme("colors.foreground"),
-            },
-            a: {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            strong: {
-              color: theme("colors.foreground"),
-            },
-            "ol > li::before": {
-              color: theme("colors.foreground"),
-            },
-            "ul > li::before": {
-              backgroundColor: theme("colors.foreground"),
-            },
-            blockquote: {
-              color: theme("colors.foreground"),
-            },
-            h1: {
-              color: theme("colors.foreground"),
-            },
-            h2: {
-              color: theme("colors.foreground"),
-            },
-            h3: {
-              color: theme("colors.foreground"),
-            },
-            h4: {
-              color: theme("colors.foreground"),
-            },
-            "figure figcaption": {
-              color: theme("colors.foreground"),
-            },
-            code: {
-              color: theme("colors.foreground"),
-            },
-            "a code": {
-              color: theme("colors.primary.DEFAULT"),
-            },
-            pre: {
-              color: theme("colors.foreground"),
-            },
-            "pre code": {
-              color: theme("colors.foreground"),
-            },
-            thead: {
-              color: theme("colors.foreground"),
-            },
-            "tbody td": {
-              color: theme("colors.foreground"),
-            },
-            p: {
-              color: theme("colors.foreground"),
-            },
-            li: {
-              color: theme("colors.foreground"),
-            },
-            em: {
-              color: theme("colors.foreground"),
-            },
+            fontSize: "1.5rem",
+            lineHeight: "1.8",
           },
         },
       }),
