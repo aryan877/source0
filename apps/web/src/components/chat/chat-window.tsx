@@ -12,12 +12,7 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
-import {
-  createSession,
-  deleteFromPoint,
-  getLatestStreamIdWithStatus,
-  saveAssistantMessage,
-} from "@/services";
+import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
@@ -138,115 +133,146 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   const [input, setInput] = useState("");
 
-  const { messages, status, error, sendMessage, stop, setMessages } = useChat<CustomUIMessage>({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: chatBody,
-    }),
-    id: chatId === "new" ? undefined : chatId,
-    experimental_throttle: 100,
-    onError: (error) => {
-      // The `useChat` hook's `error` object will be populated.
-      // We log it here for debugging, but we don't need to set a separate `uiError`
-      // state as that would be redundant. `ErrorDisplay` will use the `error` object.
-      console.error("An error occurred in the chat stream:", error);
-    },
-    onFinish: async ({ message }: { message: CustomUIMessage }) => {
-      console.log(message);
-      console.log("onFinish", message);
-      if (process.env.NODE_ENV === "development") {
-        console.log("Chat stream finished", {
-          chatId,
-          selectedModel: selectedModel,
-          messageId: message.id,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      if (messagesContainerRef.current) {
-        const messagesContainer = messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
-        if (messagesContainer) {
-          const messagesContainerElement = messagesContainer as HTMLElement;
-          const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
-          messagesContainerElement.style.paddingBottom = originalPadding;
+  const { messages, status, error, sendMessage, stop, setMessages, resumeStream } =
+    useChat<CustomUIMessage>({
+      transport: new DefaultChatTransport({
+        api: "/api/chat",
+        body: chatBody,
+        prepareReconnectToStreamRequest: ({ id }) => ({
+          api: `/api/chat?chatId=${id}`,
+        }),
+      }),
+      id: chatId === "new" ? undefined : chatId,
+      experimental_throttle: 100,
+      onError: (error) => {
+        // The `useChat` hook's `error` object will be populated.
+        // We log it here for debugging, but we don't need to set a separate `uiError`
+        // state as that would be redundant. `ErrorDisplay` will use the `error` object.
+        console.error("An error occurred in the chat stream:", error);
+      },
+      onFinish: async ({ message }: { message: CustomUIMessage }) => {
+        console.log(message);
+        console.log("onFinish", message);
+        if (process.env.NODE_ENV === "development") {
+          console.log("Chat stream finished", {
+            chatId,
+            selectedModel: selectedModel,
+            messageId: message.id,
+            timestamp: new Date().toISOString(),
+          });
         }
-      }
 
-      // Check for grounding and title data in data parts (AI SDK v5)
-      const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
-      const titleParts = message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
-
-      let hasGrounding = false;
-
-      // Handle grounding data parts
-      if (groundingParts.length > 0) {
-        const latestGrounding = groundingParts[groundingParts.length - 1];
-        if (latestGrounding && latestGrounding.data) {
-          hasGrounding = latestGrounding.data.hasGrounding ?? false;
-        }
-      }
-
-      // Extract metadata from message
-      const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
-        databaseId?: string;
-        messageSaved?: boolean;
-        userId?: string;
-      };
-
-      // Handle title generation data parts
-      if (titleParts.length > 0 && chatId !== "new") {
-        const latestTitle = titleParts[titleParts.length - 1];
-        if (latestTitle && latestTitle.data) {
-          const generatedTitle = latestTitle.data.title;
-
-          if (generatedTitle && userId) {
-            const sessionUpdate: ChatSession = {
-              id: chatId,
-              title: generatedTitle,
-              updated_at: new Date().toISOString(),
-            } as ChatSession;
-
-            updateSessionInCache(sessionUpdate, userId);
+        if (messagesContainerRef.current) {
+          const messagesContainer =
+            messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
+          if (messagesContainer) {
+            const messagesContainerElement = messagesContainer as HTMLElement;
+            const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
+            messagesContainerElement.style.paddingBottom = originalPadding;
           }
         }
-      }
 
-      if (messageSaved && databaseId) {
-        setMessages((current) =>
-          current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
-        );
-      }
+        // Check for grounding and title data in data parts (AI SDK v5)
+        const groundingParts =
+          message.parts?.filter((part) => part.type === "data-grounding") || [];
+        const titleParts =
+          message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
 
-      if (message.role === "assistant") {
-        const assistantText = message.parts.find((p) => p.type === "text")?.text;
-        const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
-        if (lastUserMessage && assistantText) {
-          const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
-          if (userText) {
-            fetchSuggestions(userText, assistantText);
+        let hasGrounding = false;
+
+        // Handle grounding data parts
+        if (groundingParts.length > 0) {
+          const latestGrounding = groundingParts[groundingParts.length - 1];
+          if (latestGrounding && latestGrounding.data) {
+            hasGrounding = latestGrounding.data.hasGrounding ?? false;
           }
         }
-      }
 
-      if (chatId && chatId !== "new") {
-        const delay = hasGrounding ? 200 : 100;
+        // Extract metadata from message
+        const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
+          databaseId?: string;
+          messageSaved?: boolean;
+          userId?: string;
+        };
 
-        setTimeout(() => {
-          invalidateMessages();
-        }, delay);
-      }
+        // Handle title generation data parts
+        if (titleParts.length > 0 && chatId !== "new") {
+          const latestTitle = titleParts[titleParts.length - 1];
+          if (latestTitle && latestTitle.data) {
+            const generatedTitle = latestTitle.data.title;
 
-      if (showChatNavigator) {
-        invalidateSummaries();
-      }
-    },
-  });
+            if (generatedTitle && userId) {
+              const sessionUpdate: ChatSession = {
+                id: chatId,
+                title: generatedTitle,
+                updated_at: new Date().toISOString(),
+              } as ChatSession;
+
+              updateSessionInCache(sessionUpdate, userId);
+            }
+          }
+        }
+
+        if (messageSaved && databaseId) {
+          setMessages((current) =>
+            current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
+          );
+        }
+
+        if (message.role === "assistant") {
+          const assistantText = message.parts.find((p) => p.type === "text")?.text;
+          const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
+          if (lastUserMessage && assistantText) {
+            const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
+            if (userText) {
+              fetchSuggestions(userText, assistantText);
+            }
+          }
+        }
+
+        if (chatId && chatId !== "new") {
+          const delay = hasGrounding ? 200 : 100;
+
+          setTimeout(() => {
+            invalidateMessages();
+          }, delay);
+        }
+
+        if (showChatNavigator) {
+          invalidateSummaries();
+        }
+      },
+    });
 
   useEffect(() => {
     if (status === "ready" && initialMessages.length > 0 && messages.length === 0) {
       setMessages(initialMessages);
     }
   }, [initialMessages, messages.length, setMessages, status]);
+
+  // AI SDK v5 Auto-resume effect
+  useEffect(() => {
+    // Only attempt auto-resume for existing chats, not new ones
+    if (chatId === "new" || !chatId) return;
+
+    // Only resume if we have messages loaded and the chat is ready
+    if (status !== "ready") return;
+
+    // Check if we should auto-resume (last message is from user and we're not currently streaming)
+    const lastMessage = messages.at(-1);
+    const shouldAutoResume =
+      lastMessage?.role === "user" && status === "ready";
+
+    if (shouldAutoResume && resumeStream) {
+      console.log(
+        "Auto-resuming stream for chat:",
+        chatId,
+        "last message role:",
+        lastMessage?.role
+      );
+      resumeStream();
+    }
+  }, [chatId, messages, status, resumeStream]);
 
   // Add suggested questions hook after useChat
   const {
@@ -269,24 +295,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
   const handleStop = useCallback(() => {
     stop();
-
-    if (chatId && chatId !== "new") {
-      getLatestStreamIdWithStatus(chatId)
-        .then((latestStream) => {
-          if (latestStream && !latestStream.cancelled) {
-            console.log(`Sending cancel request for stream ${latestStream.streamId}`);
-            // Fire-and-forget cancellation request
-            fetch("/api/chat/cancel", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId, streamId: latestStream.streamId }),
-            }).catch((e) => console.error("Failed to send cancel request", e));
-          }
-        })
-        .catch((error) => {
-          console.error("Error retrieving latest stream to cancel:", error);
-        });
-    }
 
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
@@ -315,12 +323,25 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           user.id,
           selectedModel,
           modelProvider,
-          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled, imageGenerationEnabled: imageGenerationEnabled },
+          {
+            reasoningLevel: reasoningLevel,
+            searchEnabled: searchEnabled,
+            imageGenerationEnabled: imageGenerationEnabled,
+          },
           { fireAndForget: true }
         );
       }
     }
-  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled, imageGenerationEnabled]);
+  }, [
+    stop,
+    chatId,
+    messages,
+    user,
+    selectedModel,
+    reasoningLevel,
+    searchEnabled,
+    imageGenerationEnabled,
+  ]);
 
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);

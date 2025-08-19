@@ -37,7 +37,7 @@ import {
 } from "@heroui/react";
 import { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitBranchIcon, Pin, PinOff } from "lucide-react";
+import { GitBranchIcon, PanelRight, Pin, PinOff } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -201,19 +201,30 @@ const SidebarOverlay = memo(({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 SidebarOverlay.displayName = "SidebarOverlay";
 
 const SidebarHeader = memo(
-  ({ onNewChat, onOpenGallery }: { onNewChat: () => void; onOpenGallery: () => void }) => (
-    <div className="p-4">
-      <div className="mb-4 flex h-10 items-center justify-center pl-8">
-        <h1 className="font-orbitron text-2xl font-black tracking-widest text-foreground">
+  ({ onNewChat, onOpenGallery, onCloseSidebar }: { onNewChat: () => void; onOpenGallery: () => void; onCloseSidebar: () => void }) => (
+    <div className="p-3">
+      <div className="mb-3 flex h-8 items-center justify-between">
+        <Button
+          variant="light"
+          size="sm"
+          isIconOnly
+          onPress={onCloseSidebar}
+          className="h-7 w-7 transition-all duration-200 hover:bg-content3 rounded-lg"
+          aria-label="Close menu"
+        >
+          <PanelRight className="h-4 w-4" />
+        </Button>
+        <h1 className="font-orbitron text-lg font-black tracking-widest text-foreground">
           SOURCE0
         </h1>
+        <div className="w-7" />
       </div>
       <div className="flex w-full items-center gap-2">
         <Button
           onPress={onNewChat}
           color="primary"
-          size="md"
-          className="relative h-10 w-full overflow-hidden rounded-lg bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 font-semibold text-white shadow-lg shadow-primary/25"
+          size="sm"
+          className="relative h-9 w-full overflow-hidden rounded-lg bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 font-medium text-white shadow-lg shadow-primary/25"
           startContent={
             <div className="relative z-10">
               <PlusIcon className="h-4 w-4" />
@@ -221,7 +232,7 @@ const SidebarHeader = memo(
           }
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
-          <span className="relative z-10 tracking-wide">New Chat</span>
+          <span className="relative z-10 text-sm font-medium tracking-wide">New Chat</span>
         </Button>
         <Tooltip
           content="AI Generated Images Gallery"
@@ -233,10 +244,11 @@ const SidebarHeader = memo(
             onPress={onOpenGallery}
             variant="bordered"
             isIconOnly
+            size="sm"
             aria-label="Image Gallery"
-            className="h-10 min-w-10 border-primary/20 bg-primary/5 transition-colors hover:border-primary/30 hover:bg-primary/10"
+            className="h-9 min-w-9 border-primary/20 bg-primary/5 transition-colors hover:border-primary/30 hover:bg-primary/10 rounded-lg"
           >
-            <PhotoIcon className="h-5 w-5 text-primary" />
+            <PhotoIcon className="h-4 w-4 text-primary" />
           </Button>
         </Tooltip>
       </div>
@@ -266,7 +278,7 @@ const SearchBar = memo(
     }, [isSearchFocused, blurSearch]);
 
     return (
-      <div className="p-3">
+      <div className="px-3 pb-2">
         <div className="relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
@@ -289,15 +301,15 @@ const SearchBar = memo(
             placeholder="Search threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-divider bg-content2 py-2 pl-10 pr-16 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border border-divider bg-content2 py-2.5 pl-10 pr-16 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
           />
           {searchShortcut && (
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 {searchShortcut.display.map((key, index) => (
                   <kbd
                     key={index}
-                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-foreground/20 bg-content3 px-1 text-xs font-medium text-foreground/70"
+                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-foreground/20 bg-content3 px-1.5 text-xs font-medium text-foreground/70"
                   >
                     {key}
                   </kbd>
@@ -314,11 +326,11 @@ const SearchBar = memo(
 SearchBar.displayName = "SearchBar";
 
 const LoadingSkeleton = memo(() => (
-  <div className="space-y-2">
+  <div className="space-y-1">
     {[...Array(3)].map((_, i) => (
-      <div key={i} className="animate-pulse rounded-lg bg-content2 p-3">
-        <div className="mb-2 h-4 w-3/4 rounded bg-content3"></div>
-        <div className="h-3 w-1/2 rounded bg-content3"></div>
+      <div key={i} className="animate-pulse rounded-md bg-content2 p-2">
+        <div className="mb-1 h-3 w-3/4 rounded bg-content3"></div>
+        <div className="h-2 w-1/2 rounded bg-content3"></div>
       </div>
     ))}
   </div>
@@ -327,8 +339,8 @@ const LoadingSkeleton = memo(() => (
 LoadingSkeleton.displayName = "LoadingSkeleton";
 
 const EmptyState = memo(() => (
-  <div className="rounded-lg bg-content2 p-3 text-center">
-    <p className="text-sm text-default-500">No chats yet</p>
+  <div className="rounded-md bg-content2 p-2 text-center">
+    <p className="text-xs text-default-500">No chats yet</p>
     <p className="text-xs text-default-400">Start a new conversation</p>
   </div>
 ));
@@ -336,9 +348,9 @@ const EmptyState = memo(() => (
 EmptyState.displayName = "EmptyState";
 
 const ErrorState = memo(({ onRetry }: { onRetry: () => void }) => (
-  <div className="rounded-lg bg-danger/10 p-3 text-center">
-    <p className="text-sm text-danger">Failed to load chats</p>
-    <Button size="sm" variant="flat" onPress={onRetry} className="mt-2">
+  <div className="rounded-md bg-danger/10 p-2 text-center">
+    <p className="text-xs text-danger">Failed to load chats</p>
+    <Button size="sm" variant="flat" onPress={onRetry} className="mt-1">
       Retry
     </Button>
   </div>
@@ -361,7 +373,7 @@ const ChatItem = memo(
     return (
       <div
         className={`group relative cursor-pointer rounded-lg p-3 transition-all duration-200 ${
-          isSelected ? "border border-primary/20 bg-primary/10" : "hover:bg-content2"
+          isSelected ? "bg-primary/10" : "hover:bg-content2/70"
         }`}
         onClick={() => onSelect(chatId)}
       >
@@ -369,11 +381,11 @@ const ChatItem = memo(
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {isBranched && (
-                <div className="rounded-md bg-content2 p-1">
+                <div className="rounded-md bg-warning/10 p-1">
                   <GitBranchIcon className="h-3 w-3 text-warning-600" />
                 </div>
               )}
-              <h3 className="truncate text-sm font-medium text-foreground">{title}</h3>
+              <h3 className="truncate text-sm font-medium text-foreground leading-tight">{title}</h3>
               {isBranched && (
                 <div className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-900/30 dark:text-warning-400">
                   Branch
@@ -389,7 +401,7 @@ const ChatItem = memo(
                   variant="light"
                   size="sm"
                   isIconOnly
-                  className="min-w-unit-6 h-6 w-6"
+                  className="min-w-unit-6 h-6 w-6 rounded-md"
                   onClick={(e) => e.stopPropagation()}
                   isDisabled={isUpdating}
                 >
@@ -408,7 +420,7 @@ const ChatItem = memo(
                 <DropdownItem
                   key="pin"
                   startContent={
-                    isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />
+                    isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />
                   }
                 >
                   {isPinned ? "Unpin" : "Pin"}
@@ -417,7 +429,7 @@ const ChatItem = memo(
                   key="delete"
                   className="text-danger"
                   color="danger"
-                  startContent={<XMarkIcon className="h-4 w-4" />}
+                  startContent={<XMarkIcon className="h-3.5 w-3.5" />}
                 >
                   Delete
                 </DropdownItem>
@@ -476,7 +488,7 @@ const CategorySection = memo(
     return (
       <div className="mb-4">
         <h4
-          className={`${getTitleColor(title)} mb-2 flex items-center gap-1 px-2 text-xs font-bold uppercase tracking-wider`}
+          className={`${getTitleColor(title)} mb-2 flex items-center gap-1.5 px-2 text-xs font-bold uppercase tracking-wider`}
         >
           {title === "Pinned" && <Pin className="h-3 w-3" />}
           {title}
@@ -533,7 +545,7 @@ const CategorizedChatList = memo(
     const hasAnySessions = Object.values(categorizedSessions).some((arr) => arr.length > 0);
 
     return (
-      <ScrollShadow className="flex-1 p-2">
+      <ScrollShadow hideScrollBar className="flex-1 px-2 py-1 scrollbar-hide">
         <div className="space-y-1">
           <CategorySection
             title="Pinned"
@@ -592,8 +604,8 @@ const CategorizedChatList = memo(
           />
         </div>
         {hasAnySessions && hasNextPage && (
-          <div className="mt-4 flex justify-center">
-            <Button onPress={fetchNextPage} disabled={isFetchingNextPage} variant="flat" size="sm">
+          <div className="mt-4 flex justify-center px-2">
+            <Button onPress={fetchNextPage} disabled={isFetchingNextPage} variant="flat" size="sm" className="w-full rounded-lg">
               {isFetchingNextPage ? "Loading..." : "Load More"}
             </Button>
           </div>
@@ -608,10 +620,10 @@ CategorizedChatList.displayName = "CategorizedChatList";
 const UserInfo = memo(({ user }: { user: User }) => {
   const { hidePersonalInfo } = useUserPreferencesStore();
   return (
-    <div className="rounded-lg bg-content2 p-2">
-      <div className="flex items-center gap-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
-          <UserIcon className="h-3 w-3 text-primary" />
+    <div className="rounded-md bg-content2 p-1.5">
+      <div className="flex items-center gap-1.5">
+        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20">
+          <UserIcon className="h-2.5 w-2.5 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-foreground">
@@ -638,40 +650,40 @@ const SidebarBottomActions = memo(
     onLogin: () => void;
     onOpenSettings: () => void;
   }) => (
-    <div className="space-y-1 p-2">
+    <div className="space-y-1 p-1.5">
       {user ? (
         <div className="space-y-1">
           <UserInfo user={user} />
           <Button
             variant="light"
             size="sm"
-            className="h-8 w-full justify-start gap-2 text-danger"
+            className="h-7 w-full justify-start gap-1.5 text-danger"
             onPress={onSignOut}
-            startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
+            startContent={<ArrowRightOnRectangleIcon className="h-3.5 w-3.5" />}
           >
-            <span className="text-sm font-medium">Sign Out</span>
+            <span className="text-xs font-medium">Sign Out</span>
           </Button>
         </div>
       ) : (
         <Button
           color="primary"
           size="sm"
-          className="h-8 w-full justify-start gap-2"
+          className="h-7 w-full justify-start gap-1.5"
           onPress={onLogin}
-          startContent={<ArrowRightEndOnRectangleIcon className="h-4 w-4" />}
+          startContent={<ArrowRightEndOnRectangleIcon className="h-3.5 w-3.5" />}
         >
-          <span className="text-sm font-medium">Login</span>
+          <span className="text-xs font-medium">Login</span>
         </Button>
       )}
 
       <Button
         variant="light"
         size="sm"
-        className="h-8 w-full justify-start gap-2"
+        className="h-7 w-full justify-start gap-1.5"
         onPress={onOpenSettings}
-        startContent={<Cog6ToothIcon className="h-4 w-4" />}
+        startContent={<Cog6ToothIcon className="h-3.5 w-3.5" />}
       >
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-xs font-medium">Settings</span>
       </Button>
     </div>
   )
@@ -776,28 +788,28 @@ export const Sidebar = memo(
 
         {/* Main Sidebar */}
         <div
-          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-background transition-transform duration-300 ease-in-out ${
+          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-background/95 backdrop-blur-xl transition-transform duration-300 ease-in-out ${
             isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <SidebarHeader onNewChat={handleNewChat} onOpenGallery={handleOpenGallery} />
+          <SidebarHeader onNewChat={handleNewChat} onOpenGallery={handleOpenGallery} onCloseSidebar={onClose} />
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
           {!user ? (
-            <div className="flex-1 p-2">
-              <div className="rounded-lg bg-content2 p-3 text-center">
-                <p className="text-sm text-default-500">Sign in to view your chats</p>
+            <div className="flex-1 px-3 py-2">
+              <div className="rounded-lg bg-content2/50 p-4 text-center">
+                <p className="text-sm font-medium text-default-500">Sign in to view your chats</p>
               </div>
             </div>
           ) : isLoadingChats ? (
-            <div className="flex-1 p-2">
+            <div className="flex-1 px-3 py-2">
               <LoadingSkeleton />
             </div>
           ) : chatsError ? (
-            <div className="flex-1 p-2">
+            <div className="flex-1 px-3 py-2">
               <ErrorState onRetry={() => invalidateSessions()} />
             </div>
           ) : chats.length === 0 ? (
-            <div className="flex-1 p-2">
+            <div className="flex-1 px-3 py-2">
               <EmptyState />
             </div>
           ) : (

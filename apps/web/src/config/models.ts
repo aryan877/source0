@@ -1,4 +1,4 @@
-export type ModelCapability = "image" | "pdf" | "search" | "reasoning";
+export type ModelCapability = "image" | "pdf" | "search" | "reasoning" | "tools";
 
 export type ReasoningLevel = "low" | "medium" | "high";
 
@@ -8,6 +8,7 @@ export const CAPABILITY_LABELS = {
   pdf: "PDFs",
   search: "Search",
   reasoning: "Reasoning",
+  tools: "Tools",
 } as const;
 
 // Provider mapping for AI SDK
@@ -48,20 +49,30 @@ const createModel = (
   provider: keyof typeof PROVIDER_MAPPING,
   apiModelName: string,
   overrides: Partial<ModelConfig> = {}
-): ModelConfig => ({
-  id,
-  name,
-  description,
-  provider,
-  apiModelName,
-  capabilities: [],
-  isOpenSource: false,
-  maxTokens: 8192,
-  supportsStreaming: true,
-  supportsFunctions: true,
-  category: "efficient",
-  ...overrides,
-});
+): ModelConfig => {
+  const baseConfig = {
+    id,
+    name,
+    description,
+    provider,
+    apiModelName,
+    capabilities: [],
+    isOpenSource: false,
+    maxTokens: 8192,
+    supportsStreaming: true,
+    category: "efficient" as const,
+    ...overrides,
+  };
+
+  // Derive supportsFunctions from tools capability (single source of truth)
+  const finalCapabilities = baseConfig.capabilities as ModelCapability[];
+  const supportsFunctions = finalCapabilities.includes("tools");
+
+  return {
+    ...baseConfig,
+    supportsFunctions,
+  };
+};
 
 export const MODELS: ModelConfig[] = [
   // Gemini Models
@@ -72,7 +83,7 @@ export const MODELS: ModelConfig[] = [
     "Google",
     "gemini-2.0-flash",
     {
-      capabilities: ["image", "search"],
+      capabilities: ["image", "pdf", "search", "tools"],
       category: "flagship",
     }
   ),
@@ -83,7 +94,7 @@ export const MODELS: ModelConfig[] = [
     "Google",
     "gemini-2.5-flash-preview-05-20",
     {
-      capabilities: ["image", "search"],
+      capabilities: ["image", "pdf", "search", "tools"],
     }
   ),
   createModel(
@@ -93,7 +104,7 @@ export const MODELS: ModelConfig[] = [
     "Google",
     "gemini-2.5-flash-exp-native-audio-thinking-dialog",
     {
-      capabilities: ["image", "search"],
+      capabilities: ["image", "pdf", "search", "tools"],
       category: "reasoning",
     }
   ),
@@ -104,7 +115,7 @@ export const MODELS: ModelConfig[] = [
     "Google",
     "gemini-2.5-pro-preview-06-05",
     {
-      capabilities: ["image", "pdf", "search", "reasoning"],
+      capabilities: ["image", "pdf", "search", "reasoning", "tools"],
       reasoningLevels: ["low", "medium", "high"],
       category: "flagship",
     }
@@ -118,7 +129,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4o-2024-11-20",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       maxTokens: 4096,
       category: "flagship",
     }
@@ -130,15 +141,14 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4o-mini",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       maxTokens: 4096,
     }
   ),
   createModel("o3-mini", "o3-mini", "Compact reasoning model", "OpenAI", "o3-mini", {
-    capabilities: ["reasoning"],
+    capabilities: ["reasoning", "pdf"],
     reasoningLevels: ["low", "medium", "high"],
     maxTokens: 4096,
-    supportsFunctions: false,
     category: "reasoning",
   }),
   createModel(
@@ -148,10 +158,9 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "o4-mini-2025-04-16",
     {
-      capabilities: ["reasoning", "image"],
+      capabilities: ["reasoning", "image", "pdf"],
       reasoningLevels: ["low", "medium", "high"],
       maxTokens: 4096,
-      supportsFunctions: false,
       category: "reasoning",
     }
   ),
@@ -162,7 +171,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4.5",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       category: "flagship",
     }
   ),
@@ -175,7 +184,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4.1",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       maxTokens: 32768,
       category: "flagship",
     }
@@ -187,7 +196,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4.1-mini",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       maxTokens: 32768,
     }
   ),
@@ -198,7 +207,7 @@ export const MODELS: ModelConfig[] = [
     "OpenAI",
     "gpt-4.1-nano",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       maxTokens: 32768,
     }
   ),
@@ -211,7 +220,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-3-5-sonnet-20241022",
     {
-      capabilities: ["image", "pdf"],
+      capabilities: ["image", "pdf", "tools"],
       category: "flagship",
     }
   ),
@@ -222,7 +231,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-3-7-sonnet-20250219",
     {
-      capabilities: ["image", "pdf"],
+      capabilities: ["image", "pdf", "tools"],
       category: "flagship",
     }
   ),
@@ -233,7 +242,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-3-7-sonnet-20250219",
     {
-      capabilities: ["image", "pdf", "reasoning"],
+      capabilities: ["image", "pdf", "reasoning", "tools"],
       reasoningLevels: ["low", "medium", "high"],
       category: "reasoning",
     }
@@ -245,7 +254,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-sonnet-4-20250514",
     {
-      capabilities: ["image", "pdf"],
+      capabilities: ["image", "pdf", "tools"],
       category: "flagship",
     }
   ),
@@ -256,7 +265,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-sonnet-4-20250514",
     {
-      capabilities: ["image", "pdf", "reasoning"],
+      capabilities: ["image", "pdf", "reasoning", "tools"],
       reasoningLevels: ["low", "medium", "high"],
       category: "reasoning",
     }
@@ -268,7 +277,7 @@ export const MODELS: ModelConfig[] = [
     "Anthropic",
     "claude-opus-4-20250514",
     {
-      capabilities: ["image", "pdf", "reasoning"],
+      capabilities: ["image", "pdf", "reasoning", "tools"],
       category: "flagship",
     }
   ),
@@ -281,6 +290,7 @@ export const MODELS: ModelConfig[] = [
     "Groq",
     "llama-3.3-70b-versatile",
     {
+      capabilities: ["tools"],
       isOpenSource: true,
       category: "flagship",
     }
@@ -292,7 +302,7 @@ export const MODELS: ModelConfig[] = [
     "Groq",
     "meta-llama/llama-4-scout-17b-16e-instruct",
     {
-      capabilities: ["image"],
+      capabilities: ["image", "pdf", "tools"],
       isOpenSource: true,
       category: "vision",
     }
@@ -304,6 +314,7 @@ export const MODELS: ModelConfig[] = [
     "Groq",
     "llama-3.1-8b-instant",
     {
+      capabilities: ["tools"],
       isOpenSource: true,
       category: "efficient",
     }
@@ -316,7 +327,10 @@ export const MODELS: ModelConfig[] = [
     "Conversational AI model (DeepSeek-V3-0324)",
     "DeepSeek",
     "deepseek-chat",
-    { isOpenSource: true }
+    {
+      capabilities: ["tools"],
+      isOpenSource: true,
+    }
   ),
   createModel(
     "deepseek-r1-preview",
@@ -326,19 +340,19 @@ export const MODELS: ModelConfig[] = [
     "deepseek-reasoner",
     {
       isOpenSource: true,
-      capabilities: ["reasoning"],
+      capabilities: ["reasoning", "tools"],
       category: "reasoning",
     }
   ),
 
   // xAI Models
   createModel("grok-3", "Grok 3", "Advanced reasoning model", "xAI", "grok-3", {
-    capabilities: [],
+    capabilities: ["pdf", "tools"],
     isOpenSource: false,
     category: "flagship",
   }),
   createModel("grok-3-mini", "Grok 3 Mini", "Efficient reasoning model", "xAI", "grok-3-mini", {
-    capabilities: ["reasoning"],
+    capabilities: ["reasoning", "pdf", "tools"],
     reasoningLevels: ["low", "high"],
     isOpenSource: false,
     maxTokens: 4096,
@@ -357,7 +371,6 @@ export const MODELS: ModelConfig[] = [
       capabilities: ["reasoning"],
       category: "flagship",
       maxTokens: 40960,
-      supportsFunctions: false,
     }
   ),
   createModel(
@@ -371,7 +384,6 @@ export const MODELS: ModelConfig[] = [
       capabilities: ["reasoning"],
       category: "coding",
       maxTokens: 131072,
-      supportsFunctions: false,
     }
   ),
   createModel(
@@ -385,7 +397,6 @@ export const MODELS: ModelConfig[] = [
       capabilities: ["reasoning"],
       category: "reasoning",
       maxTokens: 131072,
-      supportsFunctions: false,
     }
   ),
 ];

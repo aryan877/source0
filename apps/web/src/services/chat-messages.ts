@@ -4,7 +4,6 @@ import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
-import { type UIMessage } from "ai";
 
 export type DBChatMessage = Tables<"chat_messages">;
 
@@ -12,7 +11,7 @@ export type DBChatMessage = Tables<"chat_messages">;
  * Adds a UIMessage to the database.
  */
 async function addMessage(
-  message: UIMessage,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -121,7 +120,7 @@ export async function deleteFromPoint(
  */
 export async function updateMessageParts(
   messageId: string,
-  parts: UIMessage["parts"]
+  parts: CustomUIMessage["parts"]
 ): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase
@@ -138,7 +137,7 @@ export async function updateMessageParts(
  * Saves a user's message.
  */
 export async function saveUserMessage(
-  userMessage: UIMessage,
+  userMessage: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -149,12 +148,12 @@ export async function saveUserMessage(
  * Saves an assistant's message.
  */
 export async function saveAssistantMessage(
-  message: UIMessage,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string,
   model: string,
   modelProvider: string,
-  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean; imageGenerationEnabled?: boolean },
   options: { fireAndForget?: boolean } = {}
 ): Promise<DBChatMessage | void> {
   const preparedMessage = prepareMessageForDb({
@@ -165,6 +164,7 @@ export async function saveAssistantMessage(
     modelProvider,
     reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
     searchEnabled: modelConfig.searchEnabled,
+    imageGenerationEnabled: modelConfig.imageGenerationEnabled,
   });
 
   const supabase = createClient();

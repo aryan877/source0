@@ -3,7 +3,6 @@ import { type ProviderMetadata } from "@/types/provider-metadata";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { type UIMessage } from "ai";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
 import { type DBChatMessage } from "./chat-messages";
@@ -29,7 +28,7 @@ async function addMessageServer(
  */
 export async function saveUserMessageServer(
   supabase: SupabaseClient,
-  userMessage: UIMessage,
+  userMessage: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -46,7 +45,7 @@ export async function saveUserMessageServer(
  */
 export async function saveAssistantMessageServer(
   supabase: SupabaseClient,
-  message: UIMessage,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string,
   model: string,
@@ -73,7 +72,7 @@ export async function saveAssistantMessageServer(
  */
 export async function saveToolMessageServer(
   supabase: SupabaseClient,
-  message: UIMessage,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {

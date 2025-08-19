@@ -1,10 +1,12 @@
 import { getModelById, type ReasoningLevel } from "@/config/models";
 import { saveAssistantMessageServer, saveUserMessageServer } from "@/services/chat-messages.server";
 import { createOrGetSession } from "@/services/chat-sessions.server";
+import { appendStreamId, loadStreams } from "@/services/chat-streams.server";
 import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
-import { CustomUIMessage } from "@/types/custom-ui-message";
+import { saveModelUsageLog } from "@/services/usage-logs.server";
+import { CustomUIMessage, type MessageMetadata } from "@/types/custom-ui-message";
 import { type GoogleProviderMetadata, hasGroundingData } from "@/types/provider-metadata";
 import { createClient } from "@/utils/supabase/server";
 import { openai } from "@ai-sdk/openai";
@@ -12,12 +14,15 @@ import {
   convertToModelMessages,
   createIdGenerator,
   createUIMessageStream,
-  createUIMessageStreamResponse,
+  generateId,
   generateObject,
+  JsonToSseTransformStream,
   stepCountIs,
   streamText,
 } from "ai";
-import { z } from "zod";
+import { after } from "next/server";
+import { createResumableStreamContext } from "resumable-stream";
+import { z } from "zod/v3";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
 import { discoverMcpTools } from "./utils/mcp-tools";
 import { buildSystemMessage, createModelInstance, getModelMapping } from "./utils/models";
@@ -65,9 +70,49 @@ interface ChatRequest {
   userTraits?: string;
 }
 
+// Create resumable stream context (uses REDIS_URL from environment)
+const streamContext = createResumableStreamContext({
+  waitUntil: after,
+});
+
+// GET handler for resuming streams
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const chatId = searchParams.get("chatId");
+
+  if (!chatId) {
+    return new Response("chatId is required", { status: 400 });
+  }
+
+  const streamIds = await loadStreams(chatId);
+
+  if (!streamIds.length) {
+    console.log(`No streams found for chat ${chatId} - likely no active stream to resume`);
+    return new Response("No active streams to resume", { status: 404 });
+  }
+
+  const recentStreamId = streamIds.at(-1);
+
+  if (!recentStreamId) {
+    return new Response("No recent stream found", { status: 404 });
+  }
+
+  const emptyDataStream = createUIMessageStream({
+    execute: () => {},
+  });
+
+  return new Response(
+    await streamContext.resumableStream(recentStreamId, () =>
+      emptyDataStream.pipeThrough(new JsonToSseTransformStream())
+    )
+  );
+}
+
 export async function POST(req: Request): Promise<Response> {
   try {
     const body: ChatRequest = await req.json();
+    // Generate a unique stream ID for this request
+    const streamId = generateId();
     const {
       messages,
       model = "gemini-2.5-flash",
@@ -162,18 +207,20 @@ export async function POST(req: Request): Promise<Response> {
 
     const modelInstance = createModelInstance(modelConfig, mapping);
 
+    // Record this new stream so we can resume later
+    await appendStreamId({ chatId: finalSessionId, streamId });
+
     const stream = createUIMessageStream({
-      originalMessages: messages,
       execute: async ({ writer }) => {
         const result = streamText({
           model: modelInstance,
           messages: [{ role: "system", content: systemMessage }, ...coreMessages],
           tools: getToolsForModel(
-            user.id, 
-            searchEnabled, 
+            user.id,
+            searchEnabled,
             imageGenerationEnabled,
-            memoryEnabled, 
-            consolidatedMcpTools, 
+            memoryEnabled,
+            consolidatedMcpTools,
             {
               capabilities: modelConfig.capabilities,
               supportsFunctions: modelConfig.supportsFunctions,
@@ -249,13 +296,27 @@ export async function POST(req: Request): Promise<Response> {
           // Save assistant message
           const savedMessage = await saveAssistantMessageServer(
             supabase,
-            responseMessage,
+            responseMessage as CustomUIMessage,
             finalSessionId,
             user.id,
             model,
             modelConfig.provider,
             { reasoningLevel, searchEnabled, imageGenerationEnabled }
           );
+
+          // Save token usage log
+          const tokenUsage = responseMessage.metadata as MessageMetadata;
+          if (tokenUsage?.totalTokens && tokenUsage?.promptTokens && tokenUsage?.completionTokens) {
+            await saveModelUsageLog(supabase, {
+              user_id: user.id,
+              session_id: finalSessionId,
+              model_id: model,
+              provider: modelConfig.provider,
+              prompt_tokens: tokenUsage.promptTokens,
+              completion_tokens: tokenUsage.completionTokens,
+              total_tokens: tokenUsage.totalTokens,
+            });
+          }
 
           // Generate summary if navigator enabled
           if (showChatNavigator) {
@@ -273,12 +334,20 @@ export async function POST(req: Request): Promise<Response> {
           // Update session title from data parts
           if (isFirstMessage) {
             const titleParts =
-              responseMessage.parts?.filter((p) => p.type === "data-titleGenerated") || [];
+              responseMessage.parts?.filter((p) => {
+                return "type" in p && p.type === "data-titleGenerated";
+              }) || [];
             const latestTitle = titleParts[titleParts.length - 1];
-            if (latestTitle?.data?.title) {
+            if (
+              latestTitle &&
+              "data" in latestTitle &&
+              latestTitle.data &&
+              typeof latestTitle.data === "object" &&
+              "title" in latestTitle.data
+            ) {
               await supabase
                 .from("chat_sessions")
-                .update({ title: latestTitle.data.title })
+                .update({ title: latestTitle.data.title as string })
                 .eq("id", finalSessionId);
             }
           }
@@ -288,7 +357,18 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
 
-    return createUIMessageStreamResponse({ stream });
+    // Create resumable stream and convert to SSE format
+    const resumableStream = await streamContext.resumableStream(streamId, () =>
+      stream.pipeThrough(new JsonToSseTransformStream())
+    );
+
+    return new Response(resumableStream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Vercel-AI-Data-Stream": "v1",
+      },
+    });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     return getErrorResponse(err, {

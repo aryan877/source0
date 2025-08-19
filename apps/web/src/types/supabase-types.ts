@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -390,9 +390,9 @@ export type Database = {
       }
       branch_chat_session: {
         Args: {
-          p_original_session_id: string
           p_branch_from_message_id: string
           p_new_title?: string
+          p_original_session_id: string
         }
         Returns: string
       }
@@ -403,34 +403,34 @@ export type Database = {
       get_branch_ancestry: {
         Args: { p_session_id: string }
         Returns: {
+          created_at: string
+          level: number
           session_id: string
           title: string
-          level: number
-          created_at: string
         }[]
       }
       get_session_branches: {
         Args: { p_session_id: string }
         Returns: {
-          branch_id: string
-          branch_title: string
           branch_created_at: string
+          branch_id: string
           branch_point_message: Json
           branch_point_time: string
+          branch_title: string
         }[]
       }
       get_usage_stats: {
         Args: {
-          start_date_filter?: string
           end_date_filter?: string
-          provider_filter?: string
           model_id_filter?: string
+          provider_filter?: string
+          start_date_filter?: string
         }
         Returns: {
+          total_completion_tokens: number
+          total_prompt_tokens: number
           total_requests: number
           total_tokens: number
-          total_prompt_tokens: number
-          total_completion_tokens: number
         }[]
       }
       gtrgm_compress: {

@@ -165,6 +165,7 @@ export const buildSystemMessage = (
   const formattingRules = [
     "Use markdown for code blocks (e.g., ```python).",
     "For math, use LaTeX (`$$...$$` or `$...$`). To show a dollar amount, escape the dollar sign: `\\$145.86`.",
+    "IMPORTANT: Never include generated images in markdown image syntax (![](url)). Images generated via tools are displayed automatically in the UI. Only describe the images you've generated, don't embed them again.",
   ];
 
   if (config.provider === "Anthropic") {

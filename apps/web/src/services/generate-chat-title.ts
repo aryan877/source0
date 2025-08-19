@@ -1,11 +1,12 @@
 import { openai } from "@ai-sdk/openai";
-import { generateText, type UIMessage } from "ai";
+import { generateText } from "ai";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { updateTitle } from "./chat-sessions";
 
 /**
  * Generate and update chat title based on the first user message
  */
-export async function generateChatTitle(sessionId: string, messages: UIMessage[]): Promise<void> {
+export async function generateChatTitle(sessionId: string, messages: CustomUIMessage[]): Promise<void> {
   const firstUserMessage = messages
     .find((m) => m.role === "user")
     ?.parts.find((p) => p.type === "text")?.text;

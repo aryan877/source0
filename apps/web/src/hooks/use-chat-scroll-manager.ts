@@ -1,11 +1,11 @@
-import { type UIMessage } from "ai";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const SCROLL_THRESHOLD = 100;
 
 interface UseChatScrollManagerProps {
   chatContainerRef: React.RefObject<HTMLDivElement | null>;
-  messages: UIMessage[];
+  messages: CustomUIMessage[];
   chatId: string;
 }
 

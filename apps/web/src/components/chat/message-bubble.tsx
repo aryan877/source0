@@ -4,6 +4,7 @@ import { type CustomUIMessage } from "@/types/custom-ui-message";
 import type { ImageGenerationToolData, WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
+  ArrowDownTrayIcon,
   ArrowPathIcon,
   CheckIcon,
   ClipboardDocumentIcon,
@@ -13,7 +14,16 @@ import {
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { Avatar, Button, Tooltip } from "@heroui/react";
+import {
+  Avatar,
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tooltip,
+} from "@heroui/react";
 import { GitBranchIcon } from "lucide-react";
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +31,7 @@ import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
+import ImageGallery from "./image-gallery";
 import { MessageContent } from "./message-content";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
@@ -126,6 +137,10 @@ const MessageBubble = memo(
     );
     const [showBranchOptions, setShowBranchOptions] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<{ url: string; prompt: string } | null>(
+      null
+    );
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const branchButtonRef = useRef<HTMLDivElement>(null);
     const isUser = message.role === "user";
@@ -240,6 +255,37 @@ const MessageBubble = memo(
       setShowDeleteConfirm(false);
     }, []);
 
+    const handleImageClick = useCallback((imageUrl: string, prompt: string) => {
+      setSelectedImage({ url: imageUrl, prompt });
+      setIsImageModalOpen(true);
+    }, []);
+
+    const handleDownload = useCallback(async (imageUrl: string, prompt: string) => {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+
+        const sanitizedPrompt =
+          prompt
+            .substring(0, 50)
+            .trim()
+            .replace(/[^a-z0-9 -]/gi, "")
+            .replace(/\s+/g, "_")
+            .toLowerCase() || "generated-image";
+
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${sanitizedPrompt}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.error("Download failed:", error);
+      }
+    }, []);
+
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
@@ -305,135 +351,167 @@ const MessageBubble = memo(
         return null;
       }
 
-      return message.parts.map((part, index) => {
-        // Handle tool parts - in AI SDK v5, check for both specific tool types and dynamic tools
-        if (
-          part.type === "tool-webSearch" ||
-          (part.type === "dynamic-tool" && "toolName" in part && part.toolName === "webSearch")
-        ) {
-          // Check if it's an output-available state for WebSearchDisplay
-          if ("state" in part && part.state === "output-available") {
-            const searchData = getWebSearchData(part);
-            return <WebSearchDisplay key={index} state={part.state} data={searchData} />;
-          } else if (
+      // Collect all generated images for gallery display
+      const generatedImages = message.parts
+        .filter(
+          (part) =>
+            (part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")) &&
             "state" in part &&
-            (part.state === "input-available" || part.state === "input-streaming")
-          ) {
-            // For call or partial-call states
-            return (
-              <WebSearchDisplay
-                key={index}
-                state={part.state}
-                args={"input" in part ? part.input : undefined}
-              />
-            );
-          }
-        }
-
-        // Handle image generation tool
-        if (
-          part.type === "tool-imageGeneration" ||
-          (part.type === "dynamic-tool" &&
-            "toolName" in part &&
-            part.toolName === "imageGeneration")
-        ) {
-          if ("state" in part && part.state === "output-available" && "output" in part) {
-            // Show the generated image
+            part.state === "output-available" &&
+            "output" in part
+        )
+        .map((part) => {
+          if ("output" in part) {
             const output = part.output as ImageGenerationToolData;
-            if (output.success && output.imageUrl) {
-              return (
-                <div key={index} className="my-4">
-                  <div className="rounded-lg bg-content1 p-4 shadow-sm">
-                    <div className="mb-2 text-sm font-medium text-foreground/80">
-                      Generated Image
-                    </div>
-                    <Image
-                      src={output.imageUrl}
-                      alt={output.prompt || "Generated image"}
-                      width={1024}
-                      height={1024}
-                      className="max-w-full rounded-lg shadow-md"
-                      priority={false}
-                    />
-                    {output.prompt && (
-                      <div className="mt-2 text-xs text-foreground/60">{output.prompt}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            } else if (output.success === false) {
-              // Show error state
-              return (
-                <div key={index} className="my-4">
-                  <div className="rounded-lg border border-danger-200 bg-danger-50 p-4">
-                    <div className="text-sm font-medium text-danger-700">
-                      Image Generation Failed
-                    </div>
-                    <div className="mt-1 text-sm text-danger-600">
-                      {output.error || "Unknown error occurred"}
-                    </div>
-                  </div>
-                </div>
-              );
+            if (output.success && "imageUrl" in output) {
+              return {
+                url: output.imageUrl,
+                prompt: output.prompt || "Generated image",
+              };
             }
-          } else if (
+          }
+          return null;
+        })
+        .filter((item): item is { url: string; prompt: string } => item !== null);
+
+      const otherParts = message.parts.filter(
+        (part) =>
+          !(
+            (part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")) &&
             "state" in part &&
-            (part.state === "input-available" || part.state === "input-streaming")
-          ) {
-            // Show loading state for image generation
-            const input = "input" in part ? (part.input as { prompt?: string }) : undefined;
-            return (
-              <div key={index} className="my-4">
-                <div className="rounded-lg bg-content1 p-4 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <div className="text-sm font-medium text-foreground/80">
-                      Generating image...
+            part.state === "output-available"
+          )
+      );
+
+      return (
+        <>
+          {/* Render image gallery if there are any generated images */}
+          {generatedImages.length > 0 && (
+            <ImageGallery
+              images={generatedImages}
+              onImageClick={handleImageClick}
+              onDownload={handleDownload}
+            />
+          )}
+
+          {/* Render all other parts */}
+          {otherParts.map((part, index) => {
+            // Handle tool parts - in AI SDK v5, check for both specific tool types and dynamic tools
+            if (
+              part.type === "tool-webSearch" ||
+              (part.type === "dynamic-tool" && "toolName" in part && part.toolName === "webSearch")
+            ) {
+              // Check if it's an output-available state for WebSearchDisplay
+              if ("state" in part && part.state === "output-available") {
+                const searchData = getWebSearchData(part);
+                return <WebSearchDisplay key={index} state={part.state} data={searchData} />;
+              } else if (
+                "state" in part &&
+                (part.state === "input-available" || part.state === "input-streaming")
+              ) {
+                // For call or partial-call states
+                return (
+                  <WebSearchDisplay
+                    key={index}
+                    state={part.state}
+                    args={"input" in part ? part.input : undefined}
+                  />
+                );
+              }
+            }
+
+            // Handle image generation tool loading states only (completed images handled by ImageGallery)
+            if (
+              part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")
+            ) {
+              if ("state" in part && part.state === "output-available" && "output" in part) {
+                const output = part.output as ImageGenerationToolData;
+                if (output.success === false) {
+                  // Show error state
+                  return (
+                    <div key={index} className="my-4">
+                      <div className="rounded-lg border border-danger-200 bg-danger-50 p-4">
+                        <div className="text-sm font-medium text-danger-700">
+                          Image Generation Failed
+                        </div>
+                        <div className="mt-1 text-sm text-danger-600">
+                          {output.error || "Unknown error occurred"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                // Successful images are handled by ImageGallery, so return null here
+                return null;
+              } else if (
+                "state" in part &&
+                (part.state === "input-available" || part.state === "input-streaming")
+              ) {
+                // Show loading state for image generation
+                const input = "input" in part ? (part.input as { prompt?: string }) : undefined;
+                return (
+                  <div key={index} className="my-4">
+                    <div className="rounded-lg bg-content1 p-4 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <div className="text-sm font-medium text-foreground/80">
+                          Generating image...
+                        </div>
+                      </div>
+                      {input?.prompt && (
+                        <div className="mt-2 text-xs text-foreground/60">{input.prompt}</div>
+                      )}
                     </div>
                   </div>
-                  {input?.prompt && (
-                    <div className="mt-2 text-xs text-foreground/60">{input.prompt}</div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-        }
+                );
+              }
+            }
 
-        // Handle non-tool parts
-        switch (part.type) {
-          case "text":
-            return (
-              <div key={index} className="flex-1">
-                <MessageContent
-                  content={part.text}
-                  citations={getCitationsFromMessage(message)}
-                  isUser={isUser}
-                />
-              </div>
-            );
+            // Handle non-tool parts
+            switch (part.type) {
+              case "text":
+                return (
+                  <div key={index} className="flex-1">
+                    <MessageContent
+                      content={part.text}
+                      citations={getCitationsFromMessage(message)}
+                      isUser={isUser}
+                    />
+                  </div>
+                );
 
-          case "reasoning":
-            return (
-              <ExpandableSection
-                key={index}
-                title="Reasoning"
-                icon={<CpuChipIcon className="h-4 w-4" />}
-                defaultExpanded={false}
-                isLoading={isReasoningStreaming}
-                autoExpand={true}
-              >
-                <MessageContent content={part.text} citations={[]} isUser={isUser} />
-              </ExpandableSection>
-            );
+              case "reasoning":
+                return (
+                  <ExpandableSection
+                    key={index}
+                    title="Reasoning"
+                    icon={<CpuChipIcon className="h-4 w-4" />}
+                    defaultExpanded={false}
+                    isLoading={isReasoningStreaming}
+                    autoExpand={true}
+                  >
+                    <MessageContent content={part.text} citations={[]} isUser={isUser} />
+                  </ExpandableSection>
+                );
 
-          case "step-start":
-            return null;
+              case "step-start":
+                return null;
 
-          default:
-            return null;
-        }
-      });
+              default:
+                return null;
+            }
+          })}
+        </>
+      );
     }, [
       isReasoningStreaming,
       message,
@@ -443,6 +521,8 @@ const MessageBubble = memo(
       handleKeyDown,
       handleCancelEdit,
       handleSaveEdit,
+      handleImageClick,
+      handleDownload,
     ]);
 
     const renderGroundingMetadata = useMemo(() => {
@@ -699,6 +779,67 @@ const MessageBubble = memo(
             )}
           </div>
         </div>
+
+        {/* Image Modal */}
+        <Modal
+          isOpen={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          size="4xl"
+          placement="center"
+          className="mx-4"
+          backdrop="blur"
+        >
+          <ModalContent>
+            <ModalHeader className="flex items-center gap-3">
+              <span className="text-lg font-semibold">Generated Image</span>
+            </ModalHeader>
+
+            <ModalBody className="p-0">
+              {selectedImage && (
+                <>
+                  {/* Image */}
+                  <div className="flex min-h-[400px] items-center justify-center bg-black/5 dark:bg-black/20">
+                    <Image
+                      src={selectedImage.url}
+                      alt={selectedImage.prompt}
+                      width={800}
+                      height={600}
+                      className="max-h-[70vh] w-auto object-contain"
+                      unoptimized
+                    />
+                  </div>
+
+                  {/* Prompt section below image */}
+                  {selectedImage.prompt && selectedImage.prompt.trim() && (
+                    <div className="border-t border-divider/20 bg-content1/50 px-6 py-4">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-default-600">Prompt</h4>
+                        <p className="text-sm leading-relaxed text-foreground">
+                          {selectedImage.prompt}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </ModalBody>
+
+            <ModalFooter>
+              <Button variant="light" onPress={() => setIsImageModalOpen(false)}>
+                Close
+              </Button>
+              {selectedImage && (
+                <Button
+                  color="primary"
+                  startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
+                  onPress={() => handleDownload(selectedImage.url, selectedImage.prompt)}
+                >
+                  Download
+                </Button>
+              )}
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </div>
     );
   }
