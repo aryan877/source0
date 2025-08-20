@@ -61,7 +61,7 @@ interface ChatItemProps {
   isBranched: boolean;
   isPinned: boolean;
   onSelect: (chatId: string) => void;
-  onDelete: (chatId: string) => void;
+  onDeleteConfirm: (chatId: string, title: string) => void;
   onTogglePin: (chatId: string, isPinned: boolean) => void;
   isUpdating: boolean;
 }
@@ -79,6 +79,12 @@ const useSidebarState = () => {
   const [mounted, setMounted] = useState(false);
   const { user, signOut } = useAuth();
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
+  const {
+    isOpen: isDeleteModalOpen,
+    onOpen: onDeleteModalOpen,
+    onClose: onDeleteModalClose,
+  } = useDisclosure();
+  const [chatToDelete, setChatToDelete] = useState<{ id: string; title: string } | null>(null);
   const windowObj = useWindow();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,6 +146,11 @@ const useSidebarState = () => {
     isModalOpen,
     onModalOpen,
     onModalClose,
+    isDeleteModalOpen,
+    onDeleteModalOpen,
+    onDeleteModalClose,
+    chatToDelete,
+    setChatToDelete,
     windowObj,
     router,
     mounted,
@@ -364,7 +375,7 @@ const ChatItem = memo(
     isBranched,
     isPinned,
     onSelect,
-    onDelete,
+    onDeleteConfirm,
     onTogglePin,
     isUpdating,
   }: ChatItemProps) => {
@@ -409,7 +420,7 @@ const ChatItem = memo(
               <DropdownMenu
                 onAction={(key) => {
                   if (key === "delete") {
-                    onDelete(chatId);
+                    onDeleteConfirm(chatId, title);
                   } else if (key === "pin") {
                     onTogglePin(chatId, !isPinned);
                   }
@@ -448,7 +459,7 @@ const CategorySection = memo(
     sessions,
     selectedChatId,
     onSelectChat,
-    onDeleteChat,
+    onDeleteConfirm,
     onTogglePin,
     isDeletingSession,
     isTogglingPin,
@@ -458,7 +469,7 @@ const CategorySection = memo(
     sessions: ChatSession[];
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
-    onDeleteChat: (chatId: string) => void;
+    onDeleteConfirm: (chatId: string, title: string) => void;
     onTogglePin: (chatId: string, isPinned: boolean) => void;
     isDeletingSession: boolean;
     isTogglingPin: boolean;
@@ -501,7 +512,7 @@ const CategorySection = memo(
               isBranched={!!chat.branched_from_session_id}
               isPinned={!!chat.is_pinned}
               onSelect={onSelectChat}
-              onDelete={onDeleteChat}
+              onDeleteConfirm={onDeleteConfirm}
               onTogglePin={onTogglePin}
               isUpdating={isDeletingSession || isTogglingPin}
             />
@@ -519,7 +530,7 @@ const CategorizedChatList = memo(
     categorizedSessions,
     selectedChatId,
     onSelectChat,
-    onDeleteChat,
+    onDeleteConfirm,
     onTogglePin,
     isDeletingSession,
     isTogglingPin,
@@ -530,7 +541,7 @@ const CategorizedChatList = memo(
     categorizedSessions: CategorizedSessions;
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
-    onDeleteChat: (chatId: string) => void;
+    onDeleteConfirm: (chatId: string, title: string) => void;
     onTogglePin: (chatId: string, isPinned: boolean) => void;
     isDeletingSession: boolean;
     isTogglingPin: boolean;
@@ -550,7 +561,7 @@ const CategorizedChatList = memo(
             sessions={categorizedSessions.pinned}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onDeleteChat={onDeleteChat}
+            onDeleteConfirm={onDeleteConfirm}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
             isTogglingPin={isTogglingPin}
@@ -561,7 +572,7 @@ const CategorizedChatList = memo(
             sessions={categorizedSessions.today}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onDeleteChat={onDeleteChat}
+            onDeleteConfirm={onDeleteConfirm}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
             isTogglingPin={isTogglingPin}
@@ -572,7 +583,7 @@ const CategorizedChatList = memo(
             sessions={categorizedSessions.yesterday}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onDeleteChat={onDeleteChat}
+            onDeleteConfirm={onDeleteConfirm}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
             isTogglingPin={isTogglingPin}
@@ -583,7 +594,7 @@ const CategorizedChatList = memo(
             sessions={categorizedSessions.lastWeek}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onDeleteChat={onDeleteChat}
+            onDeleteConfirm={onDeleteConfirm}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
             isTogglingPin={isTogglingPin}
@@ -594,7 +605,7 @@ const CategorizedChatList = memo(
             sessions={categorizedSessions.older}
             selectedChatId={selectedChatId}
             onSelectChat={onSelectChat}
-            onDeleteChat={onDeleteChat}
+            onDeleteConfirm={onDeleteConfirm}
             onTogglePin={onTogglePin}
             isDeletingSession={isDeletingSession}
             isTogglingPin={isTogglingPin}
@@ -720,6 +731,45 @@ const SignOutModal = memo(
 
 SignOutModal.displayName = "SignOutModal";
 
+const DeleteChatConfirmationModal = memo(
+  ({
+    isOpen,
+    onClose,
+    onConfirm,
+    chatToDelete,
+    isDeleting,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    chatToDelete: { id: string; title: string } | null;
+    isDeleting: boolean;
+  }) => (
+    <Modal isOpen={isOpen} onClose={onClose} size="md">
+      <ModalContent>
+        <ModalHeader>Confirm Deletion</ModalHeader>
+        <ModalBody>
+          <p>
+            Are you sure you want to delete the chat{" "}
+            <span className="font-bold">{chatToDelete?.title}</span>?
+          </p>
+          <p className="text-sm text-default-500">This action cannot be undone.</p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="light" onPress={onClose} isDisabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button color="danger" isLoading={isDeleting} onPress={onConfirm}>
+            Delete
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+);
+
+DeleteChatConfirmationModal.displayName = "DeleteChatConfirmationModal";
+
 // ========================================
 // MAIN COMPONENT
 // ========================================
@@ -732,6 +782,11 @@ export const Sidebar = memo(
       isModalOpen,
       onModalOpen,
       onModalClose,
+      isDeleteModalOpen,
+      onDeleteModalOpen,
+      onDeleteModalClose,
+      chatToDelete,
+      setChatToDelete,
       windowObj,
       router,
       mounted,
@@ -770,6 +825,22 @@ export const Sidebar = memo(
       },
       [togglePinSession]
     );
+
+    const handleDeleteConfirm = useCallback(
+      (chatId: string, title: string) => {
+        setChatToDelete({ id: chatId, title });
+        onDeleteModalOpen();
+      },
+      [setChatToDelete, onDeleteModalOpen]
+    );
+
+    const handleDeleteConfirmation = useCallback(() => {
+      if (chatToDelete) {
+        handleDeleteChat(chatToDelete.id);
+        onDeleteModalClose();
+        setChatToDelete(null);
+      }
+    }, [chatToDelete, handleDeleteChat, onDeleteModalClose, setChatToDelete]);
 
     const categorizedSessions = categorizeSessions(chats);
 
@@ -820,7 +891,7 @@ export const Sidebar = memo(
               categorizedSessions={categorizedSessions}
               selectedChatId={selectedChatId}
               onSelectChat={onSelectChat}
-              onDeleteChat={handleDeleteChat}
+              onDeleteConfirm={handleDeleteConfirm}
               onTogglePin={handleTogglePin}
               isDeletingSession={isDeletingSession}
               isTogglingPin={isTogglingPin}
@@ -838,6 +909,13 @@ export const Sidebar = memo(
         </div>
 
         <SignOutModal isOpen={isModalOpen} onClose={onModalClose} onConfirm={signOutConfirm} />
+        <DeleteChatConfirmationModal
+          isOpen={isDeleteModalOpen}
+          onClose={onDeleteModalClose}
+          onConfirm={handleDeleteConfirmation}
+          chatToDelete={chatToDelete}
+          isDeleting={isDeletingSession}
+        />
       </>
     );
   }
