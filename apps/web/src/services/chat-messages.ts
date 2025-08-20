@@ -1,48 +1,27 @@
+import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
 import { ReasoningLevel } from "@/config/models";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
-import { type Message } from "ai";
 
-// Types
 export type DBChatMessage = Tables<"chat_messages">;
 
-export interface ReasoningDetail {
-  type: "text";
-  text: string;
-  signature?: string;
-}
-
-// Specific type for the 'parts' JSONB column, for strong typing in app code
-export interface MessagePart {
-  type: "text" | "file" | "tool-invocation" | "tool-result" | "reasoning";
-  text?: string;
-  file?: {
-    name: string;
-    path: string;
-    url: string;
-    size: number;
-    mimeType: string;
-  };
-  toolInvocation?: Record<string, unknown>;
-  toolResult?: Record<string, unknown>;
-  reasoning?: string;
-  details?: ReasoningDetail[];
-}
-
-// App-level ChatMessage type with strongly-typed 'parts' and 'role'
-export type ChatMessage = Omit<DBChatMessage, "parts" | "role" | "created_at"> & {
-  role: "user" | "assistant" | "system" | "tool";
-  parts: MessagePart[];
-  created_at: string;
-};
-
 /**
- * Add a message to the database
+ * Adds a UIMessage to the database.
  */
-export async function addMessage(message: Omit<ChatMessage, "created_at">): Promise<DBChatMessage> {
+async function addMessage(
+  message: CustomUIMessage,
+  sessionId: string,
+  userId: string
+): Promise<DBChatMessage> {
   const supabase = createClient();
-  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
+  const preparedMessage = prepareMessageForDb({ message, sessionId, userId });
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .upsert(preparedMessage)
+    .select()
+    .single();
 
   if (error) {
     console.error("Error upserting message:", error);
@@ -52,9 +31,9 @@ export async function addMessage(message: Omit<ChatMessage, "created_at">): Prom
 }
 
 /**
- * Get all messages for a session
+ * Get all messages for a session as CustomUIMessages with full metadata.
  */
-export async function getMessages(sessionId: string): Promise<ChatMessage[]> {
+export async function getMessages(sessionId: string): Promise<CustomUIMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -71,14 +50,13 @@ export async function getMessages(sessionId: string): Promise<ChatMessage[]> {
     return [];
   }
 
-  // Cast the untyped 'parts' and 'role' from the DB to our specific app types
-  return data as ChatMessage[];
+  return data.map(toCustomUIMessage);
 }
 
 /**
- * Get a specific message by ID
+ * Get a specific message by ID as a CustomUIMessage.
  */
-export async function getMessage(messageId: string): Promise<ChatMessage | null> {
+export async function getMessage(messageId: string): Promise<CustomUIMessage | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_messages")
@@ -91,33 +69,28 @@ export async function getMessage(messageId: string): Promise<ChatMessage | null>
     return null;
   }
 
-  return data as ChatMessage;
+  return toCustomUIMessage(data);
 }
 
 /**
- * Delete a specific message
+ * Deletes a specific message.
  */
 export async function deleteMessage(messageId: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("chat_messages").delete().eq("id", messageId);
-
   if (error) {
     console.error(`Error deleting message ${messageId}:`, error);
-    // It's better to not throw here to avoid crashing the UI on a failed delete.
-    // The UI can handle the retry logic.
   }
 }
 
 /**
- * Simple retry function: Delete from a message onwards
+ * Deletes all messages in a session from a certain point onwards.
  */
 export async function deleteFromPoint(
   messageId: string,
   inclusive: boolean = false
 ): Promise<boolean> {
   const supabase = createClient();
-
-  // First, get the message info
   const { data: message, error: fetchError } = await supabase
     .from("chat_messages")
     .select("session_id, created_at")
@@ -130,109 +103,30 @@ export async function deleteFromPoint(
   }
 
   let query = supabase.from("chat_messages").delete().eq("session_id", message.session_id);
+  query = inclusive
+    ? query.gte("created_at", message.created_at)
+    : query.gt("created_at", message.created_at);
 
-  if (inclusive) {
-    query = query.gte("created_at", message.created_at);
-  } else {
-    query = query.gt("created_at", message.created_at);
-  }
-  // Delete everything from this point onwards
   const { error: deleteError } = await query;
-
   if (deleteError) {
     console.error(`Error deleting messages from retry point:`, deleteError.message);
     return false;
   }
-
   return true;
 }
 
 /**
- * Get messages by model provider
+ * Updates the parts of a specific message.
  */
-export async function getMessagesByProvider(
-  sessionId: string,
-  provider: string
-): Promise<ChatMessage[]> {
+export async function updateMessageParts(
+  messageId: string,
+  parts: CustomUIMessage["parts"]
+): Promise<void> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("model_provider", provider)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(`Error fetching messages by provider ${provider}:`, error);
-    return [];
-  }
-
-  return data as ChatMessage[];
-}
-
-/**
- * Get messages by model
- */
-export async function getMessagesByModel(sessionId: string, model: string): Promise<ChatMessage[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("model_used", model)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(`Error fetching messages by model ${model}:`, error);
-    return [];
-  }
-
-  return data as ChatMessage[];
-}
-
-/**
- * Get messages by role
- */
-export async function getMessagesByRole(
-  sessionId: string,
-  role: "user" | "assistant" | "system" | "tool"
-): Promise<ChatMessage[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("role", role)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(`Error fetching messages by role ${role}:`, error);
-    return [];
-  }
-
-  return data as ChatMessage[];
-}
-
-/**
- * Update message metadata
- */
-export async function updateMessageMetadata(messageId: string, metadata: Json): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("chat_messages").update({ metadata }).eq("id", messageId);
-
-  if (error) {
-    console.error(`Error updating message metadata for ${messageId}:`, error);
-    throw new Error(`Failed to update message metadata: ${error.message}`);
-  }
-}
-
-/**
- * Update message parts
- */
-export async function updateMessageParts(messageId: string, parts: MessagePart[]): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("chat_messages").update({ parts }).eq("id", messageId);
-
+    .update({ parts: parts as Json })
+    .eq("id", messageId);
   if (error) {
     console.error(`Error updating message parts for ${messageId}:`, error);
     throw new Error(`Failed to update message parts: ${error.message}`);
@@ -240,86 +134,26 @@ export async function updateMessageParts(messageId: string, parts: MessagePart[]
 }
 
 /**
- * Search messages by content
- */
-export async function searchMessages(
-  sessionId: string,
-  searchQuery: string
-): Promise<ChatMessage[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .textSearch("parts", searchQuery)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error(`Error searching messages:`, error);
-    return [];
-  }
-
-  return data as ChatMessage[];
-}
-
-/**
- * Get message statistics for a session
- */
-export async function getMessageStats(sessionId: string): Promise<{
-  total: number;
-  byRole: Record<string, number>;
-  byProvider: Record<string, number>;
-}> {
-  const messages = await getMessages(sessionId);
-
-  const stats = {
-    total: messages.length,
-    byRole: {} as Record<string, number>,
-    byProvider: {} as Record<string, number>,
-  };
-
-  messages.forEach((message) => {
-    // Count by role
-    stats.byRole[message.role] = (stats.byRole[message.role] || 0) + 1;
-
-    // Count by provider (only for assistant messages)
-    if (message.role === "assistant" && message.model_provider) {
-      stats.byProvider[message.model_provider] =
-        (stats.byProvider[message.model_provider] || 0) + 1;
-    }
-  });
-
-  return stats;
-}
-
-/**
- * Client-side function to save a user message.
- * It uses the new `prepareMessageForDb` helper.
+ * Saves a user's message.
  */
 export async function saveUserMessage(
-  userMessage: Message,
+  userMessage: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
-  const preparedMessage = prepareMessageForDb({
-    message: userMessage,
-    sessionId,
-    userId,
-  });
-  return addMessage(preparedMessage);
+  return addMessage(userMessage, sessionId, userId);
 }
 
 /**
- * Client-side function to save an assistant message, often partially.
- * It uses the new `prepareMessageForDb` helper.
+ * Saves an assistant's message.
  */
 export async function saveAssistantMessage(
-  message: Message,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string,
   model: string,
   modelProvider: string,
-  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean; imageGenerationEnabled?: boolean },
   options: { fireAndForget?: boolean } = {}
 ): Promise<DBChatMessage | void> {
   const preparedMessage = prepareMessageForDb({
@@ -330,13 +164,23 @@ export async function saveAssistantMessage(
     modelProvider,
     reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
     searchEnabled: modelConfig.searchEnabled,
+    imageGenerationEnabled: modelConfig.imageGenerationEnabled,
   });
 
+  const supabase = createClient();
+  const promise = supabase.from("chat_messages").upsert(preparedMessage).select().single();
+
   if (options.fireAndForget) {
-    addMessage(preparedMessage).catch((error) => {
-      console.error("Fire-and-forget saveAssistantMessage failed:", error);
+    promise.then(({ error }) => {
+      if (error) console.error("Fire-and-forget saveAssistantMessage failed:", error);
     });
     return;
   }
-  return addMessage(preparedMessage);
+
+  const { data, error } = await promise;
+  if (error) {
+    console.error("Error saving assistant message:", error);
+    throw new Error(error.message);
+  }
+  return data;
 }

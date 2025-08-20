@@ -1,31 +1,32 @@
 "use client";
 
-import { type GroundingMetadata } from "@/types/provider-metadata";
-import type { WebSearchToolData } from "@/types/tools";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
+import type { ImageGenerationToolData, WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
-import { CustomFileUIPart } from "@/utils/core-message-processor";
 import {
   ArrowPathIcon,
-  BookmarkIcon,
   CheckIcon,
   ClipboardDocumentIcon,
   CpuChipIcon,
-  MagnifyingGlassIcon,
   PencilIcon,
   TrashIcon,
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { Avatar, Button, Tooltip } from "@heroui/react";
-import type { JSONValue, Message, ToolInvocation } from "ai";
+import {
+  Avatar,
+  Button,
+  Tooltip,
+} from "@heroui/react";
 import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
+import ImageViewer from "../shared/image-viewer";
 import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
+import ImageGallery from "./image-gallery";
 import { MessageContent } from "./message-content";
-import { SecureFileDisplay } from "./secure-file-display";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
 
@@ -38,58 +39,42 @@ export interface ImageErrorData {
   error: string;
 }
 
-interface MessageCompleteData {
-  modelUsed?: string;
-  modelProvider?: string;
-  grounding?: GroundingMetadata;
-}
-
 /**
- * Safely extracts WebSearchToolData from a tool invocation.
+ * Safely extracts WebSearchToolData from a tool part.
  */
-function getWebSearchData(toolInvocation: ToolInvocation): WebSearchToolData | null {
+function getWebSearchData(toolPart: {
+  type: string;
+  state?: string;
+  output?: unknown;
+  input?: unknown;
+  toolName?: string;
+}): WebSearchToolData | null {
+  // Handle both AI SDK v4 and v5 tool types
+  const isWebSearchTool =
+    toolPart.type === "tool-webSearch" ||
+    (toolPart.type === "dynamic-tool" && toolPart.toolName === "webSearch");
+
   if (
-    toolInvocation.state === "result" &&
-    toolInvocation.toolName === "webSearch" &&
-    toolInvocation.result
+    isWebSearchTool &&
+    "state" in toolPart &&
+    toolPart.state === "output-available" &&
+    "output" in toolPart &&
+    toolPart.output
   ) {
-    const result = toolInvocation.result as WebSearchToolData;
+    const result = toolPart.output as WebSearchToolData;
     if (
       result.toolName === "webSearch" &&
       typeof result.originalQuery === "string" &&
       Array.isArray(result.searchResults)
     ) {
-      return result as WebSearchToolData;
+      return result;
     }
   }
-  return null;
-}
-
-function getMessageCompleteData(
-  annotations: readonly JSONValue[] | undefined
-): MessageCompleteData | null {
-  if (!annotations) return null;
-
-  const annotation = annotations.find(
-    (a) =>
-      typeof a === "object" &&
-      a !== null &&
-      !Array.isArray(a) &&
-      (a as { type?: string }).type === "message_complete"
-  );
-
-  if (annotation) {
-    const data = (annotation as { data?: unknown }).data;
-    if (typeof data === "object" && data !== null) {
-      return data as MessageCompleteData;
-    }
-  }
-
   return null;
 }
 
 interface MessageBubbleProps {
-  message: Message;
+  message: CustomUIMessage;
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string, modelId?: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
@@ -103,14 +88,14 @@ interface MessageBubbleProps {
 /**
  * Extract citations from web search tool invocations in the message
  */
-function getCitationsFromMessage(message: Message): TavilySearchResult[] {
+function getCitationsFromMessage(message: CustomUIMessage): TavilySearchResult[] {
   if (!message.parts) return [];
 
   const citations: TavilySearchResult[] = [];
 
   for (const part of message.parts) {
-    if (part.type === "tool-invocation" && part.toolInvocation.toolName === "webSearch") {
-      const searchData = getWebSearchData(part.toolInvocation);
+    if (part.type === "tool-webSearch") {
+      const searchData = getWebSearchData(part);
       if (searchData) {
         // The searchData contains an array of search results, each with its own array of sources.
         // We need to flatten this into a single list of citable sources.
@@ -141,7 +126,9 @@ const MessageBubble = memo(
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [editContent, setEditContent] = useState(message.content || "");
+    const [editContent, setEditContent] = useState(
+      message.parts?.find((p) => p.type === "text")?.text || ""
+    );
     const [showBranchOptions, setShowBranchOptions] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -178,16 +165,21 @@ const MessageBubble = memo(
     }, [isEditing]);
 
     const handleCopy = useCallback(async () => {
-      if (message.content) {
+      const textContent =
+        message.parts
+          ?.filter((part) => part.type === "text")
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join("") || "";
+      if (textContent) {
         try {
-          await navigator.clipboard.writeText(message.content);
+          await navigator.clipboard.writeText(textContent);
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         } catch (error) {
           console.error("Failed to copy:", error);
         }
       }
-    }, [message.content]);
+    }, [message.parts]);
 
     const handleRetry = useCallback(() => {
       onRetry(message.id);
@@ -206,22 +198,24 @@ const MessageBubble = memo(
     );
 
     const handleStartEdit = useCallback(() => {
-      setEditContent(message.content || "");
+      setEditContent(message.parts?.find((p) => p.type === "text")?.text || "");
       setIsEditing(true);
       setShowActions(false);
-    }, [message.content]);
+    }, [message.parts]);
 
     const handleCancelEdit = useCallback(() => {
       setIsEditing(false);
-      setEditContent(message.content || "");
-    }, [message.content]);
+      const textContent = message.parts?.find((p) => p.type === "text")?.text || "";
+      setEditContent(textContent);
+    }, [message.parts]);
 
     const handleSaveEdit = useCallback(() => {
-      if (onEdit && editContent.trim() !== message.content?.trim()) {
+      const textContent = message.parts?.find((p) => p.type === "text")?.text || "";
+      if (onEdit && editContent.trim() !== textContent.trim()) {
         onEdit(message.id, editContent.trim());
       }
       setIsEditing(false);
-    }, [onEdit, message.id, editContent, message.content]);
+    }, [onEdit, message.id, editContent, message.parts]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
@@ -251,20 +245,49 @@ const MessageBubble = memo(
       setShowDeleteConfirm(false);
     }, []);
 
+
+    const handleDownload = useCallback(async (imageUrl: string, prompt: string) => {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+
+        const sanitizedPrompt =
+          prompt
+            .substring(0, 50)
+            .trim()
+            .replace(/[^a-z0-9 -]/gi, "")
+            .replace(/\s+/g, "_")
+            .toLowerCase() || "generated-image";
+
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${sanitizedPrompt}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.error("Download failed:", error);
+      }
+    }, []);
+
     const modelMetadata = useMemo(() => {
       if (isUser) return null;
 
-      const completeData = getMessageCompleteData(message.annotations);
+      // AI SDK v5 - use metadata
+      const modelUsed = message.metadata?.model;
+      const modelProvider = message.metadata?.modelProvider;
 
-      if (!completeData?.modelUsed) {
+      if (!modelUsed) {
         return null;
       }
 
       return {
-        modelUsed: completeData.modelUsed,
-        modelProvider: completeData.modelProvider,
+        modelUsed,
+        modelProvider,
       };
-    }, [message.annotations, isUser]);
+    }, [message.metadata, isUser]);
 
     // Render message parts using the AI SDK's built-in parts system
     const renderMessageParts = useMemo(() => {
@@ -295,7 +318,11 @@ const MessageBubble = memo(
                 size="sm"
                 color="primary"
                 onPress={handleSaveEdit}
-                isDisabled={!editContent.trim() || editContent.trim() === message.content?.trim()}
+                isDisabled={
+                  !editContent.trim() ||
+                  editContent.trim() ===
+                    (message.parts?.find((p) => p.type === "text")?.text || "").trim()
+                }
                 className="transition-all hover:scale-105"
               >
                 Send
@@ -310,231 +337,216 @@ const MessageBubble = memo(
         return null;
       }
 
-      return message.parts.map((part, index) => {
-        switch (part.type) {
-          case "text":
-            return (
-              <div key={index} className="flex-1">
-                <MessageContent
-                  content={part.text}
-                  citations={getCitationsFromMessage(message)}
-                  isUser={isUser}
-                />
-              </div>
-            );
-
-          case "file": {
-            // The AI SDK's `FileUIPart` is for base64 data. Our app uses a custom
-            // structure with a URL. We cast to `unknown` first, then to our custom
-            // type to inform TypeScript that this is an intentional conversion.
-            const filePart = part as unknown as CustomFileUIPart;
-            return (
-              <div key={index} className={`${isUser ? "flex justify-end" : "flex justify-start"}`}>
-                <SecureFileDisplay
-                  url={filePart.url}
-                  mimeType={filePart.mimeType}
-                  fileName={filePart.filename}
-                  isImage={filePart.mimeType?.startsWith("image/")}
-                  className={isUser ? "ml-auto" : "mr-auto"}
-                />
-              </div>
-            );
+      // Collect all generated images for gallery display
+      const generatedImages = message.parts
+        .filter(
+          (part) =>
+            (part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")) &&
+            "state" in part &&
+            part.state === "output-available" &&
+            "output" in part
+        )
+        .map((part) => {
+          if ("output" in part) {
+            const output = part.output as ImageGenerationToolData;
+            if (output.success && "imageUrl" in output) {
+              return {
+                url: output.imageUrl,
+                prompt: output.prompt || "Generated image",
+              };
+            }
           }
+          return null;
+        })
+        .filter((item): item is { url: string; prompt: string } => item !== null);
 
-          case "tool-invocation": {
-            // Handle tool invocations - only show specific tool displays
-            const toolInvocation = part.toolInvocation;
-            const toolName = toolInvocation.toolName || "Unknown Tool";
+      const otherParts = message.parts.filter(
+        (part) =>
+          !(
+            (part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")) &&
+            "state" in part &&
+            part.state === "output-available"
+          )
+      );
 
-            if (toolName === "webSearch") {
-              if (toolInvocation.state === "result") {
-                const searchData = getWebSearchData(toolInvocation);
-                return (
-                  <WebSearchDisplay key={index} state={toolInvocation.state} data={searchData} />
-                );
-              } else {
+      return (
+        <>
+          {/* Render image gallery if there are any generated images */}
+          {generatedImages.length > 0 && (
+            <ImageGallery
+              images={generatedImages}
+              onDownload={handleDownload}
+            />
+          )}
+
+          {/* Render all other parts */}
+          {otherParts.map((part, index) => {
+            // Handle tool parts - in AI SDK v5, check for both specific tool types and dynamic tools
+            if (
+              part.type === "tool-webSearch" ||
+              (part.type === "dynamic-tool" && "toolName" in part && part.toolName === "webSearch")
+            ) {
+              // Check if it's an output-available state for WebSearchDisplay
+              if ("state" in part && part.state === "output-available") {
+                const searchData = getWebSearchData(part);
+                return <WebSearchDisplay key={index} state={part.state} data={searchData} />;
+              } else if (
+                "state" in part &&
+                (part.state === "input-available" || part.state === "input-streaming")
+              ) {
+                // For call or partial-call states
                 return (
                   <WebSearchDisplay
                     key={index}
-                    state={toolInvocation.state}
-                    args={toolInvocation.args}
+                    state={part.state}
+                    args={"input" in part ? part.input : undefined}
                   />
                 );
               }
             }
 
-            if (toolName === "memorySave") {
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
-                const content =
-                  toolInvocation.args &&
-                  typeof toolInvocation.args === "object" &&
-                  "content" in toolInvocation.args
-                    ? String(toolInvocation.args.content).slice(0, 50) +
-                      (String(toolInvocation.args.content).length > 50 ? "..." : "")
-                    : "information";
-
+            // Handle image generation tool loading states only (completed images handled by ImageGallery)
+            if (
+              part.type === "tool-imageGeneration" ||
+              (part.type === "dynamic-tool" &&
+                "toolName" in part &&
+                part.toolName === "imageGeneration")
+            ) {
+              if ("state" in part && part.state === "output-available" && "output" in part) {
+                const output = part.output as ImageGenerationToolData;
+                if (output.success === false) {
+                  // Show error state
+                  return (
+                    <div key={index} className="my-4">
+                      <div className="rounded-lg border border-danger-200 bg-danger-50 p-4">
+                        <div className="text-sm font-medium text-danger-700">
+                          Image Generation Failed
+                        </div>
+                        <div className="mt-1 text-sm text-danger-600">
+                          {output.error || "Unknown error occurred"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                // Successful images are handled by ImageGallery, so return null here
+                return null;
+              } else if (
+                "state" in part &&
+                (part.state === "input-available" || part.state === "input-streaming")
+              ) {
+                // Show loading state for image generation
+                const input = "input" in part ? (part.input as { prompt?: string }) : undefined;
                 return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
-                  >
-                    <BookmarkIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">Saving memory...</span>
-                    <span className="text-xs text-foreground/60">({content})</span>
-                  </div>
-                );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2"
-                  >
-                    <BookmarkIcon className="h-4 w-4 text-success" />
-                    <span className="text-sm font-medium text-success">Memory saved</span>
-                  </div>
-                );
-              }
-            }
-
-            if (toolName === "memoryRetrieve") {
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
-                const query =
-                  toolInvocation.args &&
-                  typeof toolInvocation.args === "object" &&
-                  "query" in toolInvocation.args
-                    ? String(toolInvocation.args.query).slice(0, 50) +
-                      (String(toolInvocation.args.query).length > 50 ? "..." : "")
-                    : "memories";
-
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
-                  >
-                    <MagnifyingGlassIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">
-                      Retrieving memories...
-                    </span>
-                    <span className="text-xs text-foreground/60">({query})</span>
-                  </div>
-                );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="border-info/20 bg-info/10 flex items-center gap-2 rounded-full border px-4 py-2"
-                  >
-                    <MagnifyingGlassIcon className="text-info h-4 w-4" />
-                    <span className="text-info text-sm font-medium">Retrieved memories</span>
+                  <div key={index} className="my-4">
+                    <div className="rounded-lg bg-content1 p-4 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <div className="text-sm font-medium text-foreground/80">
+                          Generating image...
+                        </div>
+                      </div>
+                      {input?.prompt && (
+                        <div className="mt-2 text-xs text-foreground/60">{input.prompt}</div>
+                      )}
+                    </div>
                   </div>
                 );
               }
             }
 
-            // Handle MCP tools
-            if (toolName.startsWith("mcp_")) {
-              const displayName = toolName
-                .replace(/^mcp_/, "")
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (l) => l.toUpperCase());
+            // Handle non-tool parts
+            switch (part.type) {
+              case "text":
+                return (
+                  <div key={index} className="flex-1">
+                    <MessageContent
+                      content={part.text}
+                      citations={getCitationsFromMessage(message)}
+                      isUser={isUser}
+                    />
+                  </div>
+                );
 
-              if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
+              case "reasoning":
+                // Only render reasoning if it has content
+                if (!part.text || part.text.trim() === "") {
+                  return null;
+                }
                 return (
-                  <div
+                  <ExpandableSection
                     key={index}
-                    className="flex items-center gap-2 rounded-full border border-content2 bg-content2/60 px-4 py-2"
+                    title="Reasoning"
+                    icon={<CpuChipIcon className="h-4 w-4" />}
+                    defaultExpanded={false}
+                    isLoading={isReasoningStreaming}
+                    autoExpand={true}
                   >
-                    <CpuChipIcon className="h-4 w-4 animate-pulse text-primary" />
-                    <span className="text-sm font-medium text-foreground/80">Using tool:</span>
-                    <span className="text-xs text-foreground/60">{displayName}</span>
-                  </div>
+                    <MessageContent content={part.text} citations={[]} isUser={isUser} />
+                  </ExpandableSection>
                 );
-              } else if (toolInvocation.state === "result") {
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-4 py-2"
-                  >
-                    <CpuChipIcon className="h-4 w-4 text-success" />
-                    <span className="text-sm font-medium text-success">Tool used:</span>
-                    <span className="text-xs text-success/80">{displayName}</span>
-                  </div>
-                );
-              }
+
+              case "file":
+                // Handle file parts (images, documents, etc.)
+                if (part.mediaType?.startsWith("image/")) {
+                  return (
+                    <div key={index} className="my-2">
+                      <ImageViewer
+                        src={part.url || ""}
+                        alt={part.filename || "Attached image"}
+                        filename={part.filename}
+                        type="uploaded"
+                        size="small"
+                        onDownload={handleDownload}
+                      />
+                    </div>
+                  );
+                } else {
+                  // Handle non-image files
+                  return (
+                    <div key={index} className="my-2">
+                      <div className="flex items-center gap-2 p-3 bg-content2 rounded-lg">
+                        <svg className="w-4 h-4 text-foreground/60" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {part.filename || "Attached file"}
+                          </p>
+                          <p className="text-xs text-foreground/60">
+                            {part.mediaType || "Unknown type"}
+                          </p>
+                        </div>
+                        {part.url && (
+                          <a
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/80 text-xs"
+                          >
+                            Open
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+              case "step-start":
+                return null;
+
+              default:
+                return null;
             }
-
-            // No fallback - only show supported tool displays
-            return null;
-          }
-
-          case "reasoning":
-            // Handle reasoning parts with minimal, clean display
-            return (
-              <ExpandableSection
-                key={index}
-                title="Reasoning"
-                icon={<CpuChipIcon className="h-4 w-4" />}
-                defaultExpanded={false}
-                isLoading={isReasoningStreaming}
-                autoExpand={true}
-              >
-                <MessageContent content={part.reasoning} citations={[]} isUser={isUser} />
-              </ExpandableSection>
-            );
-
-          // case "source": {
-          //   // Handle source parts with expandable section
-          //   const domain = new URL(part.source.url).hostname;
-          //   return (
-          //     <ExpandableSection
-          //       key={index}
-          //       title={part.source.title || domain}
-          //       icon={<LinkIcon className="h-4 w-4" />}
-          //       variant="source"
-          //     >
-          //       <div className="space-y-4">
-          //         <div>
-          //           <a
-          //             href={part.source.url}
-          //             target="_blank"
-          //             rel="noopener noreferrer"
-          //             className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-          //           >
-          //             <LinkIcon className="h-4 w-4" />
-          //             <span className="break-all">{part.source.url}</span>
-          //           </a>
-          //         </div>
-
-          //         {part.source.title && (
-          //           <div>
-          //             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/80">
-          //               <div className="h-1 w-1 rounded-full bg-current opacity-60"></div>
-          //               Title
-          //             </h4>
-          //             <div className="rounded-lg border border-divider/30 bg-content1/60 p-3 shadow-sm">
-          //               <div className="text-sm font-medium">{part.source.title}</div>
-          //             </div>
-          //           </div>
-          //         )}
-
-          //         <div className="flex items-center gap-2 border-t border-divider/20 pt-2">
-          //           <span className="text-xs font-medium text-foreground/60">Source:</span>
-          //           <span className="rounded bg-content2/50 px-2 py-1 font-mono text-xs text-foreground/70">
-          //             {domain}
-          //           </span>
-          //         </div>
-          //       </div>
-          //     </ExpandableSection>
-          //   );
-          // }
-
-          case "step-start":
-            return null;
-
-          default:
-            return null;
-        }
-      });
+          })}
+        </>
+      );
     }, [
       isReasoningStreaming,
       message,
@@ -544,11 +556,23 @@ const MessageBubble = memo(
       handleKeyDown,
       handleCancelEdit,
       handleSaveEdit,
+      handleDownload,
     ]);
 
     const renderGroundingMetadata = useMemo(() => {
-      const completeData = getMessageCompleteData(message.annotations);
-      const grounding = completeData?.grounding as GroundingMetadata | undefined;
+      // AI SDK v5 - access grounding from data parts instead of metadata
+      const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
+
+      if (groundingParts.length === 0) {
+        return null;
+      }
+
+      // Use the latest grounding data part
+      const latestGrounding = groundingParts[groundingParts.length - 1];
+      if (!latestGrounding || !latestGrounding.data) {
+        return null;
+      }
+      const grounding = latestGrounding.data.grounding;
 
       // Only render if we have actual grounding data with content
       if (
@@ -561,7 +585,7 @@ const MessageBubble = memo(
       }
 
       return <GroundingDisplay grounding={grounding} />;
-    }, [message.annotations]);
+    }, [message.parts]);
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
@@ -738,7 +762,20 @@ const MessageBubble = memo(
             {!isUser && renderGroundingMetadata}
           </div>
 
-          {/* Action buttons and model info */}
+          {/* Model info for assistant messages */}
+          {!isUser && message.metadata?.model && (
+            <div className="flex items-center gap-2 text-xs text-default-500">
+              <CpuChipIcon className="h-3 w-3" />
+              <span>
+                {message.metadata.model}
+                {message.metadata.totalTokens && (
+                  <span className="ml-2">({message.metadata.totalTokens} tokens)</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Action buttons */}
           <div
             className={`relative flex items-center gap-2 ${isUser ? "justify-end" : "justify-end"}`}
           >
@@ -776,6 +813,7 @@ const MessageBubble = memo(
             )}
           </div>
         </div>
+
       </div>
     );
   }

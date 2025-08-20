@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
                                        CHECK (role IN ('user', 'assistant', 'system', 'tool')),
     
     -- AI SDK v5+ Content Structure
+    content             text, 
     parts               jsonb           NOT NULL DEFAULT '[]'::jsonb, -- All content lives here
     
     -- Model Tracking (Per Message, Not Per Session)
@@ -251,7 +252,7 @@ CREATE POLICY "users_can_update_own_files"
     TO authenticated
     USING (
         bucket_id = 'chat-attachments' AND 
-        (storage.foldername(name))[2] = auth.uid()::text
+        (storage.foldername(name))[1] = auth.uid()::text
     );
 
 -- Policy: Allow users to delete their own files.
@@ -261,7 +262,7 @@ CREATE POLICY "users_can_delete_own_files"
     TO authenticated
     USING (
         bucket_id = 'chat-attachments' AND 
-        (storage.foldername(name))[2] = auth.uid()::text
+        (storage.foldername(name))[1] = auth.uid()::text
     );
     
 -- Drop legacy policies that are no longer needed
@@ -432,6 +433,7 @@ BEGIN
         session_id,
         user_id,
         role,
+        content,
         parts,
         model_used,
         model_provider,
@@ -444,6 +446,7 @@ BEGIN
         v_new_session_id,  -- New session ID
         user_id,
         role,
+        content,
         parts,
         model_used,
         model_provider,
@@ -610,6 +613,7 @@ $$;
 -- Usage Examples
 --
 
+
 -- Create a new chat session:
 -- INSERT INTO chat_sessions (user_id, title, system_prompt)
 -- VALUES (auth.uid(), 'My First Chat', 'You are a helpful assistant.');
@@ -621,7 +625,7 @@ $$;
 -- ('your-session-id', auth.uid(), 'assistant', '[{"type": "text", "text": "Hi there!"}]');
 
 -- Retrieve all messages in a session:
--- SELECT id, role, parts, model_used, created_at
+-- SELECT id, role, content, parts, model_used, created_at
 -- FROM chat_messages
 -- WHERE session_id = 'your-session-id'
 -- ORDER BY created_at;
@@ -631,6 +635,7 @@ $$;
 -- Message Retry
 --
 
+
 -- Message retry is now handled client-side using the chat-messages service functions:
 -- - deleteMessagesAfter() for user message retry
 -- - deleteMessageAndAfter() for assistant message retry
@@ -639,6 +644,7 @@ $$;
 --
 -- Session Branching
 --
+
 
 -- Create a new conversation branch from an AI message:
 -- SELECT branch_chat_session(

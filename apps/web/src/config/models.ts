@@ -1,17 +1,14 @@
-export type ModelCapability = "image" | "pdf" | "search" | "reasoning" | "image-generation";
-
+export type ModelCapability = "image" | "pdf" | "search" | "reasoning" | "tools";
 export type ReasoningLevel = "low" | "medium" | "high";
 
-// Capability labels - single source of truth
 export const CAPABILITY_LABELS = {
   image: "Vision",
-  pdf: "PDFs",
+  pdf: "PDFs", 
   search: "Search",
   reasoning: "Reasoning",
-  "image-generation": "Image Gen",
+  tools: "Tools",
 } as const;
 
-// Provider mapping for AI SDK
 export const PROVIDER_MAPPING = {
   Google: { name: "google", supported: true },
   OpenAI: { name: "openai", supported: true },
@@ -22,7 +19,6 @@ export const PROVIDER_MAPPING = {
   OpenRouter: { name: "openrouter", supported: true },
 } as const;
 
-// Export provider names for reuse across the codebase
 export const PROVIDERS = Object.keys(PROVIDER_MAPPING) as (keyof typeof PROVIDER_MAPPING)[];
 export type Provider = keyof typeof PROVIDER_MAPPING;
 
@@ -30,7 +26,7 @@ export interface ModelConfig {
   id: string;
   name: string;
   description: string;
-  provider: keyof typeof PROVIDER_MAPPING;
+  provider: Provider;
   apiModelName?: string;
   capabilities: ModelCapability[];
   reasoningLevels?: ReasoningLevel[];
@@ -41,410 +37,189 @@ export interface ModelConfig {
   category: "flagship" | "efficient" | "reasoning" | "vision" | "coding";
 }
 
-// Base model configurations
-const createModel = (
+// Capability presets
+const multimodal: ModelCapability[] = ["image", "pdf", "tools"];
+const reasoning: ModelCapability[] = ["reasoning", "tools"];
+const reasoningMultimodal: ModelCapability[] = ["reasoning", "image", "pdf", "tools"];
+const reasoningLevels: ReasoningLevel[] = ["low", "medium", "high"];
+
+// Minimal model creator
+const m = (
   id: string,
-  name: string,
-  description: string,
-  provider: keyof typeof PROVIDER_MAPPING,
+  name: string, 
+  provider: Provider,
   apiModelName: string,
-  overrides: Partial<ModelConfig> = {}
+  overrides: Partial<Omit<ModelConfig, 'id' | 'name' | 'provider' | 'apiModelName' | 'supportsFunctions'>> = {}
 ): ModelConfig => ({
   id,
   name,
-  description,
   provider,
   apiModelName,
-  capabilities: [],
-  isOpenSource: false,
-  maxTokens: 8192,
-  supportsStreaming: true,
-  supportsFunctions: true,
-  category: "efficient",
-  ...overrides,
+  description: overrides.description || `${name} from ${provider}`,
+  capabilities: overrides.capabilities || ["tools"],
+  reasoningLevels: overrides.reasoningLevels,
+  isOpenSource: overrides.isOpenSource ?? false,
+  maxTokens: overrides.maxTokens ?? 8192,
+  supportsStreaming: overrides.supportsStreaming ?? true,
+  supportsFunctions: (overrides.capabilities || ["tools"]).includes("tools"),
+  category: overrides.category ?? "efficient",
 });
 
 export const MODELS: ModelConfig[] = [
-  // Gemini Models
-  createModel(
-    "gemini-2.0-flash",
-    "Gemini 2.0 Flash",
-    "Latest multimodal model with enhanced capabilities",
-    "Google",
-    "gemini-2.0-flash",
-    {
-      capabilities: ["image", "search"],
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "gemini-2.5-flash",
-    "Gemini 2.5 Flash",
-    "Fast, efficient responses with multimodal support",
-    "Google",
-    "gemini-2.5-flash-preview-05-20",
-    {
-      capabilities: ["image", "search"],
-    }
-  ),
-  createModel(
-    "gemini-2.5-flash-thinking",
-    "Gemini 2.5 Flash (Thinking)",
-    "Flash model with enhanced reasoning capabilities",
-    "Google",
-    "gemini-2.5-flash-exp-native-audio-thinking-dialog",
-    {
-      capabilities: ["image", "search"],
-      category: "reasoning",
-    }
-  ),
-  createModel(
-    "gemini-2.5-pro",
-    "Gemini 2.5 Pro",
-    "Professional-grade model with comprehensive capabilities",
-    "Google",
-    "gemini-2.5-pro-preview-06-05",
-    {
-      capabilities: ["image", "pdf", "search", "reasoning"],
-      reasoningLevels: ["low", "medium", "high"],
-      category: "flagship",
-    }
-  ),
-
-  // GPT Models
-  createModel(
-    "gpt-4o",
-    "GPT-4o",
-    "Advanced multimodal model with reasoning",
-    "OpenAI",
-    "gpt-4o-2024-11-20",
-    {
-      capabilities: ["image"],
-      maxTokens: 4096,
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "gpt-4o-mini",
-    "GPT-4o Mini",
-    "Efficient version of GPT-4o",
-    "OpenAI",
-    "gpt-4o-mini",
-    {
-      capabilities: ["image"],
-      maxTokens: 4096,
-    }
-  ),
-  createModel("o3-mini", "o3-mini", "Compact reasoning model", "OpenAI", "o3-mini", {
-    capabilities: ["reasoning"],
-    reasoningLevels: ["low", "medium", "high"],
-    maxTokens: 4096,
-    supportsFunctions: false,
-    category: "reasoning",
+  // Google
+  m("gemini-2.0-flash", "Gemini 2.0 Flash", "Google", "gemini-2.0-flash", {
+    description: "Latest multimodal model with enhanced capabilities",
+    capabilities: [...multimodal, "search"], category: "flagship"
   }),
-  createModel(
-    "o4-mini",
-    "o4-mini",
-    "Next-generation compact reasoning model",
-    "OpenAI",
-    "o4-mini-2025-04-16",
-    {
-      capabilities: ["reasoning", "image"],
-      reasoningLevels: ["low", "medium", "high"],
-      maxTokens: 4096,
-      supportsFunctions: false,
-      category: "reasoning",
-    }
-  ),
-  createModel(
-    "gpt-4.5",
-    "GPT-4.5",
-    "Enhanced GPT model with BYOK and thinking",
-    "OpenAI",
-    "gpt-4.5",
-    {
-      capabilities: ["image"],
-      category: "flagship",
-    }
-  ),
-
-  // GPT-4.1 Series
-  createModel(
-    "gpt-4.1",
-    "GPT-4.1",
-    "Latest model release with enhanced capabilities",
-    "OpenAI",
-    "gpt-4.1",
-    {
-      capabilities: ["image"],
-      maxTokens: 32768,
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "gpt-4.1-mini",
-    "GPT-4.1 Mini",
-    "Efficient version of GPT-4.1 with balanced performance",
-    "OpenAI",
-    "gpt-4.1-mini",
-    {
-      capabilities: ["image"],
-      maxTokens: 32768,
-    }
-  ),
-  createModel(
-    "gpt-4.1-nano",
-    "GPT-4.1 Nano",
-    "Fastest 4.1 model optimized for speed",
-    "OpenAI",
-    "gpt-4.1-nano",
-    {
-      capabilities: ["image"],
-      maxTokens: 32768,
-    }
-  ),
-
-  // Image Generation
-  createModel(
-    "gpt-image-1",
-    "GPT Image 1",
-    "Advanced AI image generation model from OpenAI",
-    "OpenAI",
-    "gpt-image-1",
-    {
-      capabilities: ["image-generation", "image"],
-      maxTokens: 4096,
-      supportsStreaming: false,
-      supportsFunctions: false,
-      category: "vision",
-    }
-  ),
-
-  // Anthropic Models
-  createModel(
-    "claude-3.5-sonnet",
-    "Claude 3.5 Sonnet",
-    "High performance with vision capabilities",
-    "Anthropic",
-    "claude-3-5-sonnet-20241022",
-    {
-      capabilities: ["image", "pdf"],
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "claude-3.7-sonnet",
-    "Claude 3.7 Sonnet",
-    "Enhanced Sonnet with extended capabilities",
-    "Anthropic",
-    "claude-3-7-sonnet-20250219",
-    {
-      capabilities: ["image", "pdf"],
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "claude-3.7-sonnet-reasoning",
-    "Claude 3.7 Sonnet (Reasoning)",
-    "Enhanced Sonnet with extended thinking mode",
-    "Anthropic",
-    "claude-3-7-sonnet-20250219",
-    {
-      capabilities: ["image", "pdf", "reasoning"],
-      reasoningLevels: ["low", "medium", "high"],
-      category: "reasoning",
-    }
-  ),
-  createModel(
-    "claude-4-sonnet",
-    "Claude 4 Sonnet",
-    "Next-generation Claude with advanced capabilities",
-    "Anthropic",
-    "claude-sonnet-4-20250514",
-    {
-      capabilities: ["image", "pdf"],
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "claude-4-sonnet-reasoning",
-    "Claude 4 Sonnet (Reasoning)",
-    "Next-generation Claude with advanced reasoning",
-    "Anthropic",
-    "claude-sonnet-4-20250514",
-    {
-      capabilities: ["image", "pdf", "reasoning"],
-      reasoningLevels: ["low", "medium", "high"],
-      category: "reasoning",
-    }
-  ),
-  createModel(
-    "claude-4-opus",
-    "Claude 4 Opus",
-    "Superior analysis capabilities with reasoning",
-    "Anthropic",
-    "claude-opus-4-20250514",
-    {
-      capabilities: ["image", "pdf", "reasoning"],
-      category: "flagship",
-    }
-  ),
-
-  // Groq Models (Llama via Groq)
-  createModel(
-    "llama-3.3-70b-groq",
-    "Llama 3.3 70B (Groq)",
-    "Fast Llama 3.3 70B with tool calling support",
-    "Groq",
-    "llama-3.3-70b-versatile",
-    {
-      isOpenSource: true,
-      category: "flagship",
-    }
-  ),
-  createModel(
-    "llama-4-scout-groq",
-    "Llama 4 Scout (Groq)",
-    "Fast Llama 4 Scout with vision and tool calling",
-    "Groq",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    {
-      capabilities: ["image"],
-      isOpenSource: true,
-      category: "vision",
-    }
-  ),
-  createModel(
-    "llama-3.1-8b-groq",
-    "Llama 3.1 8B (Groq)",
-    "Fast and efficient Llama 3.1 8B with tool calling",
-    "Groq",
-    "llama-3.1-8b-instant",
-    {
-      isOpenSource: true,
-      category: "efficient",
-    }
-  ),
-
-  // DeepSeek Models
-  createModel(
-    "deepseek-v3-chat",
-    "DeepSeek V3 Chat",
-    "Conversational AI model (DeepSeek-V3-0324)",
-    "DeepSeek",
-    "deepseek-chat",
-    { isOpenSource: true }
-  ),
-  createModel(
-    "deepseek-r1-preview",
-    "DeepSeek R1 Preview",
-    "Advanced reasoning model (DeepSeek-R1-0528)",
-    "DeepSeek",
-    "deepseek-reasoner",
-    {
-      isOpenSource: true,
-      capabilities: ["reasoning"],
-      category: "reasoning",
-    }
-  ),
-
-  // xAI Models
-  createModel("grok-3", "Grok 3", "Advanced reasoning model", "xAI", "grok-3", {
-    capabilities: [],
-    isOpenSource: false,
-    category: "flagship",
+  m("gemini-2.5-flash", "Gemini 2.5 Flash", "Google", "gemini-2.5-flash-preview-05-20", {
+    capabilities: [...multimodal, "search"]
   }),
-  createModel("grok-3-mini", "Grok 3 Mini", "Efficient reasoning model", "xAI", "grok-3-mini", {
-    capabilities: ["reasoning"],
-    reasoningLevels: ["low", "high"],
-    isOpenSource: false,
-    maxTokens: 4096,
-    category: "reasoning",
+  m("gemini-2.5-pro", "Gemini 2.5 Pro", "Google", "gemini-2.5-pro-preview-06-05", {
+    capabilities: [...reasoningMultimodal, "search"], reasoningLevels: [...reasoningLevels], category: "flagship"
+  }),
+  
+  // OpenAI
+  m("gpt-5", "GPT-5", "OpenAI", "gpt-5", {
+    description: "Latest flagship model with advanced reasoning and multimodal capabilities",
+    capabilities: reasoningMultimodal, reasoningLevels: [...reasoningLevels], maxTokens: 256000, category: "flagship"
+  }),
+  m("gpt-5-mini", "GPT-5 Mini", "OpenAI", "gpt-5-mini", {
+    capabilities: multimodal, maxTokens: 128000
+  }),
+  m("gpt-5-nano", "GPT-5 Nano", "OpenAI", "gpt-5-nano", {
+    capabilities: multimodal, maxTokens: 64000
+  }),
+  m("gpt-4o", "GPT-4o", "OpenAI", "gpt-4o-2024-11-20", {
+    capabilities: multimodal, maxTokens: 4096, category: "flagship"
+  }),
+  m("gpt-4o-mini", "GPT-4o Mini", "OpenAI", "gpt-4o-mini", {
+    capabilities: multimodal, maxTokens: 4096
+  }),
+  m("o3-mini", "o3-mini", "OpenAI", "o3-mini", {
+    capabilities: ["reasoning", "pdf"], reasoningLevels: [...reasoningLevels], maxTokens: 4096, category: "reasoning"
+  }),
+  m("o4-mini", "o4-mini", "OpenAI", "o4-mini-2025-04-16", {
+    capabilities: reasoningMultimodal, reasoningLevels: [...reasoningLevels], maxTokens: 4096, category: "reasoning"
+  }),
+  m("gpt-4.5", "GPT-4.5", "OpenAI", "gpt-4.5", {
+    capabilities: multimodal, category: "flagship"
+  }),
+  m("gpt-4.1", "GPT-4.1", "OpenAI", "gpt-4.1", {
+    capabilities: multimodal, maxTokens: 32768, category: "flagship"
+  }),
+  m("gpt-4.1-mini", "GPT-4.1 Mini", "OpenAI", "gpt-4.1-mini", {
+    capabilities: multimodal, maxTokens: 32768
+  }),
+  m("gpt-4.1-nano", "GPT-4.1 Nano", "OpenAI", "gpt-4.1-nano", {
+    capabilities: multimodal, maxTokens: 32768
   }),
 
-  // OpenRouter Models - Free Qwen Series Only
-  createModel(
-    "qwen3-30b-a3b-free",
-    "Qwen3 30B A3B (Free)",
-    "Free 30.5B parameter MoE model with superior reasoning, coding, and dialogue capabilities (No tool support)",
-    "OpenRouter",
-    "qwen/qwen3-30b-a3b:free",
-    {
-      isOpenSource: true,
-      capabilities: ["reasoning"],
-      category: "flagship",
-      maxTokens: 40960,
-      supportsFunctions: false,
-    }
-  ),
-  createModel(
-    "qwen-2.5-coder-32b-free",
-    "Qwen2.5 Coder 32B (Free)",
-    "Free 32B parameter model optimized for code generation and reasoning (No tool support)",
-    "OpenRouter",
-    "qwen/qwen-2.5-coder-32b-instruct:free",
-    {
-      isOpenSource: true,
-      capabilities: ["reasoning"],
-      category: "coding",
-      maxTokens: 131072,
-      supportsFunctions: false,
-    }
-  ),
-  createModel(
-    "qwq-32b-free",
-    "QwQ 32B (Free)",
-    "Free 32B reasoning model capable of enhanced logical thinking and problem solving (No tool support)",
-    "OpenRouter",
-    "qwen/qwq-32b:free",
-    {
-      isOpenSource: true,
-      capabilities: ["reasoning"],
-      category: "reasoning",
-      maxTokens: 131072,
-      supportsFunctions: false,
-    }
-  ),
+  // Anthropic
+  m("claude-3.5-sonnet", "Claude 3.5 Sonnet", "Anthropic", "claude-3-5-sonnet-20241022", {
+    capabilities: multimodal, category: "flagship"
+  }),
+  m("claude-3.7-sonnet", "Claude 3.7 Sonnet", "Anthropic", "claude-3-7-sonnet-20250219", {
+    capabilities: multimodal, category: "flagship"
+  }),
+  m("claude-3.7-sonnet-reasoning", "Claude 3.7 Sonnet (Reasoning)", "Anthropic", "claude-3-7-sonnet-20250219", {
+    capabilities: reasoningMultimodal, reasoningLevels: [...reasoningLevels], category: "reasoning"
+  }),
+  m("claude-4-sonnet", "Claude 4 Sonnet", "Anthropic", "claude-sonnet-4-20250514", {
+    capabilities: multimodal, category: "flagship"
+  }),
+  m("claude-4-sonnet-reasoning", "Claude 4 Sonnet (Reasoning)", "Anthropic", "claude-sonnet-4-20250514", {
+    capabilities: reasoningMultimodal, reasoningLevels: [...reasoningLevels], category: "reasoning"
+  }),
+  m("claude-4-opus", "Claude 4 Opus", "Anthropic", "claude-opus-4-20250514", {
+    capabilities: reasoningMultimodal, category: "flagship"
+  }),
+
+  // Groq
+  m("llama-3.3-70b-groq", "Llama 3.3 70B (Groq)", "Groq", "llama-3.3-70b-versatile", {
+    isOpenSource: true, category: "flagship"
+  }),
+  m("llama-4-scout-groq", "Llama 4 Scout (Groq)", "Groq", "meta-llama/llama-4-scout-17b-16e-instruct", {
+    capabilities: multimodal, isOpenSource: true, category: "vision"
+  }),
+  m("llama-3.1-8b-groq", "Llama 3.1 8B (Groq)", "Groq", "llama-3.1-8b-instant", {
+    isOpenSource: true
+  }),
+
+  // DeepSeek
+  m("deepseek-v3-chat", "DeepSeek V3 Chat", "DeepSeek", "deepseek-chat", {
+    isOpenSource: true
+  }),
+  m("deepseek-r1-preview", "DeepSeek R1 Preview", "DeepSeek", "deepseek-reasoner", {
+    capabilities: reasoning, isOpenSource: true, category: "reasoning"
+  }),
+
+  // xAI
+  m("grok-3", "Grok 3", "xAI", "grok-3", {
+    capabilities: ["pdf", "tools"], category: "flagship"
+  }),
+  m("grok-3-mini", "Grok 3 Mini", "xAI", "grok-3-mini", {
+    capabilities: [...reasoning, "pdf"], reasoningLevels: ["low", "high"], maxTokens: 4096, category: "reasoning"
+  }),
+
+  // OpenRouter Free
+  m("qwen3-30b-a3b-free", "Qwen3 30B A3B (Free)", "OpenRouter", "qwen/qwen3-30b-a3b:free", {
+    capabilities: ["reasoning"], isOpenSource: true, category: "flagship", maxTokens: 40960
+  }),
+  m("qwen-2.5-coder-32b-free", "Qwen2.5 Coder 32B (Free)", "OpenRouter", "qwen/qwen-2.5-coder-32b-instruct:free", {
+    capabilities: ["reasoning"], isOpenSource: true, category: "coding", maxTokens: 131072
+  }),
+  m("qwq-32b-free", "QwQ 32B (Free)", "OpenRouter", "qwen/qwq-32b:free", {
+    capabilities: ["reasoning"], isOpenSource: true, category: "reasoning", maxTokens: 131072
+  }),
 ];
 
-// Consolidated helper functions
+// Helper functions
 export const getModelById = (id: string) => MODELS.find((m) => m.id === id);
-export const getModelsByProvider = (provider: ModelConfig["provider"]) =>
-  MODELS.filter((m) => m.provider === provider);
-export const getModelsByCapability = (capability: ModelCapability) =>
-  MODELS.filter((m) => m.capabilities.includes(capability));
-export const getModelsByCategory = (category: ModelConfig["category"]) =>
-  MODELS.filter((m) => m.category === category);
+export const getModelsByProvider = (provider: Provider) => MODELS.filter((m) => m.provider === provider);
+export const getModelsByCapability = (capability: ModelCapability) => MODELS.filter((m) => m.capabilities.includes(capability));
+export const getModelsByCategory = (category: ModelConfig["category"]) => MODELS.filter((m) => m.category === category);
 
 // Computed properties
-export const REASONING_MODELS = MODELS.filter((m) => m.capabilities.includes("reasoning")).map(
-  (m) => m.id
-);
-export const VISION_MODELS = MODELS.filter((m) => m.capabilities.includes("image")).map(
-  (m) => m.id
-);
-export const IMAGE_GEN_MODELS = MODELS.filter((m) =>
-  m.capabilities.includes("image-generation")
-).map((m) => m.id);
+export const REASONING_MODELS = MODELS.filter((m) => m.capabilities.includes("reasoning")).map((m) => m.id);
+export const VISION_MODELS = MODELS.filter((m) => m.capabilities.includes("image")).map((m) => m.id);
+export const IMAGE_GEN_MODELS: string[] = [];
+
+// Type helpers
+type LiteralUnion<T extends U, U = string> = T | (U & {});
+type ExactModelIds = 
+  | "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-2.5-pro"
+  | "gpt-5" | "gpt-5-mini" | "gpt-5-nano" | "gpt-4o" | "gpt-4o-mini" 
+  | "o3-mini" | "o4-mini" | "gpt-4.5" | "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano"
+  | "claude-3.5-sonnet" | "claude-3.7-sonnet" | "claude-3.7-sonnet-reasoning" 
+  | "claude-4-sonnet" | "claude-4-sonnet-reasoning" | "claude-4-opus"
+  | "llama-3.3-70b-groq" | "llama-4-scout-groq" | "llama-3.1-8b-groq"
+  | "deepseek-v3-chat" | "deepseek-r1-preview"
+  | "grok-3" | "grok-3-mini"
+  | "qwen3-30b-a3b-free" | "qwen-2.5-coder-32b-free" | "qwq-32b-free";
+
+export type ModelId = LiteralUnion<ExactModelIds>;
 
 // Defaults
-export const DEFAULT_MODEL = "gemini-2.5-flash";
+export const DEFAULT_MODEL = "gpt-5";
 export const DEFAULT_FAVORITES = [
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "claude-3.5-sonnet",
-  "claude-4-sonnet-reasoning",
-  "gpt-4o",
-  "llama-3.3-70b-groq",
-  "deepseek-r1-preview",
-  "deepseek-v3-chat",
-];
+  "gpt-5", "gpt-5-mini", "gemini-2.5-flash", "gemini-2.5-pro",
+  "claude-3.5-sonnet", "claude-4-sonnet-reasoning", "gpt-4o",
+  "llama-3.3-70b-groq", "deepseek-r1-preview", "deepseek-v3-chat",
+] as const satisfies readonly ModelId[];
+
+// Showcase models for feature cards
+export const SHOWCASE_MODELS = [
+  "gpt-5", "claude-4-sonnet", "gemini-2.5-pro", "grok-3",
+  "llama-3.3-70b-groq", "deepseek-r1-preview", "qwen3-30b-a3b-free"
+] as const satisfies readonly ModelId[];
+
+export const getShowcaseModels = (): ModelConfig[] => 
+  SHOWCASE_MODELS.map(id => MODELS.find(m => m.id === id)!);
 
 // Dynamic model groupings
 export const MODEL_GROUPS = {
-  Recommended: ["gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-3.3-70b-groq"],
+  Recommended: ["gpt-5", "gpt-5-mini", "gemini-2.5-flash", "claude-3.5-sonnet", "gpt-4o", "llama-3.3-70b-groq"],
   Reasoning: REASONING_MODELS,
   "Vision & Multimodal": VISION_MODELS,
-  "Image Generation": IMAGE_GEN_MODELS,
   "All Models": MODELS.map((m) => m.id),
 } as const;

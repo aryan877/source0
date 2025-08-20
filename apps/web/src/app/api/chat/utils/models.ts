@@ -1,4 +1,6 @@
 import { PROVIDER_MAPPING, type ModelConfig, type ReasoningLevel } from "@/config/models";
+import { isModelEnabledForUser } from "@/services/user-api-keys.server";
+import { type Database } from "@/types/supabase-types";
 import { anthropic } from "@ai-sdk/anthropic";
 import { deepseek } from "@ai-sdk/deepseek";
 import { google } from "@ai-sdk/google";
@@ -6,6 +8,7 @@ import { groq } from "@ai-sdk/groq";
 import { openai } from "@ai-sdk/openai";
 import { xai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { type JSONValue, type LanguageModel } from "ai";
 
 const PROVIDERS = { google, openai, anthropic, xai, deepseek, groq } as const;
@@ -67,6 +70,40 @@ export const getModelMapping = (config: ModelConfig, apiKey?: string): ModelMapp
   };
 };
 
+// Enhanced function that checks both model availability and user permissions
+export const getModelMappingWithPermissions = async (
+  config: ModelConfig, 
+  apiKey: string | undefined, 
+  supabase: SupabaseClient<Database>, 
+  userId: string
+): Promise<ModelMapping> => {
+  // First check basic model mapping
+  const basicMapping = getModelMapping(config, apiKey);
+  if (!basicMapping.supported) {
+    return basicMapping;
+  }
+
+  // If user has BYOK enabled for this model, check if it's allowed
+  try {
+    const isEnabled = await isModelEnabledForUser(supabase, userId, config.id, config.provider);
+    if (!isEnabled) {
+      // Check if user is trying to use BYOK but model is disabled
+      const hasUserKey = !!apiKey; // apiKey would be from user's database
+      if (hasUserKey) {
+        return {
+          supported: false,
+          message: `${config.name} is disabled in your BYOK settings. Enable it in Settings > API Keys.`,
+        };
+      }
+    }
+  } catch (error) {
+    // If permission check fails, continue with basic mapping (fallback to default keys)
+    console.warn('Failed to check model permissions:', error);
+  }
+
+  return basicMapping;
+};
+
 export const buildProviderOptions = (
   config: ModelConfig,
   reasoningLevel: ReasoningLevel,
@@ -113,23 +150,19 @@ export const buildProviderOptions = (
 
 export const createModelInstance = (
   config: ModelConfig,
-  mapping: ModelMappingResult,
-  searchEnabled: boolean
+  mapping: ModelMappingResult
 ): LanguageModel => {
   const { provider, model } = mapping;
 
   // Handle OpenRouter models
   if (mapping.providerInfo.name === "openrouter") {
-    return (provider as ReturnType<typeof createOpenRouter>).chat(model);
+    return (provider as ReturnType<typeof createOpenRouter>).chat(
+      model
+    ) as unknown as LanguageModel;
   }
 
-  // Handle Google with search grounding
-  if (config.provider === "Google" && config.capabilities.includes("search") && searchEnabled) {
-    return (provider as typeof google)(model, {
-      useSearchGrounding: true,
-      dynamicRetrievalConfig: { mode: "MODE_DYNAMIC" as const, dynamicThreshold: 0.3 },
-    });
-  }
+  // For Google models with search capability, search grounding is now handled
+  // via tools (google.tools.googleSearch({})) in AI SDK v5, not model configuration
 
   return (
     provider as
@@ -167,8 +200,10 @@ export const buildSystemMessage = (
   ].filter(Boolean);
 
   const formattingRules = [
-    "Use markdown for code blocks (e.g., ```python).",
-    "For math, use LaTeX (`$$...$$` or `$...$`). To show a dollar amount, escape the dollar sign: `\\$145.86`.",
+    "Use markdown for code blocks with language specification (e.g., ```python, ```javascript, ```rust).",
+    "Math: Use `$expression$` for inline and `$$expression$$` for display. Put complex equations on separate lines with `$$`.",
+    "For literal dollar amounts, escape the dollar sign: `\\$145.86` (not `$145.86`).",
+    "IMPORTANT: Never include generated images in markdown image syntax (![](url)). Images generated via tools are displayed automatically in the UI. Only describe the images you've generated, don't embed them again.",
   ];
 
   if (config.provider === "Anthropic") {

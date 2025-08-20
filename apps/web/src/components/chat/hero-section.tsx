@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import { memo } from "react";
 
@@ -94,7 +94,7 @@ export const HeroSection = memo(({ onPromptSelect, className = "" }: HeroSection
             <button
               key={index}
               onClick={() => onPromptSelect(prompt)}
-              className="w-full rounded-xl border border-default-300 bg-default-100 px-4 py-3.5 text-left text-sm font-medium text-foreground transition-colors hover:border-default-400 hover:bg-default-200"
+              className="w-full rounded-lg px-4 py-3.5 text-center text-sm font-medium text-foreground transition-colors hover:bg-content2/50"
             >
               {prompt}
             </button>

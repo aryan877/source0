@@ -10,7 +10,7 @@ import {
 import { userFilesKeys } from "@/utils/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useAuth } from "./useAuth";
+import { useAuth } from "./use-auth";
 
 const logError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
   const isDevelopment = process.env.NODE_ENV === "development";

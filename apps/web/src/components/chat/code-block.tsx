@@ -1,7 +1,7 @@
 "use client";
 
 import { themeOptions } from "@/stores/user-preferences-store";
-import { ArrowsRightLeftIcon, CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import { ArrowsRightLeftIcon, CheckIcon, ClipboardDocumentIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { Button, Tooltip } from "@heroui/react";
 import { transformerNotationDiff, transformerNotationHighlight } from "@shikijs/transformers";
 import { useTheme } from "next-themes";
@@ -51,6 +51,61 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
     setIsWrapped((prev) => !prev);
   }, []);
 
+  const getFileExtension = useCallback((lang: string): string => {
+    const languageMap: Record<string, string> = {
+      javascript: 'js',
+      typescript: 'ts',
+      python: 'py',
+      rust: 'rs',
+      go: 'go',
+      java: 'java',
+      cpp: 'cpp',
+      c: 'c',
+      csharp: 'cs',
+      php: 'php',
+      ruby: 'rb',
+      swift: 'swift',
+      kotlin: 'kt',
+      scala: 'scala',
+      html: 'html',
+      css: 'css',
+      scss: 'scss',
+      sass: 'sass',
+      less: 'less',
+      json: 'json',
+      xml: 'xml',
+      yaml: 'yml',
+      yml: 'yml',
+      toml: 'toml',
+      ini: 'ini',
+      sql: 'sql',
+      bash: 'sh',
+      shell: 'sh',
+      sh: 'sh',
+      zsh: 'zsh',
+      fish: 'fish',
+      powershell: 'ps1',
+      dockerfile: 'dockerfile',
+      markdown: 'md',
+      text: 'txt',
+    };
+    return languageMap[lang.toLowerCase()] || 'txt';
+  }, []);
+
+  const handleDownload = useCallback(() => {
+    const extension = getFileExtension(language);
+    const filename = `code.${extension}`;
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [code, language, getFileExtension]);
+
   const lineCount = useMemo(() => {
     const lines = code.split("\n");
     return lines.length;
@@ -59,6 +114,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
   const lineNumbers = useMemo(() => {
     return Array.from({ length: lineCount }, (_, i) => i + 1);
   }, [lineCount]);
+
 
   const headerControls = useMemo(
     () => (
@@ -79,6 +135,13 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
             </Button>
           </div>
         </Tooltip>
+        <Tooltip content="Download file" placement="top" delay={300}>
+          <div>
+            <Button size="sm" variant="light" isIconOnly onPress={handleDownload} className="h-6 w-6">
+              <ArrowDownTrayIcon className="h-3 w-3" />
+            </Button>
+          </div>
+        </Tooltip>
         <Tooltip content={copied ? "Copied!" : "Copy"} placement="top" delay={300}>
           <div>
             <Button size="sm" variant="light" isIconOnly onPress={handleCopy} className="h-6 w-6">
@@ -92,7 +155,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
         </Tooltip>
       </div>
     ),
-    [isWrapped, handleWrapToggle, copied, handleCopy]
+    [isWrapped, handleWrapToggle, handleDownload, copied, handleCopy]
   );
 
   // Fallback component for plain text rendering
@@ -128,12 +191,12 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
       </div>
       <div className={`${isWrapped ? "overflow-x-visible" : "overflow-x-auto"}`}>
         <div className={`flex ${isWrapped ? "min-w-0" : "min-w-max"}`}>
-          {/* Line Numbers Column */}
-          <div className="flex min-w-[3rem] select-none flex-col bg-content3/40 py-3 pl-3 pr-2">
+          {/* Line Numbers Column - VS Code style */}
+          <div className="flex min-w-[2.5rem] select-none flex-col bg-content2/40 py-3 pr-3 pl-2 border-r border-divider/20">
             {lineNumbers.map((lineNum) => (
               <div
                 key={lineNum}
-                className="flex h-6 items-center justify-end font-mono text-xs leading-6 text-foreground/60"
+                className="flex h-6 items-center justify-end font-mono text-xs leading-6 text-foreground/40 tabular-nums"
               >
                 {lineNum}
               </div>
@@ -142,7 +205,7 @@ const CodeBlock = memo(({ children, className }: CodeBlockProps) => {
           {/* Code Column */}
           <div className="min-w-0 flex-1 bg-content2/60">
             {isLanguageSupported ? (
-              <div className="py-3 pl-2 pr-3 font-mono text-sm leading-6">
+              <div className="py-3 pl-3 pr-3 font-mono text-sm leading-6">
                 <ShikiHighlighter
                   theme={shikiTheme}
                   language={language}

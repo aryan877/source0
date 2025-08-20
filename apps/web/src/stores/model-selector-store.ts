@@ -29,6 +29,7 @@ interface ModelSelectorState {
   selectedModels: Record<string, string>;
   selectedReasoningLevels: Record<string, ReasoningLevel>;
   selectedSearchEnabled: Record<string, boolean>;
+  selectedImageGenerationEnabled: Record<string, boolean>;
 
   // Hydration State
   hasHydrated: boolean;
@@ -49,6 +50,8 @@ interface ModelSelectorState {
   getSelectedReasoningLevel: (chatId: string) => ReasoningLevel;
   setSelectedSearchEnabled: (chatId: string, enabled: boolean) => void;
   getSelectedSearchEnabled: (chatId: string) => boolean;
+  setSelectedImageGenerationEnabled: (chatId: string, enabled: boolean) => void;
+  getSelectedImageGenerationEnabled: (chatId: string) => boolean;
   transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
@@ -70,6 +73,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedModels: {},
       selectedReasoningLevels: {},
       selectedSearchEnabled: {},
+      selectedImageGenerationEnabled: {},
       hasHydrated: false,
 
       // Actions
@@ -163,15 +167,32 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         return selectedSearchEnabled[chatId] ?? false;
       },
 
+      setSelectedImageGenerationEnabled: (chatId, enabled) => {
+        const { selectedImageGenerationEnabled } = get();
+        set({
+          selectedImageGenerationEnabled: {
+            ...selectedImageGenerationEnabled,
+            [chatId]: enabled,
+          },
+        });
+      },
+
+      getSelectedImageGenerationEnabled: (chatId) => {
+        const { selectedImageGenerationEnabled } = get();
+        return selectedImageGenerationEnabled[chatId] ?? false;
+      },
+
       transferModelSelection: (fromChatId, toChatId) => {
-        const { selectedModels, selectedReasoningLevels, selectedSearchEnabled } = get();
+        const { selectedModels, selectedReasoningLevels, selectedSearchEnabled, selectedImageGenerationEnabled } = get();
         const modelToTransfer = selectedModels[fromChatId];
         const reasoningLevelToTransfer = selectedReasoningLevels[fromChatId];
         const searchEnabledToTransfer = selectedSearchEnabled[fromChatId];
+        const imageGenerationEnabledToTransfer = selectedImageGenerationEnabled[fromChatId];
 
         const newSelectedModels = { ...selectedModels };
         const newSelectedReasoningLevels = { ...selectedReasoningLevels };
         const newSelectedSearchEnabled = { ...selectedSearchEnabled };
+        const newSelectedImageGenerationEnabled = { ...selectedImageGenerationEnabled };
 
         if (modelToTransfer) {
           newSelectedModels[toChatId] = modelToTransfer;
@@ -182,11 +203,15 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         if (searchEnabledToTransfer !== undefined) {
           newSelectedSearchEnabled[toChatId] = searchEnabledToTransfer;
         }
+        if (imageGenerationEnabledToTransfer !== undefined) {
+          newSelectedImageGenerationEnabled[toChatId] = imageGenerationEnabledToTransfer;
+        }
 
         set({
           selectedModels: newSelectedModels,
           selectedReasoningLevels: newSelectedReasoningLevels,
           selectedSearchEnabled: newSelectedSearchEnabled,
+          selectedImageGenerationEnabled: newSelectedImageGenerationEnabled,
         });
       },
 
@@ -220,6 +245,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           selectedModels: {},
           selectedReasoningLevels: {},
           selectedSearchEnabled: {},
+          selectedImageGenerationEnabled: {},
           hasHydrated: false,
         });
       },
@@ -232,6 +258,7 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         selectedModels: state.selectedModels,
         selectedReasoningLevels: state.selectedReasoningLevels,
         selectedSearchEnabled: state.selectedSearchEnabled,
+        selectedImageGenerationEnabled: state.selectedImageGenerationEnabled,
       }), // Persist both favorites and selected models per chat
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
@@ -264,6 +291,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         // Initialize selectedSearchEnabled if it doesn't exist
         if (state && !state.selectedSearchEnabled) {
           state.selectedSearchEnabled = {};
+        }
+        // Initialize selectedImageGenerationEnabled if it doesn't exist
+        if (state && !state.selectedImageGenerationEnabled) {
+          state.selectedImageGenerationEnabled = {};
         }
         // Mark as hydrated after rehydration
         if (state) {

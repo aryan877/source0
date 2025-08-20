@@ -1,18 +1,34 @@
 import { ReasoningLevel } from "@/config/models";
 import { type ProviderMetadata } from "@/types/provider-metadata";
-import { convertToAiMessages, prepareMessageForDb } from "@/utils/database-message-converter";
+import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/server";
 import { type SupabaseClient } from "@supabase/supabase-js";
-import { type Message } from "ai";
-import { type ChatMessage, type DBChatMessage } from "./chat-messages";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
+import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
+import { type DBChatMessage } from "./chat-messages";
+
+
+/**
+ * Adds a prepared message to the database.
+ */
+async function addMessageServer(
+  supabase: SupabaseClient,
+  message: ReturnType<typeof prepareMessageForDb>
+): Promise<DBChatMessage> {
+  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
+  if (error) {
+    console.error("Error upserting message:", error);
+    throw new Error(`Failed to upsert message: ${error.message}`);
+  }
+  return data;
+}
 
 /**
  * Server-side function to save a user message.
- * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveUserMessageServer(
   supabase: SupabaseClient,
-  userMessage: Message,
+  userMessage: CustomUIMessage,
   sessionId: string,
   userId: string
 ): Promise<DBChatMessage> {
@@ -26,16 +42,15 @@ export async function saveUserMessageServer(
 
 /**
  * Server-side function to save an assistant message.
- * It uses the new `prepareMessageForDb` helper.
  */
 export async function saveAssistantMessageServer(
   supabase: SupabaseClient,
-  message: Message,
+  message: CustomUIMessage,
   sessionId: string,
   userId: string,
   model: string,
   modelProvider: string,
-  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean },
+  modelConfig: { reasoningLevel?: string; searchEnabled?: boolean; imageGenerationEnabled?: boolean },
   providerMetadata?: ProviderMetadata
 ): Promise<DBChatMessage> {
   const preparedMessage = prepareMessageForDb({
@@ -46,31 +61,33 @@ export async function saveAssistantMessageServer(
     modelProvider,
     reasoningLevel: modelConfig.reasoningLevel as ReasoningLevel,
     searchEnabled: modelConfig.searchEnabled,
+    imageGenerationEnabled: modelConfig.imageGenerationEnabled,
     providerMetadata,
   });
   return addMessageServer(supabase, preparedMessage);
 }
 
 /**
- * Add a message to the database (server-side version)
+ * Server-side function to save a tool message.
  */
-export async function addMessageServer(
+export async function saveToolMessageServer(
   supabase: SupabaseClient,
-  message: Omit<ChatMessage, "created_at">
+  message: CustomUIMessage,
+  sessionId: string,
+  userId: string
 ): Promise<DBChatMessage> {
-  const { data, error } = await supabase.from("chat_messages").upsert(message).select().single();
-
-  if (error) {
-    console.error("Error upserting message:", error);
-    throw new Error(`Failed to upsert message: ${error.message}`);
-  }
-  return data;
+  const preparedMessage = prepareMessageForDb({
+    message,
+    sessionId,
+    userId,
+  });
+  return addMessageServer(supabase, preparedMessage);
 }
 
 /**
- * Get all messages for a session (server-side version)
+ * Get all messages for a session as CustomUIMessages (server-side version).
  */
-export async function getMessagesServer(sessionId: string): Promise<Message[]> {
+export async function getMessagesServer(sessionId: string): Promise<CustomUIMessage[]> {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -87,9 +104,5 @@ export async function getMessagesServer(sessionId: string): Promise<Message[]> {
     return [];
   }
 
-  // Cast the untyped 'parts' and 'role' from the DB to our specific app types
-  const chatMessages = data as ChatMessage[];
-
-  // Convert ChatMessage[] to Message[] for the AI SDK
-  return convertToAiMessages(chatMessages);
+  return data.map(toCustomUIMessage);
 }

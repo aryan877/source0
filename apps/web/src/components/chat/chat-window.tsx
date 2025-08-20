@@ -6,25 +6,21 @@ import { useChatMessages } from "@/hooks/queries/use-chat-messages";
 import { useChatSession } from "@/hooks/queries/use-chat-session";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useMessageSummaries } from "@/hooks/queries/use-message-summaries";
-import { useAutoResume } from "@/hooks/use-auto-resume";
+
+import { useAuth } from "@/hooks/use-auth";
 import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  createSession,
-  deleteFromPoint,
-  getLatestStreamIdWithStatus,
-  saveAssistantMessage,
-} from "@/services";
+import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
 import { type ChatSession } from "@/services/chat-sessions";
-import { useApiKeysStore } from "@/stores/api-keys-store";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
-import { TypedImageGenerationAnnotation } from "@/types/annotations";
-import { ensureUniqueMessages, prepareMessageForDb } from "@/utils/database-message-converter";
-import { useChat, type Message } from "@ai-sdk/react";
+import { prepareMessageForDb } from "@/utils/database-message-converter";
+
+import { type CustomUIMessage } from "@/types/custom-ui-message";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -54,12 +50,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     setReasoningLevel,
     searchEnabled,
     setSearchEnabled,
+    imageGenerationEnabled,
+    setImageGenerationEnabled,
   } = useChatState(chatId);
   const { transferModelSelection } = useModelSelectorStore();
   const { user } = useAuth();
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
-  const lastUserMessageForSuggestions = useRef<Message | null>(null);
+  const lastUserMessageForSuggestions = useRef<CustomUIMessage | null>(null);
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
   const navigatorRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -83,17 +81,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const chatBody = useMemo(() => {
-    const modelConfig = getModelById(selectedModel);
-    const provider = modelConfig?.provider;
-    const apiKey =
-      provider && useApiKeysStore.getState().shouldUseProviderKey(provider)
-        ? useApiKeysStore.getState().getApiKey(provider)
-        : undefined;
+    // API keys are now handled server-side from database
+    const apiKey = undefined;
 
     return {
       model: selectedModel,
       reasoningLevel: reasoningLevel,
       searchEnabled: searchEnabled,
+      imageGenerationEnabled: imageGenerationEnabled,
       memoryEnabled: memoryEnabled,
       showChatNavigator: showChatNavigator,
       id: chatId === "new" ? undefined : chatId,
@@ -106,6 +101,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     selectedModel,
     reasoningLevel,
     searchEnabled,
+    imageGenerationEnabled,
     memoryEnabled,
     showChatNavigator,
     chatId,
@@ -130,227 +126,148 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     user
   );
 
-  const {
-    messages,
-    input,
-    setInput,
-    status,
-    stop,
-    error,
-    append,
-    reload,
-    setMessages,
-    experimental_resume,
-    data,
-  } = useChat({
-    api: "/api/chat",
-    id: chatId === "new" ? undefined : chatId,
-    initialMessages: [],
-    sendExtraMessageFields: true,
-    generateId: () => uuidv4(),
-    experimental_throttle: 100,
-    body: chatBody,
-    onError: (error) => {
-      // The `useChat` hook's `error` object will be populated.
-      // We log it here for debugging, but we don't need to set a separate `uiError`
-      // state as that would be redundant. `ErrorDisplay` will use the `error` object.
-      console.error("An error occurred in the chat stream:", error);
-    },
-    onResponse: (response) => {
-      if (!response.ok) {
-        console.error(
-          "API Response Error",
-          new Error(`HTTP ${response.status}: ${response.statusText}`),
-          {
+  const [input, setInput] = useState("");
+
+  const { messages, status, error, sendMessage, stop, setMessages, resumeStream } =
+    useChat<CustomUIMessage>({
+      transport: new DefaultChatTransport({
+        api: "/api/chat",
+        body: chatBody,
+        prepareReconnectToStreamRequest: ({ id }) => ({
+          api: `/api/chat?chatId=${id}`,
+        }),
+      }),
+      id: chatId === "new" ? undefined : chatId,
+      experimental_throttle: 100,
+      onError: (error) => {
+        // The `useChat` hook's `error` object will be populated.
+        // We log it here for debugging, but we don't need to set a separate `uiError`
+        // state as that would be redundant. `ErrorDisplay` will use the `error` object.
+        console.error("An error occurred in the chat stream:", error);
+      },
+      onFinish: async ({ message }: { message: CustomUIMessage }) => {
+        console.log(message);
+        console.log("onFinish", message);
+        if (process.env.NODE_ENV === "development") {
+          console.log("Chat stream finished", {
             chatId,
             selectedModel: selectedModel,
-            status: response.status,
-            statusText: response.statusText,
-            url: response.url,
-          }
-        );
-
-        // Clear any existing error first to prevent stacking
-        updateState({ uiError: null });
-
-        if (response.status === 413) {
-          updateState({
-            uiError:
-              "📝 Your message is too long. Please try shortening it or breaking it into smaller parts.",
-          });
-        } else if (response.status === 429) {
-          updateState({
-            uiError: "⏱️ Rate limit exceeded. Please wait a moment before sending another message.",
-          });
-        } else if (response.status >= 500) {
-          updateState({
-            uiError: "🔧 Server error. Please try again in a moment.",
-          });
-        } else if (response.status === 401) {
-          updateState({
-            uiError: "🔐 Authentication error. Please refresh the page and try again.",
-          });
-        } else {
-          // Generic error for other HTTP status codes
-          updateState({
-            uiError: `Request failed with status ${response.status}. Please try again.`,
+            messageId: message.id,
+            timestamp: new Date().toISOString(),
           });
         }
-      }
-    },
-    onFinish: async (message, { usage, finishReason }) => {
-      console.log("onFinish", message, { usage, finishReason });
-      if (process.env.NODE_ENV === "development") {
-        console.log("Chat stream finished", {
-          chatId,
-          selectedModel: selectedModel,
-          messageId: message.id,
-          finishReason,
-          usage,
-          timestamp: new Date().toISOString(),
-        });
-      }
 
-      if (messagesContainerRef.current) {
-        const messagesContainer = messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
-        if (messagesContainer) {
-          const messagesContainerElement = messagesContainer as HTMLElement;
-          const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
-          messagesContainerElement.style.paddingBottom = originalPadding;
-        }
-      }
-
-      const imageGenerationAnnotation = message.annotations?.find(
-        (a): a is TypedImageGenerationAnnotation =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: string }).type === "image_generation_complete"
-      );
-
-      if (imageGenerationAnnotation) {
-        const data = imageGenerationAnnotation.data;
-        if (data.databaseId && data.content && data.filePart) {
-          const filePart = {
-            type: "file" as const,
-            mimeType: data.filePart.mimeType,
-            url: data.filePart.url,
-            filename: data.filePart.filename,
-          };
-
-          const finalMessage: Message = {
-            id: data.databaseId,
-            role: "assistant",
-            content: data.content,
-            parts: [filePart as unknown] as Message["parts"],
-            createdAt: new Date(),
-          };
-
-          setMessages((currentMessages) => {
-            const updatedMessages = currentMessages.map((msg) =>
-              msg.id === message.id ? finalMessage : msg
-            );
-            return ensureUniqueMessages(updatedMessages);
-          });
-        }
-      }
-
-      const messageCompleteAnnotation = message.annotations?.find(
-        (a) =>
-          typeof a === "object" &&
-          a !== null &&
-          !Array.isArray(a) &&
-          (a as { type?: unknown }).type === "message_complete"
-      );
-
-      let hasGrounding = false;
-
-      if (messageCompleteAnnotation) {
-        const data = (messageCompleteAnnotation as { data?: unknown }).data;
-        if (typeof data === "object" && data !== null) {
-          const annotationData = data as {
-            databaseId?: string;
-            messageSaved?: boolean;
-            titleGenerated?: string;
-            userId?: string;
-            hasGrounding?: boolean;
-          };
-
-          hasGrounding = annotationData.hasGrounding ?? false;
-
-          console.log("Processing message_complete annotation:", {
-            originalId: message.id,
-            databaseId: annotationData.databaseId,
-            messageSaved: annotationData.messageSaved,
-            hasTitle: !!annotationData.titleGenerated,
-            hasGrounding: annotationData.hasGrounding,
-            annotationCount: message.annotations?.length || 0,
-          });
-
-          if (annotationData.messageSaved && annotationData.databaseId) {
-            const databaseId = annotationData.databaseId;
-            setMessages((currentMessages) => {
-              const updatedMessages = currentMessages.map((msg) =>
-                msg.id === message.id ? { ...msg, id: databaseId } : msg
-              );
-              return ensureUniqueMessages(updatedMessages);
-            });
-          }
-
-          if (annotationData.titleGenerated && annotationData.userId && chatId !== "new") {
-            const sessionUpdate: ChatSession = {
-              id: chatId,
-              title: annotationData.titleGenerated,
-              updated_at: new Date().toISOString(),
-            } as ChatSession;
-
-            updateSessionInCache(sessionUpdate, annotationData.userId);
+        if (messagesContainerRef.current) {
+          const messagesContainer =
+            messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
+          if (messagesContainer) {
+            const messagesContainerElement = messagesContainer as HTMLElement;
+            const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
+            messagesContainerElement.style.paddingBottom = originalPadding;
           }
         }
-      } else {
-        console.log("No message_complete annotation found:", {
-          messageId: message.id,
-          annotationCount: message.annotations?.length || 0,
-          annotationTypes:
-            message.annotations?.map((a) =>
-              typeof a === "object" && a !== null && !Array.isArray(a)
-                ? (a as { type?: unknown }).type
-                : "unknown"
-            ) || [],
-        });
-      }
 
-      if (message.role === "assistant" && message.content) {
-        const userMessage = lastUserMessageForSuggestions.current;
-        if (userMessage && userMessage.content) {
-          fetchSuggestions(userMessage.content, message.content);
+        // Check for grounding and title data in data parts (AI SDK v5)
+        const groundingParts =
+          message.parts?.filter((part) => part.type === "data-grounding") || [];
+        const titleParts =
+          message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
+
+        let hasGrounding = false;
+
+        // Handle grounding data parts
+        if (groundingParts.length > 0) {
+          const latestGrounding = groundingParts[groundingParts.length - 1];
+          if (latestGrounding && latestGrounding.data) {
+            hasGrounding = latestGrounding.data.hasGrounding ?? false;
+          }
         }
-        // Clear the ref after use
-        lastUserMessageForSuggestions.current = null;
-      }
 
-      if (chatId && chatId !== "new") {
-        const delay = hasGrounding ? 200 : 100;
-        console.log(
-          `Scheduling invalidateMessages with ${delay}ms delay (hasGrounding: ${hasGrounding})`
-        );
+        // Extract metadata from message
+        const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
+          databaseId?: string;
+          messageSaved?: boolean;
+          userId?: string;
+        };
 
-        setTimeout(() => {
-          invalidateMessages();
-        }, delay);
-      }
+        // Handle title generation data parts
+        if (titleParts.length > 0 && chatId !== "new") {
+          const latestTitle = titleParts[titleParts.length - 1];
+          if (latestTitle && latestTitle.data) {
+            const generatedTitle = latestTitle.data.title;
 
-      if (showChatNavigator) {
-        invalidateSummaries();
-      }
-    },
-  });
+            if (generatedTitle && userId) {
+              const sessionUpdate: ChatSession = {
+                id: chatId,
+                title: generatedTitle,
+                updated_at: new Date().toISOString(),
+              } as ChatSession;
+
+              updateSessionInCache(sessionUpdate, userId);
+            }
+          }
+        }
+
+        if (messageSaved && databaseId) {
+          setMessages((current) =>
+            current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
+          );
+        }
+
+        if (message.role === "assistant") {
+          const assistantText = message.parts.find((p) => p.type === "text")?.text;
+          const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
+          if (lastUserMessage && assistantText) {
+            const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
+            if (userText) {
+              fetchSuggestions(userText, assistantText);
+            }
+          }
+        }
+
+        if (chatId && chatId !== "new") {
+          const delay = hasGrounding ? 200 : 100;
+
+          setTimeout(() => {
+            invalidateMessages();
+          }, delay);
+        }
+
+        if (showChatNavigator) {
+          invalidateSummaries();
+        }
+      },
+    });
 
   useEffect(() => {
     if (status === "ready" && initialMessages.length > 0 && messages.length === 0) {
-      setMessages(ensureUniqueMessages(initialMessages));
+      setMessages(initialMessages);
     }
   }, [initialMessages, messages.length, setMessages, status]);
+
+  // AI SDK v5 Auto-resume effect
+  useEffect(() => {
+    // Only attempt auto-resume for existing chats, not new ones
+    if (chatId === "new" || !chatId) return;
+
+    // Only resume if we have messages loaded and the chat is ready
+    if (status !== "ready") return;
+
+    // Check if we should auto-resume (last message is from user and we're not currently streaming)
+    const lastMessage = messages.at(-1);
+    const shouldAutoResume =
+      lastMessage?.role === "user" && status === "ready";
+
+    if (shouldAutoResume && resumeStream) {
+      console.log(
+        "Auto-resuming stream for chat:",
+        chatId,
+        "last message role:",
+        lastMessage?.role
+      );
+      resumeStream();
+    }
+  }, [chatId, messages, status, resumeStream]);
 
   // Add suggested questions hook after useChat
   const {
@@ -374,24 +291,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const handleStop = useCallback(() => {
     stop();
 
-    if (chatId && chatId !== "new") {
-      getLatestStreamIdWithStatus(chatId)
-        .then((latestStream) => {
-          if (latestStream && !latestStream.cancelled) {
-            console.log(`Sending cancel request for stream ${latestStream.streamId}`);
-            // Fire-and-forget cancellation request
-            fetch("/api/chat/cancel", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId, streamId: latestStream.streamId }),
-            }).catch((e) => console.error("Failed to send cancel request", e));
-          }
-        })
-        .catch((error) => {
-          console.error("Error retrieving latest stream to cancel:", error);
-        });
-    }
-
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
     // Then, if a partial message exists, save it
@@ -401,6 +300,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const modelConfig = getModelById(selectedModel);
       const modelProvider = modelConfig?.provider || "Unknown";
 
+      // In AI SDK v5, work with UIMessages directly
       const preparedMessage = prepareMessageForDb({
         message: lastAssistantMessage,
         sessionId: chatId,
@@ -411,19 +311,32 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         searchEnabled: searchEnabled,
       });
 
-      if (preparedMessage.parts.length > 0) {
+      if (Array.isArray(preparedMessage.parts) && preparedMessage.parts.length > 0) {
         saveAssistantMessage(
           lastAssistantMessage,
           chatId,
           user.id,
           selectedModel,
           modelProvider,
-          { reasoningLevel: reasoningLevel, searchEnabled: searchEnabled },
+          {
+            reasoningLevel: reasoningLevel,
+            searchEnabled: searchEnabled,
+            imageGenerationEnabled: imageGenerationEnabled,
+          },
           { fireAndForget: true }
         );
       }
     }
-  }, [stop, chatId, messages, user, selectedModel, reasoningLevel, searchEnabled]);
+  }, [
+    stop,
+    chatId,
+    messages,
+    user,
+    selectedModel,
+    reasoningLevel,
+    searchEnabled,
+    imageGenerationEnabled,
+  ]);
 
   const handleRetryFailedRequest = useCallback(async () => {
     const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
@@ -437,24 +350,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     try {
       updateState({ uiError: null });
       stop();
-      await append(lastUserMessage);
+      sendMessage(lastUserMessage);
     } catch (error) {
       console.error("Error during request retry:", error);
       updateState({
         uiError: "Failed to retry request. Please try again.",
       });
     }
-  }, [messages, stop, updateState, append]);
-
-  useAutoResume({
-    autoResume: chatId !== "new" && !isSharedView,
-    initialMessages,
-    messages,
-    experimental_resume,
-    data,
-    setMessages,
-    chatId: chatId !== "new" ? chatId : undefined,
-  });
+  }, [messages, stop, updateState, sendMessage]);
 
   // Message actions
   const handleRetryMessage = useCallback(
@@ -477,7 +380,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           return;
         }
 
-        let userMessageToRetry: Message;
+        let userMessageToRetry: CustomUIMessage;
         let retryFromIndex: number;
 
         if (clickedMessage.role === "user") {
@@ -508,16 +411,25 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           retryFromIndex = userMessageIndex;
         }
 
-        const messagesToKeep = messages.slice(0, retryFromIndex + 1);
+        // Keep messages up to but NOT including the user message we're retrying
+        const messagesToKeep = messages.slice(0, retryFromIndex);
 
         if (chatId && chatId !== "new") {
-          await deleteFromPoint(userMessageToRetry.id);
+          // Delete from the user message we're retrying (inclusive)
+          await deleteFromPoint(userMessageToRetry.id, true);
         }
 
         clearSuggestions();
+        // Set messages to exclude the retry point and everything after
         setMessages(messagesToKeep);
 
-        await reload();
+        // Resend the same user message (this will add it back and generate new response)
+        sendMessage(userMessageToRetry, {
+          body: {
+            ...chatBody,
+            isFirstMessage: messagesToKeep.length === 0,
+          },
+        });
       } catch (error) {
         console.error("Error during message retry:", error);
         updateState({
@@ -528,7 +440,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, clearSuggestions, reload]
+    [
+      messages,
+      stop,
+      chatId,
+      updateState,
+      invalidateMessages,
+      setMessages,
+      clearSuggestions,
+      sendMessage,
+      chatBody,
+    ]
   );
 
   const handleEditMessage = useCallback(
@@ -565,9 +487,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
           await deleteFromPoint(messageToEdit.id, true);
         }
 
-        const editedMessage: Message = {
+        const editedMessage: CustomUIMessage = {
           ...messageToEdit,
-          content: newContent,
           parts: [{ type: "text", text: newContent }],
         };
 
@@ -577,7 +498,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         clearSuggestions();
         setMessages(newMessages);
 
-        await reload();
+        sendMessage(editedMessage, {
+          body: {
+            ...chatBody,
+            isFirstMessage: newMessages.length === 1,
+          },
+        });
       } catch (error) {
         console.error("Error during message edit:", error);
         updateState({
@@ -588,7 +514,17 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
       }
     },
-    [messages, stop, chatId, updateState, invalidateMessages, setMessages, reload, clearSuggestions]
+    [
+      messages,
+      stop,
+      chatId,
+      updateState,
+      invalidateMessages,
+      setMessages,
+      sendMessage,
+      chatBody,
+      clearSuggestions,
+    ]
   );
 
   const handleDeleteMessage = useCallback(
@@ -655,27 +591,18 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const textPart = input.trim() ? [{ type: "text" as const, text: input.trim() }] : [];
       const fileParts = attachments.map((att) => ({
         type: "file" as const,
-        mimeType: att.contentType,
+        mediaType: att.contentType,
         url: att.url,
         filename: att.name,
-        path: att.path,
       }));
 
       const messageToAppend = {
         id: uuidv4(),
         role: "user" as const,
-        content: input.trim(),
-        parts: [...textPart, ...fileParts] as Message["parts"],
-      } as Message;
+        parts: [...textPart, ...fileParts] as CustomUIMessage["parts"],
+      } as CustomUIMessage;
 
       lastUserMessageForSuggestions.current = messageToAppend;
-
-      const chatRequestOptions =
-        attachments.length > 0
-          ? {
-              experimental_attachments: attachments,
-            }
-          : undefined;
 
       if (chatId === "new") {
         if (!user) {
@@ -684,16 +611,23 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         const newSessionId = uuidv4();
-        setMessages(ensureUniqueMessages([messageToAppend]));
+        setMessages([messageToAppend]);
         setJustSubmittedMessageId(messageToAppend.id);
         router.push(`/chat/${newSessionId}`);
 
         const messageData = {
           message: messageToAppend,
-          chatRequestOptions: { ...chatRequestOptions, isFirstMessage: true },
+          chatRequestOptions: {
+            data: {
+              ...chatBody,
+              isFirstMessage: true,
+              attachments,
+            },
+          },
           selectedModel,
           reasoningLevel,
           searchEnabled,
+          imageGenerationEnabled,
         };
         sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
 
@@ -715,7 +649,13 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setJustSubmittedMessageId(messageToAppend.id);
 
       lastUserMessageForSuggestions.current = messageToAppend;
-      append(messageToAppend, chatRequestOptions);
+      sendMessage(messageToAppend, {
+        body: {
+          ...chatBody,
+          isFirstMessage: messages.length === 0,
+          attachments,
+        },
+      });
 
       setInput("");
       updateState({ attachedFiles: [] });
@@ -723,7 +663,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       setTimeout(() => chatInputRef.current?.focus(), 0);
     },
     [
-      append,
+      sendMessage,
       state.attachedFiles,
       input,
       setInput,
@@ -733,6 +673,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       selectedModel,
       reasoningLevel,
       searchEnabled,
+      imageGenerationEnabled,
       router,
       invalidateSessions,
       transferModelSelection,
@@ -740,6 +681,8 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       status,
       clearSuggestions,
       setJustSubmittedMessageId,
+      messages.length,
+      chatBody,
     ]
   );
 
@@ -766,6 +709,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         chatRequestOptions,
         reasoningLevel,
         searchEnabled,
+        imageGenerationEnabled,
         selectedModel: storedModel,
       } = JSON.parse(pendingMessageData);
 
@@ -777,13 +721,22 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       if (searchEnabled !== undefined) {
         setSearchEnabled(searchEnabled);
       }
+      if (imageGenerationEnabled !== undefined) {
+        setImageGenerationEnabled(imageGenerationEnabled);
+      }
 
       if (storedModel && storedModel !== selectedModel) {
         handleModelChange(storedModel);
       }
 
       lastUserMessageForSuggestions.current = message;
-      append(message, chatRequestOptions);
+      sendMessage(message, {
+        ...chatRequestOptions,
+        body: {
+          ...chatRequestOptions.data,
+          model: storedModel, // Use the stored model instead of the one in chatBody
+        },
+      });
       setInput("");
       updateState({ attachedFiles: [] });
       setTimeout(() => chatInputRef.current?.focus(), 0);
@@ -793,11 +746,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, [
     chatId,
-    append,
+    sendMessage,
     setInput,
     updateState,
     setReasoningLevel,
     setSearchEnabled,
+    setImageGenerationEnabled,
     handleModelChange,
     selectedModel,
     clearSuggestions,
@@ -937,12 +891,14 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             selectedModel={selectedModel}
             reasoningLevel={reasoningLevel}
             searchEnabled={searchEnabled}
+            imageGenerationEnabled={imageGenerationEnabled}
             chatId={chatId}
             onSubmit={handleFormSubmit}
             onKeyDown={handleKeyDown}
             onModelChange={handleModelChange}
             onReasoningLevelChange={setReasoningLevel}
             onSearchToggle={setSearchEnabled}
+            onImageGenerationToggle={setImageGenerationEnabled}
             onFileAttach={handleFileAttach}
             onFileDrop={handleFileDrop}
             onRemoveFile={handleRemoveFile}

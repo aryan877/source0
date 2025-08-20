@@ -1,9 +1,9 @@
 "use client";
 
 import { SHORTCUTS } from "@/config/shortcuts";
+import { useAuth } from "@/hooks/use-auth";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useWindow } from "@/hooks/use-window";
-import { useAuth } from "@/hooks/useAuth";
 import { useUiStore } from "@/stores/ui-store";
 import { MagnifyingGlassIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { Button, useDisclosure } from "@heroui/react";
@@ -148,18 +148,7 @@ export function AppShell({ children }: AppShellProps) {
     <SidebarContext.Provider value={{ isSidebarOpen }}>
       <div className="flex h-screen w-full overflow-hidden">
         <div className="fixed left-4 top-4 z-[60]">
-          {isSidebarOpen ? (
-            <Button
-              variant="flat"
-              size="sm"
-              isIconOnly
-              onPress={() => setIsSidebarOpen(false)}
-              className="h-10 w-10 transition-all duration-200 hover:scale-110 hover:bg-content3 hover:shadow-md active:scale-95"
-              aria-label="Close menu"
-            >
-              <PanelRight className="h-5 w-5 transition-transform duration-200" />
-            </Button>
-          ) : (
+          {!isSidebarOpen && (
             <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm backdrop-blur-sm">
               <Button
                 variant="light"

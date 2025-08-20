@@ -30,12 +30,14 @@ interface ChatInputProps {
   selectedModel: string;
   reasoningLevel: ReasoningLevel;
   searchEnabled: boolean;
+  imageGenerationEnabled: boolean;
   chatId: string;
   onSubmit: (e: React.FormEvent) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onModelChange: (model: string) => void;
   onReasoningLevelChange: (level: ReasoningLevel) => void;
   onSearchToggle: (enabled: boolean) => void;
+  onImageGenerationToggle: (enabled: boolean) => void;
   onFileAttach: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onFileDrop: (files: File[]) => void;
   onRemoveFile: (index: number) => void;
@@ -62,12 +64,14 @@ export const ChatInput = memo(
         selectedModel,
         reasoningLevel,
         searchEnabled,
+        imageGenerationEnabled,
         chatId,
         onSubmit,
         onKeyDown,
         onModelChange,
         onReasoningLevelChange,
         onSearchToggle,
+        onImageGenerationToggle,
         onFileAttach,
         onFileDrop,
         onRemoveFile,
@@ -259,6 +263,8 @@ export const ChatInput = memo(
                         onReasoningLevelChange={onReasoningLevelChange}
                         searchEnabled={searchEnabled}
                         onSearchToggle={onSearchToggle}
+                        imageGenerationEnabled={imageGenerationEnabled}
+                        onImageGenerationToggle={onImageGenerationToggle}
                         onFileAttach={onFileAttach}
                         isLoading={isLoading}
                       />

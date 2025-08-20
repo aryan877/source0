@@ -1,12 +1,9 @@
 "use client";
 
-import { type Message } from "@ai-sdk/react";
+import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { motion } from "framer-motion";
 import { memo } from "react";
-import {
-  type TypedImageErrorAnnotation,
-  type TypedImagePendingAnnotation,
-} from "../../types/annotations";
+// Note: Legacy image annotation types removed as they're no longer used
 import { ErrorDisplay } from "./error-display";
 import MessageBubble from "./message-bubble";
 import { SuggestedQuestions } from "./suggested-questions";
@@ -187,7 +184,7 @@ const ImageLoadingSkeleton = memo(() => (
 ImageLoadingSkeleton.displayName = "ImageLoadingSkeleton";
 
 interface MessagesListProps {
-  messages: Message[];
+  messages: CustomUIMessage[];
   isLoading: boolean;
   isLoadingMessages: boolean;
   chatId: string;
@@ -236,7 +233,7 @@ export const MessagesList = memo(
           ) : (
             messages.map((message, index) => {
               const hasImage = message.parts?.some(
-                (p) => p.type === "file" && p.mimeType?.startsWith("image/")
+                (p) => p.type === "file" && p.mediaType?.startsWith("image/")
               );
 
               const isLastMessage = index === messages.length - 1;
@@ -268,40 +265,6 @@ export const MessagesList = memo(
                 );
               }
 
-              // Only check for pending/error annotations if no image is present.
-              // Prioritize error display over pending state.
-              const imageGenErrorAnnotation = message.annotations?.find(
-                (a): a is TypedImageErrorAnnotation =>
-                  typeof a === "object" &&
-                  a !== null &&
-                  (a as { type?: unknown }).type === "image_generation_error"
-              );
-
-              if (imageGenErrorAnnotation) {
-                return (
-                  <ErrorDisplay
-                    key={`error-${uniqueKey}`}
-                    uiError={imageGenErrorAnnotation.data.error}
-                    onDismissUiError={() => {
-                      /* Cannot dismiss this error */
-                    }}
-                    isMessageError={true}
-                  />
-                );
-              }
-
-              const imageGenPendingAnnotation = message.annotations?.find(
-                (a): a is TypedImagePendingAnnotation =>
-                  typeof a === "object" &&
-                  a !== null &&
-                  (a as { type?: unknown }).type === "image_generation_pending"
-              );
-
-              if (imageGenPendingAnnotation) {
-                return <ImageLoadingSkeleton key={`pending-${uniqueKey}`} />;
-              }
-
-              // Default case: render a normal message bubble for text, tools, etc.
               return (
                 <div
                   key={uniqueKey}

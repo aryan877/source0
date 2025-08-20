@@ -2,7 +2,6 @@
  * Type-safe tool system for AI SDK integration
  */
 
-import type { ToolInvocation } from "ai";
 import type { WebSearchResult } from "./web-search";
 
 // =============================================================================
@@ -63,20 +62,33 @@ export interface MemoryRetrieveToolData extends BaseToolData {
   message: string;
 }
 
-// =============================================================================
-// Generic Tool System
-// =============================================================================
-
 /**
- * Union type of all possible tool data types
+ * Image generation tool data - success case
  */
-export type ToolDataUnion = WebSearchToolData | MemorySaveToolData | MemoryRetrieveToolData;
-
-/**
- * Type guard to check if a tool invocation is complete and has a result
- */
-export function isCompleteToolInvocation(
-  toolInvocation: ToolInvocation
-): toolInvocation is ToolInvocation & { state: "result"; result: unknown } {
-  return toolInvocation.state === "result" && toolInvocation.result !== undefined;
+export interface ImageGenerationToolResult extends BaseToolData {
+  toolName: "imageGeneration";
+  success: true;
+  imageUrl: string;
+  imageId: string;
+  filePath: string;
+  prompt: string;
+  size: string;
+  style: string;
+  message: string;
 }
+
+/**
+ * Image generation tool data - error case
+ */
+export interface ImageGenerationToolError extends BaseToolData {
+  toolName: "imageGeneration";
+  success: false;
+  error: string;
+  prompt: string;
+  message: string;
+}
+
+/**
+ * Union type for image generation tool responses
+ */
+export type ImageGenerationToolData = ImageGenerationToolResult | ImageGenerationToolError;

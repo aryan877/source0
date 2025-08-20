@@ -7,18 +7,17 @@ import {
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { Card, CardBody, Link } from "@heroui/react";
-import { type ToolInvocation } from "ai";
 import { formatDistanceToNow, isValid, parseISO } from "date-fns";
 import { memo } from "react";
 
 interface WebSearchDisplayProps {
-  state: ToolInvocation["state"];
+  state: "output-available" | "input-streaming" | "input-available" | "output-error";
   data?: WebSearchToolData | null;
-  args?: ToolInvocation["args"];
+  args?: unknown;
 }
 
 export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayProps) => {
-  if (state === "call" || state === "partial-call") {
+  if (state === "input-streaming" || state === "input-available") {
     const query =
       typeof args === "object" && args !== null && "query" in args
         ? String(args.query)
@@ -47,7 +46,7 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
     );
   }
 
-  if (state === "result") {
+  if (state === "output-available") {
     if (!data) return null;
 
     const { originalQuery, generatedQueries, searchResults, totalResults } = data;
