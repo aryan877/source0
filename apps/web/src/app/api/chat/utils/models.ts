@@ -200,8 +200,9 @@ export const buildSystemMessage = (
   ].filter(Boolean);
 
   const formattingRules = [
-    "Use markdown for code blocks (e.g., ```python).",
-    "For math, use LaTeX (`$$...$$` or `$...$`). To show a dollar amount, escape the dollar sign: `\\$145.86`.",
+    "Use markdown for code blocks with language specification (e.g., ```python, ```javascript, ```rust).",
+    "Math: Use `$expression$` for inline and `$$expression$$` for display. Put complex equations on separate lines with `$$`.",
+    "For literal dollar amounts, escape the dollar sign: `\\$145.86` (not `$145.86`).",
     "IMPORTANT: Never include generated images in markdown image syntax (![](url)). Images generated via tools are displayed automatically in the UI. Only describe the images you've generated, don't embed them again.",
   ];
 

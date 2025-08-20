@@ -2,9 +2,10 @@
 
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import type { TavilySearchResult } from "@/types/web-search";
-import { Chip, Tooltip } from "@heroui/react";
+import { Button, Chip, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip, addToast } from "@heroui/react";
 import "katex/dist/katex.min.css";
-import React, { memo, useMemo } from "react";
+import { ChevronDown, Copy, Download, FileText, Maximize2 } from "lucide-react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
@@ -17,21 +18,17 @@ import { CodeBlock } from "./code-block";
 
 /**
  * Preprocesses markdown content to fix common formatting issues before rendering.
+ * Handles LLM output inconsistencies and standardizes math delimiters for KaTeX.
  */
 const preprocessMarkdownContent = (content: string): string => {
-  // Escape dollar signs in currency amounts (e.g., $100) to prevent KaTeX rendering.
-  // Looks for a dollar sign followed by a number, not preceded by a backslash or another dollar sign.
-  let processed = content.replace(/(?<![\\$])\$(\d)/g, "\\$$$1");
-
-  // Standardize various Unicode bullet points to markdown hyphens.
-  processed = processed.replace(/^(\s*)[•‣▸▪▫◦‧⁃]\s+/gm, "$1- ");
-
-  // Prevent double underscores from incorrectly bolding technical terms or filenames.
-  // This wraps things like `__init__.py` in backticks.
-  processed = processed.replace(
-    /(?<![a-zA-Z0-9`])__([a-zA-Z0-9_./-]+)__(?![a-zA-Z0-9`])/g,
-    "`__$1__`"
-  );
+  // Minimal preprocessing - let rehype-katex handle the math properly
+  let processed = content;
+  
+  // Only escape dollar signs in currency amounts to prevent false KaTeX rendering
+  processed = processed.replace(/(?<![\\$=])\$(\d+(?:\.\d+)?(?:\s*(?:million|billion|trillion|k|K|M|B|T))?)\b(?![^$]*\$)/g, "\\$$1");
+  
+  // Fix any double-escaped markdown characters
+  processed = processed.replace(/\\\\([*_`~])/g, "\\$1");
 
   return processed;
 };
@@ -241,7 +238,250 @@ const sanitizeSchema = {
   },
 };
 
-const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex];
+// Enhanced KaTeX configuration based on 2025 best practices with expanded mathematical support
+const katexOptions = {
+  // Security settings to prevent XSS (CVE-2025-23207)
+  throwOnError: false, // Don't crash on malformed math - show error in red instead
+  errorColor: '#ef4444', // Tailwind red-500 for better theme integration
+  strict: 'warn' as const, // Warn on deprecated features but don't break
+  trust: false, // CRITICAL: Disable \htmlData, \href, \includegraphics and other HTML commands
+  
+  // Performance and resource limits
+  maxSize: 15, // Increased limit for complex expressions
+  maxExpand: 2000, // Higher limit for macro expansions to support advanced math
+  
+  // Display options for better rendering
+  fleqn: false, // Don't left-align equations (center-align looks better)
+  displayMode: false, // Default to inline mode (overridden by $$)
+  output: 'html' as const, // Use HTML output (not MathML) for better compatibility
+  
+  // Enhanced macro library for comprehensive mathematical notation
+  macros: {
+    // Number sets (blackboard bold)
+    "\\RR": "\\mathbb{R}",
+    "\\NN": "\\mathbb{N}",
+    "\\ZZ": "\\mathbb{Z}",
+    "\\QQ": "\\mathbb{Q}",
+    "\\CC": "\\mathbb{C}",
+    "\\FF": "\\mathbb{F}",
+    "\\PP": "\\mathbb{P}",
+    
+    // Common operators and functions
+    "\\argmin": "\\operatorname{argmin}",
+    "\\argmax": "\\operatorname{argmax}",
+    "\\minimize": "\\operatorname{minimize}",
+    "\\maximize": "\\operatorname{maximize}",
+    "\\subjectto": "\\operatorname{subject\\,to}",
+    "\\Tr": "\\operatorname{Tr}",
+    "\\rank": "\\operatorname{rank}",
+    "\\span": "\\operatorname{span}",
+    "\\dim": "\\operatorname{dim}",
+    "\\ker": "\\operatorname{ker}",
+    "\\img": "\\operatorname{img}",
+    "\\diag": "\\operatorname{diag}",
+    
+    // Probability and statistics
+    "\\Var": "\\operatorname{Var}",
+    "\\Cov": "\\operatorname{Cov}",
+    "\\Corr": "\\operatorname{Corr}",
+    "\\Exp": "\\operatorname{E}",
+    "\\Prob": "\\operatorname{P}",
+    
+    
+    // Machine learning common notation
+    "\\softmax": "\\operatorname{softmax}",
+    "\\sigmoid": "\\operatorname{sigmoid}",
+    "\\relu": "\\operatorname{ReLU}",
+    "\\tanh": "\\operatorname{tanh}",
+  }
+};
+
+const rehypePlugins: PluggableList = [
+  rehypeRaw, 
+  [rehypeSanitize, sanitizeSchema], 
+  [rehypeKatex, katexOptions]
+];
+
+/**
+ * Enhanced table renderer with row expansion and export functionality
+ */
+const TableRenderer = memo(({ children }: { children: React.ReactNode }) => {
+  const [isRowsExpanded, setIsRowsExpanded] = useState(false);
+  
+  // Extract table data for export
+  const extractTableData = useCallback(() => {
+    const tableElement = document.querySelector('table');
+    if (!tableElement) return { headers: [], rows: [] };
+    
+    const headers: string[] = [];
+    const rows: string[][] = [];
+    
+    // Extract headers
+    const headerCells = tableElement.querySelectorAll('thead th');
+    headerCells.forEach(cell => {
+      headers.push(cell.textContent?.trim() || '');
+    });
+    
+    // Extract rows
+    const bodyRows = tableElement.querySelectorAll('tbody tr');
+    bodyRows.forEach(row => {
+      const rowData: string[] = [];
+      const cells = row.querySelectorAll('td');
+      cells.forEach(cell => {
+        rowData.push(cell.textContent?.trim() || '');
+      });
+      rows.push(rowData);
+    });
+    
+    return { headers, rows };
+  }, []);
+  
+  const handleCopyToClipboard = useCallback(async () => {
+    const { headers, rows } = extractTableData();
+    const tableText = [headers.join('\t'), ...rows.map(row => row.join('\t'))].join('\n');
+    
+    try {
+      await navigator.clipboard.writeText(tableText);
+      addToast({
+        title: "Table Copied",
+        description: "Table data has been copied to clipboard",
+        color: "success",
+      });
+    } catch {
+      addToast({
+        title: "Copy Failed",
+        description: "Failed to copy table to clipboard",
+        color: "danger",
+      });
+    }
+  }, [extractTableData]);
+  
+  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+  
+  const handleExportCSV = useCallback(() => {
+    const { headers, rows } = extractTableData();
+    const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))].join('\n');
+    downloadFile(csvContent, 'table.csv', 'text/csv');
+    addToast({
+      title: "CSV Downloaded",
+      description: "Table exported as CSV file",
+      color: "success",
+    });
+  }, [extractTableData, downloadFile]);
+  
+  const handleExportMarkdown = useCallback(() => {
+    const { headers, rows } = extractTableData();
+    const headerRow = `| ${headers.join(' | ')} |`;
+    const separatorRow = `| ${headers.map(() => '---').join(' | ')} |`;
+    const dataRows = rows.map(row => `| ${row.join(' | ')} |`);
+    const markdownContent = [headerRow, separatorRow, ...dataRows].join('\n');
+    downloadFile(markdownContent, 'table.md', 'text/markdown');
+    addToast({
+      title: "Markdown Downloaded",
+      description: "Table exported as Markdown file",
+      color: "success",
+    });
+  }, [extractTableData, downloadFile]);
+  
+  return (
+    <TableContext.Provider value={{ isRowsExpanded }}>
+      <div className="my-8 not-prose">
+        <div className="rounded-2xl border border-divider/60 bg-content1/50 backdrop-blur-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-full table-auto border-collapse">
+              {children}
+            </table>
+          </div>
+        </div>
+      
+      {/* Table Actions Below */}
+      <div className="flex items-center justify-between mt-3 px-2">
+        <div className="flex items-center gap-2">
+          <Tooltip content={isRowsExpanded ? "Collapse rows" : "Expand rows"}>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              className="bg-content2/60 text-foreground/60 hover:bg-content3/80"
+              onPress={() => setIsRowsExpanded(!isRowsExpanded)}
+            >
+              <Maximize2 className={`w-4 h-4 transition-transform ${isRowsExpanded ? 'rotate-180' : ''}`} />
+            </Button>
+          </Tooltip>
+          
+          <Dropdown>
+            <DropdownTrigger>
+              <Button
+                size="sm"
+                variant="light"
+                className="bg-content2/60 text-foreground/60 hover:bg-content3/80 px-3"
+                endContent={<ChevronDown className="w-3 h-3" />}
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu>
+              <DropdownItem key="csv" onPress={handleExportCSV}>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Export as CSV
+                </div>
+              </DropdownItem>
+              <DropdownItem key="markdown" onPress={handleExportMarkdown}>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Export as Markdown
+                </div>
+              </DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
+
+          <Tooltip content="Copy table to clipboard">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              className="bg-content2/60 text-foreground/60 hover:bg-content3/80"
+              onPress={handleCopyToClipboard}
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </Tooltip>
+        </div>
+      </div>
+      </div>
+    </TableContext.Provider>
+  );
+});
+
+TableRenderer.displayName = "TableRenderer";
+
+// Table context for row expansion state
+const TableContext = React.createContext<{ isRowsExpanded: boolean }>({ isRowsExpanded: false });
+
+// Table cell component to handle row expansion
+const TableCell = memo(({ children, citations, ...props }: { children: React.ReactNode; citations?: TavilySearchResult[] } & React.TdHTMLAttributes<HTMLTableCellElement>) => {
+  const { isRowsExpanded } = React.useContext(TableContext);
+  return (
+    <td {...props} className="px-6 py-4 text-sm text-foreground/90 leading-normal align-top group-hover:text-foreground transition-colors duration-300">
+      <div className={!isRowsExpanded ? "line-clamp-3 max-h-20 overflow-hidden" : ""}>
+        <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
+      </div>
+    </td>
+  );
+});
+
+TableCell.displayName = "TableCell";
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   const { fontSize } = useUserPreferencesStore();
@@ -303,6 +543,42 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
           </pre>
         );
       },
+      table: ({ children }) => {
+        return <TableRenderer>{children}</TableRenderer>;
+      },
+      thead: ({ children, ...props }) => {
+        return (
+          <thead {...props} className="bg-gradient-to-r from-content2/90 to-content3/70 backdrop-blur-md">
+            {children}
+          </thead>
+        );
+      },
+      tbody: ({ children, ...props }) => {
+        return (
+          <tbody {...props} className="divide-y divide-divider/40">
+            {children}
+          </tbody>
+        );
+      },
+      tr: ({ children, ...props }) => {
+        return (
+          <tr {...props} className="group transition-all duration-300 hover:bg-gradient-to-r hover:from-primary/8 hover:to-secondary/8 hover:shadow-sm">
+            {children}
+          </tr>
+        );
+      },
+      th: ({ children, ...props }) => {
+        return (
+          <th {...props} className="px-6 py-4 text-left text-xs font-semibold text-foreground/80 uppercase tracking-wider border-b-2 border-primary/20 sticky top-0 bg-content2/95 backdrop-blur-md relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-primary/5 before:to-transparent">
+            <div className="relative z-10">
+              <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
+            </div>
+          </th>
+        );
+      },
+      td: ({ children, ...props }) => {
+        return <TableCell citations={citations} {...props}>{children}</TableCell>;
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -341,3 +617,4 @@ MessageContent.displayName = "MessageContent";
 
 export { MessageContent };
 export type { MessageContentProps };
+
