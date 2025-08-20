@@ -4,7 +4,6 @@ import { type CustomUIMessage } from "@/types/custom-ui-message";
 import type { ImageGenerationToolData, WebSearchToolData } from "@/types/tools";
 import type { TavilySearchResult } from "@/types/web-search";
 import {
-  ArrowDownTrayIcon,
   ArrowPathIcon,
   CheckIcon,
   ClipboardDocumentIcon,
@@ -22,6 +21,7 @@ import {
 import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
+import ImageViewer from "../shared/image-viewer";
 import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
@@ -29,7 +29,6 @@ import ImageGallery from "./image-gallery";
 import { MessageContent } from "./message-content";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
-import ImageViewer from "../shared/image-viewer";
 
 export interface ImagePendingData {
   type: "image_generation_pending";
