@@ -24,8 +24,7 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#1DA1F2",
-          backgroundImage: "linear-gradient(135deg, #1DA1F2 0%, #0084b4 100%)",
+          backgroundColor: "#000000",
         }}
       >
         <div
@@ -52,7 +51,7 @@ export default async function Image() {
               style={{
                 fontSize: "40px",
                 fontWeight: "bold",
-                color: "#1DA1F2",
+                color: "#667eea",
               }}
             >
               S0
@@ -73,7 +72,7 @@ export default async function Image() {
           style={{
             fontSize: "32px",
             color: "#fff",
-            opacity: 0.95,
+            opacity: 0.9,
             textAlign: "center",
             maxWidth: "800px",
             lineHeight: 1.4,
@@ -86,14 +85,14 @@ export default async function Image() {
           style={{
             fontSize: "24px",
             color: "#fff",
-            opacity: 0.8,
+            opacity: 0.7,
             textAlign: "center",
             maxWidth: "900px",
             marginTop: "20px",
             fontFamily: "system-ui, -apple-system, sans-serif",
           }}
         >
-          🤖 Multi-model AI • 📎 File attachments • 🔍 Web search • 🎤 Voice input
+          Multi-model support • File attachments • Web search • Voice input • Image generation
         </div>
       </div>
     ),
