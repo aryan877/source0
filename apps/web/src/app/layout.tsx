@@ -78,16 +78,9 @@ export const metadata: Metadata = {
       "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
     images: [
       {
-        url: "/opengraph-image.png",
+        url: "/open-graph.png",
         width: 1200,
         height: 630,
-        alt: "Source0 - Advanced AI Chat Interface",
-        type: "image/png",
-      },
-      {
-        url: "/opengraph-image-square.png",
-        width: 1200,
-        height: 1200,
         alt: "Source0 - Advanced AI Chat Interface",
         type: "image/png",
       },
@@ -100,7 +93,7 @@ export const metadata: Metadata = {
       "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
     images: [
       {
-        url: "/twitter-image.png",
+        url: "/open-graph.png",
         width: 1200,
         height: 630,
         alt: "Source0 - Advanced AI Chat Interface",
