@@ -1,13 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
 
-export interface GeneratedImage {
-  id: string;
-  file_path: string;
-  created_at: string;
-  publicUrl: string;
-  prompt: string;
-}
-
 export interface GeneratedImagesFilters {
   pageSize?: number;
 }

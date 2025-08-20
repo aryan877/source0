@@ -1,14 +1,13 @@
 "use client";
 
 import { useSidebarContext } from "@/components/app-shell";
+import ImageViewer from "@/components/shared/image-viewer";
 import { useGeneratedImages } from "@/hooks/queries/use-generated-images";
 import { useAuth } from "@/hooks/use-auth";
-import { type GeneratedImage } from "@/services/generated-images";
 import { Button, Chip } from "@heroui/react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect } from "react";
-import ImageViewer from "@/components/shared/image-viewer";
 
 export default function GalleryPage() {
   const { isSidebarOpen } = useSidebarContext();
