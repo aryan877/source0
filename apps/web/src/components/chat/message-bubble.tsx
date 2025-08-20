@@ -17,15 +17,9 @@ import {
 import {
   Avatar,
   Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
   Tooltip,
 } from "@heroui/react";
 import { GitBranchIcon } from "lucide-react";
-import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
 import { BranchOptionsPanel } from "./branch-options-panel";
@@ -35,6 +29,7 @@ import ImageGallery from "./image-gallery";
 import { MessageContent } from "./message-content";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
+import ImageViewer from "../shared/image-viewer";
 
 export interface ImagePendingData {
   type: "image_generation_pending";
@@ -137,10 +132,6 @@ const MessageBubble = memo(
     );
     const [showBranchOptions, setShowBranchOptions] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [selectedImage, setSelectedImage] = useState<{ url: string; prompt: string } | null>(
-      null
-    );
-    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const branchButtonRef = useRef<HTMLDivElement>(null);
     const isUser = message.role === "user";
@@ -255,10 +246,6 @@ const MessageBubble = memo(
       setShowDeleteConfirm(false);
     }, []);
 
-    const handleImageClick = useCallback((imageUrl: string, prompt: string) => {
-      setSelectedImage({ url: imageUrl, prompt });
-      setIsImageModalOpen(true);
-    }, []);
 
     const handleDownload = useCallback(async (imageUrl: string, prompt: string) => {
       try {
@@ -395,7 +382,6 @@ const MessageBubble = memo(
           {generatedImages.length > 0 && (
             <ImageGallery
               images={generatedImages}
-              onImageClick={handleImageClick}
               onDownload={handleDownload}
             />
           )}
@@ -490,6 +476,10 @@ const MessageBubble = memo(
                 );
 
               case "reasoning":
+                // Only render reasoning if it has content
+                if (!part.text || part.text.trim() === "") {
+                  return null;
+                }
                 return (
                   <ExpandableSection
                     key={index}
@@ -502,6 +492,52 @@ const MessageBubble = memo(
                     <MessageContent content={part.text} citations={[]} isUser={isUser} />
                   </ExpandableSection>
                 );
+
+              case "file":
+                // Handle file parts (images, documents, etc.)
+                if (part.mediaType?.startsWith("image/")) {
+                  return (
+                    <div key={index} className="my-2">
+                      <ImageViewer
+                        src={part.url || ""}
+                        alt={part.filename || "Attached image"}
+                        filename={part.filename}
+                        type="uploaded"
+                        size="small"
+                        onDownload={handleDownload}
+                      />
+                    </div>
+                  );
+                } else {
+                  // Handle non-image files
+                  return (
+                    <div key={index} className="my-2">
+                      <div className="flex items-center gap-2 p-3 bg-content2 rounded-lg">
+                        <svg className="w-4 h-4 text-foreground/60" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {part.filename || "Attached file"}
+                          </p>
+                          <p className="text-xs text-foreground/60">
+                            {part.mediaType || "Unknown type"}
+                          </p>
+                        </div>
+                        {part.url && (
+                          <a
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/80 text-xs"
+                          >
+                            Open
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
 
               case "step-start":
                 return null;
@@ -521,7 +557,6 @@ const MessageBubble = memo(
       handleKeyDown,
       handleCancelEdit,
       handleSaveEdit,
-      handleImageClick,
       handleDownload,
     ]);
 
@@ -780,66 +815,6 @@ const MessageBubble = memo(
           </div>
         </div>
 
-        {/* Image Modal */}
-        <Modal
-          isOpen={isImageModalOpen}
-          onClose={() => setIsImageModalOpen(false)}
-          size="4xl"
-          placement="center"
-          className="mx-4"
-          backdrop="blur"
-        >
-          <ModalContent>
-            <ModalHeader className="flex items-center gap-3">
-              <span className="text-lg font-semibold">Generated Image</span>
-            </ModalHeader>
-
-            <ModalBody className="p-0">
-              {selectedImage && (
-                <>
-                  {/* Image */}
-                  <div className="flex min-h-[400px] items-center justify-center bg-black/5 dark:bg-black/20">
-                    <Image
-                      src={selectedImage.url}
-                      alt={selectedImage.prompt}
-                      width={800}
-                      height={600}
-                      className="max-h-[70vh] w-auto object-contain"
-                      unoptimized
-                    />
-                  </div>
-
-                  {/* Prompt section below image */}
-                  {selectedImage.prompt && selectedImage.prompt.trim() && (
-                    <div className="border-t border-divider/20 bg-content1/50 px-6 py-4">
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-default-600">Prompt</h4>
-                        <p className="text-sm leading-relaxed text-foreground">
-                          {selectedImage.prompt}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </ModalBody>
-
-            <ModalFooter>
-              <Button variant="light" onPress={() => setIsImageModalOpen(false)}>
-                Close
-              </Button>
-              {selectedImage && (
-                <Button
-                  color="primary"
-                  startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
-                  onPress={() => handleDownload(selectedImage.url, selectedImage.prompt)}
-                >
-                  Download
-                </Button>
-              )}
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
       </div>
     );
   }

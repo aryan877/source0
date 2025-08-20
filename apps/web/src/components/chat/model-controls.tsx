@@ -151,7 +151,7 @@ export const ModelControls = ({
         <Dropdown placement="top-start">
           <DropdownTrigger>
             <button
-              className="flex items-center gap-1.5 rounded-full border border-content3/50 bg-content2/60 px-2.5 py-1 text-sm font-medium text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
+              className="flex items-center gap-1.5 rounded-full border border-content3/50 bg-content2/60 px-2.5 py-1 text-xs font-medium text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
             >
               <CpuChipIconSolid className="h-3.5 w-3.5" />
               <span>{reasoningLevelLabels[reasoningLevel]}</span>
@@ -223,7 +223,7 @@ export const ModelControls = ({
         >
           <button
             onClick={() => onSearchToggle(!searchEnabled)}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-200 ${
               searchEnabled
                 ? "border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15"
                 : "border-content3/50 bg-content2/60 text-foreground/70 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
@@ -268,7 +268,7 @@ export const ModelControls = ({
         >
           <button
             onClick={() => onImageGenerationToggle(!imageGenerationEnabled)}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-200 ${
               imageGenerationEnabled
                 ? "border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15"
                 : "border-content3/50 bg-content2/60 text-foreground/70 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"

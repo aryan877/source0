@@ -4,36 +4,16 @@ import { useSidebarContext } from "@/components/app-shell";
 import { useGeneratedImages } from "@/hooks/queries/use-generated-images";
 import { useAuth } from "@/hooks/use-auth";
 import { type GeneratedImage } from "@/services/generated-images";
-import { ArrowDownTrayIcon, EyeIcon } from "@heroicons/react/24/outline";
-import {
-  Button,
-  Chip,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Tooltip,
-} from "@heroui/react";
+import { Button, Chip } from "@heroui/react";
 import { format, formatDistanceToNow } from "date-fns";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-
-interface ImageModalData {
-  id: string;
-  publicUrl: string;
-  created_at: string;
-  prompt: string;
-}
+import { useCallback, useEffect } from "react";
+import ImageViewer from "@/components/shared/image-viewer";
 
 export default function GalleryPage() {
   const { isSidebarOpen } = useSidebarContext();
   const { user, loading: isAuthLoading } = useAuth();
   const router = useRouter();
-  const [selectedImage, setSelectedImage] = useState<ImageModalData | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [imageError, setImageError] = useState<Set<string>>(new Set());
 
   const { images, error, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, isError } =
     useGeneratedImages({
@@ -46,15 +26,6 @@ export default function GalleryPage() {
     }
   }, [user, isAuthLoading, router]);
 
-  const handleImageClick = useCallback((image: GeneratedImage) => {
-    setSelectedImage({
-      id: image.id,
-      publicUrl: image.publicUrl,
-      created_at: image.created_at,
-      prompt: image.prompt,
-    });
-    setIsModalOpen(true);
-  }, []);
 
   const handleDownload = useCallback(async (imageUrl: string, prompt: string) => {
     try {
@@ -82,9 +53,6 @@ export default function GalleryPage() {
     }
   }, []);
 
-  const handleImageError = useCallback((imageId: string) => {
-    setImageError((prev) => new Set(prev).add(imageId));
-  }, []);
 
   const formatImageDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
@@ -177,67 +145,18 @@ export default function GalleryPage() {
                   return (
                     <div key={image.id} className="group relative">
                       <div className="relative overflow-hidden rounded-xl border border-divider/20 bg-content1 shadow-sm transition-all duration-300 group-hover:shadow-lg group-hover:ring-2 group-hover:ring-primary/60">
-                        {/* Image */}
-                        <div
-                          className="aspect-square w-full cursor-pointer overflow-hidden bg-content2"
-                          onClick={() => handleImageClick(image)}
-                        >
-                          {imageError.has(image.id) ? (
-                            <div className="flex h-full w-full items-center justify-center bg-content2">
-                              <div className="flex flex-col items-center gap-2 text-default-400">
-                                <svg
-                                  className="h-8 w-8"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                  />
-                                </svg>
-                                <span className="text-xs">Image unavailable</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <Image
-                              src={image.publicUrl}
-                              alt={image.prompt}
-                              width={300}
-                              height={300}
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              onError={() => handleImageError(image.id)}
-                              unoptimized
-                            />
-                          )}
-                        </div>
-
-                        {/* Action buttons - subtle, positioned in top right */}
-                        <div className="absolute right-4 top-4 flex items-center gap-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                          <Tooltip content="View full size" delay={300}>
-                            <Button
-                              size="sm"
-                              variant="light"
-                              isIconOnly
-                              className="h-9 w-9 bg-content1/90 shadow-sm backdrop-blur-md transition-all hover:scale-105 hover:bg-content1"
-                              onPress={() => handleImageClick(image)}
-                            >
-                              <EyeIcon className="h-4 w-4" />
-                            </Button>
-                          </Tooltip>
-                          <Tooltip content="Download image" delay={300}>
-                            <Button
-                              size="sm"
-                              variant="light"
-                              isIconOnly
-                              className="h-9 w-9 bg-content1/90 shadow-sm backdrop-blur-md transition-all hover:scale-105 hover:bg-content1"
-                              onPress={() => handleDownload(image.publicUrl, image.prompt)}
-                            >
-                              <ArrowDownTrayIcon className="h-4 w-4" />
-                            </Button>
-                          </Tooltip>
+                        {/* ImageViewer with info bar */}
+                        <div className="aspect-square">
+                          <ImageViewer
+                            src={image.publicUrl}
+                            alt={image.prompt}
+                            prompt={image.prompt}
+                            createdAt={image.created_at}
+                            type="generated"
+                            size="small"
+                            onDownload={handleDownload}
+                            className="h-full w-full"
+                          />
                         </div>
 
                         {/* Info bar */}
@@ -280,71 +199,6 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* Image Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        size="4xl"
-        placement="center"
-        className="mx-4"
-        backdrop="blur"
-      >
-        <ModalContent>
-          <ModalHeader className="flex items-center gap-3">
-            <span className="text-lg font-semibold">Generated Image</span>
-            {selectedImage && (
-              <Chip size="sm" variant="flat">
-                {formatImageDate(selectedImage.created_at)}
-              </Chip>
-            )}
-          </ModalHeader>
-
-          <ModalBody className="p-0">
-            {selectedImage && (
-              <>
-                {/* Image */}
-                <div className="flex min-h-[400px] items-center justify-center bg-black/5 dark:bg-black/20">
-                  <Image
-                    src={selectedImage.publicUrl}
-                    alt={selectedImage.prompt}
-                    width={800}
-                    height={600}
-                    className="max-h-[70vh] w-auto object-contain"
-                    unoptimized
-                  />
-                </div>
-
-                {/* Prompt section below image */}
-                {selectedImage.prompt && selectedImage.prompt.trim() && (
-                  <div className="border-t border-divider/20 bg-content1/50 px-6 py-4">
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-default-600">Prompt</h4>
-                      <p className="text-sm leading-relaxed text-foreground">
-                        {selectedImage.prompt}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="light" onPress={() => setIsModalOpen(false)}>
-              Close
-            </Button>
-            {selectedImage && (
-              <Button
-                color="primary"
-                startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
-                onPress={() => handleDownload(selectedImage.publicUrl, selectedImage.prompt)}
-              >
-                Download
-              </Button>
-            )}
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </div>
   );
 }

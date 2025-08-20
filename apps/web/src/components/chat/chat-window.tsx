@@ -591,10 +591,9 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       const textPart = input.trim() ? [{ type: "text" as const, text: input.trim() }] : [];
       const fileParts = attachments.map((att) => ({
         type: "file" as const,
-        mimeType: att.contentType,
+        mediaType: att.contentType,
         url: att.url,
         filename: att.name,
-        path: att.path,
       }));
 
       const messageToAppend = {

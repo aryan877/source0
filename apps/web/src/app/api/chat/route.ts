@@ -224,7 +224,7 @@ export async function POST(req: Request): Promise<Response> {
       execute: async ({ writer }) => {
         const result = streamText({
           model: modelInstance,
-          messages: [{ role: "system", content: systemMessage }, ...coreMessages],
+          messages: [{ role: "system" as const, content: systemMessage }, ...coreMessages],
           tools: getToolsForModel(
             user.id,
             searchEnabled,
