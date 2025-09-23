@@ -3,7 +3,6 @@
 import { SHORTCUTS } from "@/config/shortcuts";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAuth } from "@/hooks/use-auth";
-import { useWindow } from "@/hooks/use-window";
 import { ChatSession } from "@/services";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -85,7 +84,6 @@ const useSidebarState = () => {
     onClose: onDeleteModalClose,
   } = useDisclosure();
   const [chatToDelete, setChatToDelete] = useState<{ id: string; title: string } | null>(null);
-  const windowObj = useWindow();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
@@ -151,7 +149,6 @@ const useSidebarState = () => {
     onDeleteModalClose,
     chatToDelete,
     setChatToDelete,
-    windowObj,
     router,
     mounted,
     currentTheme,
@@ -165,7 +162,6 @@ const useSidebarState = () => {
 const useSidebarChatHandlers = (
   selectedChatId: string,
   onSelectChat: (chatId: string) => void,
-  windowObj: Window | null,
   router: ReturnType<typeof useRouter>,
   chats: ReturnType<typeof useChatSessions>["sessions"],
   deleteSession: ReturnType<typeof useChatSessions>["deleteSession"]
@@ -199,13 +195,14 @@ const useSidebarChatHandlers = (
 // SUB-COMPONENTS
 // ========================================
 
-const SidebarOverlay = memo(({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const { windowObj } = useSidebarState();
-
-  if (!isOpen || !windowObj || windowObj.innerWidth >= 1024) return null;
-
-  return <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />;
-});
+const SidebarOverlay = memo(({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => (
+  <div
+    className={`fixed inset-0 z-40 bg-black/30 transition-opacity ${
+      isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+    } lg:hidden`}
+    onClick={isOpen ? onClose : undefined}
+  />
+));
 
 SidebarOverlay.displayName = "SidebarOverlay";
 
@@ -787,7 +784,6 @@ export const Sidebar = memo(
       onDeleteModalClose,
       chatToDelete,
       setChatToDelete,
-      windowObj,
       router,
       mounted,
       searchQuery,
@@ -813,7 +809,6 @@ export const Sidebar = memo(
     const { handleNewChat, handleDeleteChat } = useSidebarChatHandlers(
       selectedChatId,
       onSelectChat,
-      windowObj,
       router,
       chats,
       deleteSession
@@ -858,7 +853,7 @@ export const Sidebar = memo(
 
         {/* Main Sidebar */}
         <div
-          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-background/95 backdrop-blur-xl transition-transform duration-300 ease-in-out ${
+          className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-background shadow-lg transition-transform duration-200 ease-out ${
             isOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

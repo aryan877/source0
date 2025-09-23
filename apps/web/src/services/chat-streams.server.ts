@@ -81,10 +81,95 @@ export async function loadLatestStream(chatId: string): Promise<string | null> {
 
 /**
  * Load all stream IDs for a chat session (legacy support)
+ * Only returns active (non-cancelled, non-complete) streams
  */
 export async function loadStreams(chatId: string): Promise<string[]> {
-  const latestStream = await loadLatestStream(chatId);
-  return latestStream ? [latestStream] : [];
+  const latestActiveStream = await loadLatestActiveStream(chatId);
+  return latestActiveStream ? [latestActiveStream] : [];
+}
+
+/**
+ * Mark a stream as cancelled in the database
+ */
+export async function markStreamCancelled(streamId: string): Promise<void> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ cancelled: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error("Error marking stream as cancelled:", error);
+    throw new Error(`Failed to mark stream as cancelled: ${error.message}`);
+  }
+
+  console.log("Marked stream as cancelled:", streamId);
+}
+
+/**
+ * Mark a stream as complete in the database
+ */
+export async function markStreamComplete(streamId: string): Promise<void> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("chat_stream_ids")
+    .update({ complete: true })
+    .eq("stream_id", streamId);
+
+  if (error) {
+    console.error("Error marking stream as complete:", error);
+    throw new Error(`Failed to mark stream as complete: ${error.message}`);
+  }
+
+  console.log("Marked stream as complete:", streamId);
+}
+
+/**
+ * Check if a stream is cancelled or complete
+ */
+export async function getStreamStatus(
+  streamId: string
+): Promise<{ cancelled: boolean; complete: boolean } | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("chat_stream_ids")
+    .select("cancelled, complete")
+    .eq("stream_id", streamId)
+    .single();
+
+  if (error || !data) {
+    console.log("Stream not found or error:", streamId, error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Load the most recent active (non-cancelled, non-complete) stream ID for a chat session
+ */
+export async function loadLatestActiveStream(chatId: string): Promise<string | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("chat_stream_ids")
+    .select("stream_id")
+    .eq("chat_id", chatId)
+    .eq("cancelled", false)
+    .eq("complete", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    console.log("No active streams found for chat:", chatId);
+    return null;
+  }
+
+  return data.stream_id;
 }
 
 /**

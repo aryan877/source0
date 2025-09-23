@@ -76,29 +76,12 @@ export const metadata: Metadata = {
     title: "Source0 - AI Chat Interface",
     description:
       "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
-    images: [
-      {
-        url: "/open-graph.png",
-        width: 1200,
-        height: 630,
-        alt: "Source0 - Advanced AI Chat Interface",
-        type: "image/png",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Source0 - AI Chat Interface",
     description:
       "Advanced AI chat platform with multi-model support, file attachments, web search, memory, voice input, image generation, and collaborative features",
-    images: [
-      {
-        url: "/open-graph.png",
-        width: 1200,
-        height: 630,
-        alt: "Source0 - Advanced AI Chat Interface",
-      },
-    ],
   },
   icons: {
     icon: [

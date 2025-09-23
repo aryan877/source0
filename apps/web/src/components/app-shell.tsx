@@ -22,6 +22,8 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
+const DESKTOP_BREAKPOINT = 1024;
+
 export function AppShell({ children }: AppShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Start closed on mobile
   const router = useRouter();
@@ -29,6 +31,7 @@ export function AppShell({ children }: AppShellProps) {
   const windowObj = useWindow();
   const { user } = useAuth();
   const { focusSearch } = useUiStore();
+  const [isDesktop, setIsDesktop] = useState(false);
   const {
     isOpen: isSearchModalOpen,
     onOpen: onSearchModalOpen,
@@ -92,34 +95,54 @@ export function AppShell({ children }: AppShellProps) {
   }, [user, isLoading, hasCompletedOnboarding, onOnboardingOpen]);
 
   // Initialize sidebar state based on screen size
-  useEffect(() => {
-    if (windowObj) {
-      setIsSidebarOpen(windowObj.innerWidth >= 1024);
-    }
-  }, [windowObj]);
-
-  // Close sidebar on mobile when pathname changes (any navigation)
-  useEffect(() => {
-    if (windowObj && windowObj.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
-  }, [pathname, windowObj]);
-
-  // Handle window resize
+  // Track desktop breakpoint using matchMedia to avoid resize thrash on pinch-zoom
   useEffect(() => {
     if (!windowObj) return;
 
-    const handleResize = () => {
-      if (windowObj.innerWidth >= 1024) {
-        setIsSidebarOpen(true); // Auto-open on desktop
-      } else {
-        setIsSidebarOpen(false); // Auto-close on mobile
-      }
+    const mediaQuery = windowObj.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`);
+    const lastMatchRef = { current: null as boolean | null };
+
+    const updateFromMedia = (matches: boolean) => {
+      setIsDesktop(matches);
+      setIsSidebarOpen((prev) => {
+        if (matches) {
+          if (lastMatchRef.current === matches && lastMatchRef.current !== null) {
+            return prev;
+          }
+          return true;
+        }
+        return false;
+      });
+      lastMatchRef.current = matches;
     };
 
-    windowObj.addEventListener("resize", handleResize);
-    return () => windowObj.removeEventListener("resize", handleResize);
+    updateFromMedia(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      updateFromMedia(event.matches);
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
   }, [windowObj]);
+
+  // Close sidebar after navigation when not on desktop
+  useEffect(() => {
+    if (!isDesktop) {
+      setIsSidebarOpen(false);
+    }
+  }, [pathname, isDesktop]);
 
   const handleSelectChat = (chatId: string) => {
     router.push(`/chat/${chatId}`);
@@ -149,7 +172,7 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex h-screen w-full overflow-hidden">
         <div className="fixed left-4 top-4 z-[60]">
           {!isSidebarOpen && (
-            <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm backdrop-blur-sm">
+            <div className="flex flex-row rounded-md bg-content2 p-1 shadow-sm">
               <Button
                 variant="light"
                 size="sm"
@@ -193,7 +216,7 @@ export function AppShell({ children }: AppShellProps) {
           onClose={() => setIsSidebarOpen(false)}
         />
         <main
-          className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-300 ease-in-out ${
+          className={`flex min-w-0 flex-1 flex-col overflow-hidden ${
             isSidebarOpen ? "lg:ml-64" : "lg:ml-0"
           }`}
         >

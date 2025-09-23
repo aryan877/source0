@@ -1,9 +1,9 @@
 "use client";
 
+import { hasActiveStream } from "@/services/chat-streams";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { motion } from "framer-motion";
-import { memo } from "react";
-// Note: Legacy image annotation types removed as they're no longer used
+import { memo, useEffect, useMemo, useState } from "react";
 import { ErrorDisplay } from "./error-display";
 import MessageBubble from "./message-bubble";
 import { SuggestedQuestions } from "./suggested-questions";
@@ -201,8 +201,55 @@ interface MessagesListProps {
   isLoadingQuestions: boolean;
   questionsError: string | null;
   onQuestionSelect: (question: string) => void;
-  messagesContainerMinHeight?: number;
 }
+
+const MessageItem = memo(
+  ({
+    message,
+    index,
+    isLoading,
+    onRetryMessage,
+    onBranchChat,
+    onEditMessage,
+    onDeleteMessage,
+    isDeletingMessage,
+    chatId,
+    messagesLength,
+  }: {
+    message: CustomUIMessage;
+    index: number;
+    isLoading: boolean;
+    onRetryMessage: (messageId: string) => void;
+    onBranchChat: (messageId: string, modelId?: string) => void;
+    onEditMessage?: (messageId: string, newContent: string) => void;
+    onDeleteMessage?: (messageId: string) => void;
+    isDeletingMessage?: boolean;
+    chatId: string;
+    messagesLength: number;
+  }) => {
+    const isLastMessage = index === messagesLength - 1;
+    return (
+      <div
+        key={`${message.id}-${index}`}
+        data-message-id={message.id}
+        className="w-full max-w-full"
+      >
+        <MessageBubble
+          message={message}
+          onRetry={onRetryMessage}
+          onBranch={onBranchChat}
+          onEdit={onEditMessage}
+          onDelete={onDeleteMessage}
+          isLoading={isLoading && isLastMessage}
+          isDeleting={isDeletingMessage}
+          chatId={chatId}
+        />
+      </div>
+    );
+  }
+);
+
+MessageItem.displayName = "MessageItem";
 
 export const MessagesList = memo(
   ({
@@ -223,72 +270,50 @@ export const MessagesList = memo(
     isLoadingQuestions,
     questionsError,
     onQuestionSelect,
-    messagesContainerMinHeight,
   }: MessagesListProps) => {
+    const [hasActiveStreamState, setHasActiveStreamState] = useState(true);
+
+    // Check if there's an active stream when loading state changes
+    useEffect(() => {
+      if (isLoading && chatId !== "new") {
+        hasActiveStream(chatId).then(setHasActiveStreamState);
+      }
+    }, [isLoading, chatId]);
+
+    // If we're supposedly loading but there's no active stream, don't show loading
+    const actualIsLoading = isLoading && hasActiveStreamState;
+
+    const shouldShowSuggestions = useMemo(
+      () => !actualIsLoading && !isLoadingMessages,
+      [actualIsLoading, isLoadingMessages]
+    );
+
+    const shouldShowLoadingMessages = useMemo(
+      () => isLoadingMessages && chatId !== "new" && messages.length === 0,
+      [isLoadingMessages, chatId, messages.length]
+    );
+
     return (
       <div data-messages-container="true">
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-6 px-4 pb-12 pt-12 sm:pt-16">
-          {isLoadingMessages && chatId !== "new" && messages.length === 0 ? (
+          {shouldShowLoadingMessages ? (
             <LoadingMessages />
           ) : (
-            messages.map((message, index) => {
-              const hasImage = message.parts?.some(
-                (p) => p.type === "file" && p.mediaType?.startsWith("image/")
-              );
-
-              const isLastMessage = index === messages.length - 1;
-              const uniqueKey = `${message.id}-${index}`;
-
-              if (hasImage) {
-                return (
-                  <div
-                    key={uniqueKey}
-                    data-message-id={message.id}
-                    className="w-full max-w-full"
-                    style={
-                      isLastMessage && isLoading
-                        ? { minHeight: messagesContainerMinHeight }
-                        : undefined
-                    }
-                  >
-                    <MessageBubble
-                      message={message}
-                      onRetry={onRetryMessage}
-                      onBranch={onBranchChat}
-                      onEdit={onEditMessage}
-                      onDelete={onDeleteMessage}
-                      isLoading={isLoading && index === messages.length - 1}
-                      isDeleting={isDeletingMessage}
-                      chatId={chatId}
-                    />
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={uniqueKey}
-                  data-message-id={message.id}
-                  className="w-full max-w-full"
-                  style={
-                    isLastMessage && isLoading
-                      ? { minHeight: messagesContainerMinHeight }
-                      : undefined
-                  }
-                >
-                  <MessageBubble
-                    message={message}
-                    onRetry={onRetryMessage}
-                    onBranch={onBranchChat}
-                    onEdit={onEditMessage}
-                    onDelete={onDeleteMessage}
-                    isLoading={isLoading && index === messages.length - 1}
-                    isDeleting={isDeletingMessage}
-                    chatId={chatId}
-                  />
-                </div>
-              );
-            })
+            messages.map((message, index) => (
+              <MessageItem
+                key={`${message.id}-${index}`}
+                message={message}
+                index={index}
+                isLoading={actualIsLoading}
+                onRetryMessage={onRetryMessage}
+                onBranchChat={onBranchChat}
+                onEditMessage={onEditMessage}
+                onDeleteMessage={onDeleteMessage}
+                isDeletingMessage={isDeletingMessage}
+                chatId={chatId}
+                messagesLength={messages.length}
+              />
+            ))
           )}
 
           <ErrorDisplay
@@ -298,7 +323,7 @@ export const MessagesList = memo(
             onRetry={onRetry}
           />
 
-          {!isLoading && !isLoadingMessages && (
+          {shouldShowSuggestions && (
             <SuggestedQuestions
               questions={suggestedQuestions}
               isLoading={isLoadingQuestions}
