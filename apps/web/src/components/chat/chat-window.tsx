@@ -13,6 +13,7 @@ import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
+import { markStreamCancelled, getLatestStreamId } from "@/services/chat-streams";
 import { type ChatSession } from "@/services/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
@@ -62,9 +63,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const navigatorRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const chatInputContainerRef = useRef<HTMLDivElement>(null);
-  const [messagesContainerMinHeight, setMessagesContainerMinHeight] = useState<
-    number | undefined
-  >();
 
   const {
     messages: initialMessages,
@@ -288,8 +286,19 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     updateState({ uiError: null });
   }, [updateState]);
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
     stop();
+
+    // Mark the current stream as cancelled in the database
+    try {
+      const latestStreamId = await getLatestStreamId(chatId);
+      if (latestStreamId) {
+        await markStreamCancelled(latestStreamId);
+        console.log("Marked stream as cancelled:", latestStreamId);
+      }
+    } catch (error) {
+      console.error("Failed to mark stream as cancelled:", error);
+    }
 
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
@@ -819,28 +828,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     }
   }, []);
 
-  useEffect(() => {
-    const calculateMinHeight = () => {
-      const headerHeight = headerRef.current?.offsetHeight || 0;
-      const chatInputHeight = chatInputContainerRef.current?.offsetHeight || 0;
-      const messagesContainerVerticalPadding = 100;
-      const minHeight =
-        window.innerHeight - headerHeight - chatInputHeight - messagesContainerVerticalPadding;
-      setMessagesContainerMinHeight(minHeight > 0 ? minHeight : 0);
-    };
-
-    calculateMinHeight();
-    const resizeObserver = new ResizeObserver(calculateMinHeight);
-    if (headerRef.current) resizeObserver.observe(headerRef.current);
-    if (chatInputContainerRef.current) resizeObserver.observe(chatInputContainerRef.current);
-    window.addEventListener("resize", calculateMinHeight);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", calculateMinHeight);
-    };
-  }, []);
-
   return (
     <div
       className={`relative flex h-full flex-col overflow-hidden border-divider bg-content1 ${isSidebarOpen ? "lg:rounded-tl-2xl lg:border-l lg:border-t" : ""}`}
@@ -875,7 +862,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
             isLoadingQuestions={isLoadingQuestions}
             questionsError={questionsError}
             onQuestionSelect={handlePromptSelect}
-            messagesContainerMinHeight={messagesContainerMinHeight}
           />
         )}
       </div>

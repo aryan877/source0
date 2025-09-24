@@ -1,7 +1,7 @@
 import { getModelById, type ReasoningLevel } from "@/config/models";
 import { saveAssistantMessageServer, saveUserMessageServer } from "@/services/chat-messages.server";
 import { createOrGetSession } from "@/services/chat-sessions.server";
-import { appendStreamId, loadStreams } from "@/services/chat-streams.server";
+import { appendStreamId, loadStreams, markStreamComplete, markStreamCancelled } from "@/services/chat-streams.server";
 import { generateTitleOnly } from "@/services/generate-chat-title";
 import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
 import { saveMessageSummary } from "@/services/message-summaries";
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
   const streamIds = await loadStreams(chatId);
 
   if (!streamIds.length) {
-    console.log(`No streams found for chat ${chatId} - likely no active stream to resume`);
+    console.log(`No active streams found for chat ${chatId} - likely no active stream to resume`);
     return new Response("No active streams to resume", { status: 404 });
   }
 
@@ -110,10 +110,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  // Generate a unique stream ID for this request outside try block so it's accessible in catch
+  const streamId = generateId();
+  
   try {
     const body: ChatRequest = await req.json();
-    // Generate a unique stream ID for this request
-    const streamId = generateId();
     const {
       messages,
       model = "gemini-2.5-flash",
@@ -222,25 +223,26 @@ export async function POST(req: Request): Promise<Response> {
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        const result = streamText({
-          model: modelInstance,
-          messages: [{ role: "system" as const, content: systemMessage }, ...coreMessages],
-          tools: getToolsForModel(
-            user.id,
-            searchEnabled,
-            imageGenerationEnabled,
-            memoryEnabled,
-            consolidatedMcpTools,
-            {
-              capabilities: modelConfig.capabilities,
-              supportsFunctions: modelConfig.supportsFunctions,
-              provider: modelConfig.provider,
-            },
-            finalSessionId,
-            userMessageToSave?.id
-          ),
-          stopWhen: stepCountIs(10),
-          providerOptions: buildProviderOptions(modelConfig, reasoningLevel, effectiveApiKey),
+        try {
+          const result = streamText({
+            model: modelInstance,
+            messages: [{ role: "system" as const, content: systemMessage }, ...coreMessages],
+            tools: getToolsForModel(
+              user.id,
+              searchEnabled,
+              imageGenerationEnabled,
+              memoryEnabled,
+              consolidatedMcpTools,
+              {
+                capabilities: modelConfig.capabilities,
+                supportsFunctions: modelConfig.supportsFunctions,
+                provider: modelConfig.provider,
+              },
+              finalSessionId,
+              userMessageToSave?.id
+            ),
+            stopWhen: stepCountIs(10),
+            providerOptions: buildProviderOptions(modelConfig, reasoningLevel, effectiveApiKey),
           onFinish: async ({ providerMetadata, text }) => {
             // Stream grounding data if available
             const googleMetadata = providerMetadata?.google as GoogleProviderMetadata | undefined;
@@ -268,43 +270,58 @@ export async function POST(req: Request): Promise<Response> {
               }
             }
           },
-        });
+          });
 
-        result.consumeStream();
+          result.consumeStream();
 
-        writer.merge(
-          result.toUIMessageStream({
-            generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
-            sendReasoning: true, // Enable reasoning tokens streaming
-            messageMetadata: ({ part }) => {
-              if (part.type === "start") {
-                return {
-                  model: modelConfig.id,
-                  modelProvider: modelConfig.provider,
-                  createdAt: Date.now(),
-                  reasoningLevel,
-                  searchEnabled,
-                  imageGenerationEnabled,
-                };
-              }
-              if (part.type === "finish") {
-                return {
-                  model: modelConfig.id,
-                  modelProvider: modelConfig.provider,
-                  totalTokens: part.totalUsage?.totalTokens,
-                  promptTokens: part.totalUsage?.inputTokens,
-                  completionTokens: part.totalUsage?.outputTokens,
-                  reasoningTokens: part.totalUsage?.reasoningTokens,
-                  userId: user.id,
-                };
-              }
-            },
-          })
-        );
+          writer.merge(
+            result.toUIMessageStream({
+              generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
+              sendReasoning: true, // Enable reasoning tokens streaming
+              messageMetadata: ({ part }) => {
+                if (part.type === "start") {
+                  return {
+                    model: modelConfig.id,
+                    modelProvider: modelConfig.provider,
+                    createdAt: Date.now(),
+                    reasoningLevel,
+                    searchEnabled,
+                    imageGenerationEnabled,
+                  };
+                }
+                if (part.type === "finish") {
+                  return {
+                    model: modelConfig.id,
+                    modelProvider: modelConfig.provider,
+                    totalTokens: part.totalUsage?.totalTokens,
+                    promptTokens: part.totalUsage?.inputTokens,
+                    completionTokens: part.totalUsage?.outputTokens,
+                    reasoningTokens: part.totalUsage?.reasoningTokens,
+                    userId: user.id,
+                  };
+                }
+              },
+            })
+          );
+        } catch (streamError) {
+          console.error("Stream execution error:", streamError);
+          
+          // Mark stream as cancelled due to execution error
+          try {
+            await markStreamCancelled(streamId);
+            console.log("Marked stream as cancelled due to stream execution error:", streamId);
+          } catch (cancelError) {
+            console.error("Failed to mark stream as cancelled after stream error:", cancelError);
+          }
+          
+          // Re-throw the error to propagate it
+          throw streamError;
+        }
       },
       onFinish: async ({ responseMessage }) => {
         if (!responseMessage) return;
 
+        let finishError = false;
         try {
           // Save assistant message
           const savedMessage = await saveAssistantMessageServer(
@@ -367,6 +384,19 @@ export async function POST(req: Request): Promise<Response> {
           }
         } catch (error) {
           console.error("Failed to save response:", error);
+          finishError = true;
+        } finally {
+          // Mark stream as cancelled or complete based on whether errors occurred
+          try {
+            if (finishError) {
+              await markStreamCancelled(streamId);
+              console.log("Marked stream as cancelled due to response save error:", streamId);
+            } else {
+              await markStreamComplete(streamId);
+            }
+          } catch (error) {
+            console.error("Failed to update stream status:", error);
+          }
         }
       },
     });
@@ -388,6 +418,17 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
+    
+    // If we had started a stream, mark it as cancelled due to error
+    try {
+      if (streamId) {
+        await markStreamCancelled(streamId);
+        console.log("Marked stream as cancelled due to error:", streamId, err.message);
+      }
+    } catch (cancelError) {
+      console.error("Failed to mark stream as cancelled after error:", cancelError);
+    }
+    
     return getErrorResponse(err, {
       body: await req.text(),
       headers: req.headers,

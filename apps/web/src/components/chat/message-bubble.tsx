@@ -13,11 +13,7 @@ import {
   UserIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import {
-  Avatar,
-  Button,
-  Tooltip,
-} from "@heroui/react";
+import { Avatar, Button, Tooltip } from "@heroui/react";
 import { GitBranchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReasoningSpinner } from "../../hooks/use-reasoning-spinner";
@@ -164,12 +160,16 @@ const MessageBubble = memo(
       }
     }, [isEditing]);
 
-    const handleCopy = useCallback(async () => {
-      const textContent =
+    const textContent = useMemo(
+      () =>
         message.parts
           ?.filter((part) => part.type === "text")
           .map((part) => (part.type === "text" ? part.text : ""))
-          .join("") || "";
+          .join("") || "",
+      [message.parts]
+    );
+
+    const handleCopy = useCallback(async () => {
       if (textContent) {
         try {
           await navigator.clipboard.writeText(textContent);
@@ -179,7 +179,7 @@ const MessageBubble = memo(
           console.error("Failed to copy:", error);
         }
       }
-    }, [message.parts]);
+    }, [textContent]);
 
     const handleRetry = useCallback(() => {
       onRetry(message.id);
@@ -244,7 +244,6 @@ const MessageBubble = memo(
     const handleCancelDelete = useCallback(() => {
       setShowDeleteConfirm(false);
     }, []);
-
 
     const handleDownload = useCallback(async (imageUrl: string, prompt: string) => {
       try {
@@ -379,10 +378,7 @@ const MessageBubble = memo(
         <>
           {/* Render image gallery if there are any generated images */}
           {generatedImages.length > 0 && (
-            <ImageGallery
-              images={generatedImages}
-              onDownload={handleDownload}
-            />
+            <ImageGallery images={generatedImages} onDownload={handleDownload} />
           )}
 
           {/* Render all other parts */}
@@ -511,12 +507,20 @@ const MessageBubble = memo(
                   // Handle non-image files
                   return (
                     <div key={index} className="my-2">
-                      <div className="flex items-center gap-2 p-3 bg-content2 rounded-lg">
-                        <svg className="w-4 h-4 text-foreground/60" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      <div className="flex items-center gap-2 rounded-lg bg-content2 p-3">
+                        <svg
+                          className="h-4 w-4 text-foreground/60"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                            clipRule="evenodd"
+                          />
                         </svg>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">
                             {part.filename || "Attached file"}
                           </p>
                           <p className="text-xs text-foreground/60">
@@ -528,7 +532,7 @@ const MessageBubble = memo(
                             href={part.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80 text-xs"
+                            className="text-xs text-primary hover:text-primary/80"
                           >
                             Open
                           </a>
@@ -548,7 +552,6 @@ const MessageBubble = memo(
         </>
       );
     }, [
-      isReasoningStreaming,
       message,
       isEditing,
       isUser,
@@ -557,35 +560,29 @@ const MessageBubble = memo(
       handleCancelEdit,
       handleSaveEdit,
       handleDownload,
+      isReasoningStreaming,
     ]);
 
-    const renderGroundingMetadata = useMemo(() => {
-      // AI SDK v5 - access grounding from data parts instead of metadata
+    const groundingData = useMemo(() => {
       const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
+      if (groundingParts.length === 0) return null;
 
-      if (groundingParts.length === 0) {
-        return null;
-      }
-
-      // Use the latest grounding data part
       const latestGrounding = groundingParts[groundingParts.length - 1];
-      if (!latestGrounding || !latestGrounding.data) {
-        return null;
-      }
+      if (!latestGrounding?.data) return null;
+
       const grounding = latestGrounding.data.grounding;
-
-      // Only render if we have actual grounding data with content
-      if (
-        !grounding ||
-        (!grounding.webSearchQueries?.length &&
-          !grounding.groundingChunks?.length &&
-          !grounding.groundingSupports?.length)
-      ) {
-        return null;
-      }
-
-      return <GroundingDisplay grounding={grounding} />;
+      return grounding &&
+        (grounding.webSearchQueries?.length ||
+          grounding.groundingChunks?.length ||
+          grounding.groundingSupports?.length)
+        ? grounding
+        : null;
     }, [message.parts]);
+
+    const renderGroundingMetadata = useMemo(
+      () => (groundingData ? <GroundingDisplay grounding={groundingData} /> : null),
+      [groundingData]
+    );
 
     // Memoize the action buttons to prevent re-renders
     const actionButtons = useMemo(() => {
@@ -813,7 +810,6 @@ const MessageBubble = memo(
             )}
           </div>
         </div>
-
       </div>
     );
   }

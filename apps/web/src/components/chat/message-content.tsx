@@ -2,9 +2,9 @@
 
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
 import type { TavilySearchResult } from "@/types/web-search";
-import { Button, Chip, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip, addToast } from "@heroui/react";
+import { addToast, Button, Chip, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Tooltip, useDisclosure } from "@heroui/react";
 import "katex/dist/katex.min.css";
-import { ChevronDown, Copy, Download, FileText, Maximize2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Copy, Download, ExternalLink, FileText, Maximize2 } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -89,6 +89,67 @@ const CitationPill = memo(
 );
 
 CitationPill.displayName = "CitationPill";
+
+/**
+ * Link Warning Modal Component
+ */
+const LinkWarningModal = memo(
+  ({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    url 
+  }: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: () => void; 
+    url: string;
+  }) => (
+    <Modal isOpen={isOpen} onClose={onClose} size="md" backdrop="opaque">
+      <ModalContent>
+        {(onClose) => (
+          <>
+            <ModalHeader className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                <span>External Link Warning</span>
+              </div>
+            </ModalHeader>
+            <ModalBody>
+              <div className="space-y-3">
+                <p className="text-foreground/80">
+                  You are about to visit an external website. Please be aware that:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm text-foreground/70 ml-4">
+                  <li>This link has not been verified for safety</li>
+                  <li>The content may not be related to our conversation</li>
+                  <li>External sites may have different privacy policies</li>
+                </ul>
+                <div className="p-3 bg-content2 rounded-lg break-all">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ExternalLink className="h-4 w-4 text-foreground/60" />
+                    <span className="text-xs font-medium text-foreground/60">DESTINATION:</span>
+                  </div>
+                  <span className="text-sm text-foreground">{url}</span>
+                </div>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="light" onPress={onClose}>
+                Cancel
+              </Button>
+              <Button color="primary" onPress={onConfirm}>
+                Continue to Site
+              </Button>
+            </ModalFooter>
+          </>
+        )}
+      </ModalContent>
+    </Modal>
+  )
+);
+
+LinkWarningModal.displayName = "LinkWarningModal";
 
 /**
  * A recursive renderer that processes citations in text nodes while preserving nested React components.
@@ -485,23 +546,45 @@ TableCell.displayName = "TableCell";
 
 const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   const { fontSize } = useUserPreferencesStore();
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const processedContent = useMemo(() => preprocessMarkdownContent(content), [content]);
+
+  const handleLinkClick = useCallback((url: string) => {
+    setPendingUrl(url);
+    onOpen();
+  }, [onOpen]);
+
+  const handleConfirmNavigation = useCallback(() => {
+    if (pendingUrl) {
+      window.open(pendingUrl, '_blank', 'noopener,noreferrer');
+    }
+    onClose();
+    setPendingUrl(null);
+  }, [pendingUrl, onClose]);
+
+  const handleCloseModal = useCallback(() => {
+    onClose();
+    setPendingUrl(null);
+  }, [onClose]);
+
+  const CitationWrapper = useMemo(() => {
+    const Component = ({ children }: { children: React.ReactNode }) => (
+      <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
+    );
+    Component.displayName = "CitationWrapper";
+    return Component;
+  }, [citations]);
 
   const components: Components = useMemo(
     () => ({
-      p: ({ children }) => {
-        return (
-          <p>
-            <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
-          </p>
-        );
-      },
-      li: ({ children }) => {
-        return (
-          <li>
-            <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
-          </li>
-        );
-      },
+      p: ({ children }) => (
+        <p><CitationWrapper>{children}</CitationWrapper></p>
+      ),
+      li: ({ children }) => (
+        <li><CitationWrapper>{children}</CitationWrapper></li>
+      ),
       code: ({ className, children, ...props }) => {
         // For inline code, render a normal <code> tag.
         // For block-level code, the <pre> wrapper will handle rendering.
@@ -567,49 +650,86 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
           </tr>
         );
       },
-      th: ({ children, ...props }) => {
+      th: ({ children, ...props }) => (
+        <th {...props} className="px-6 py-4 text-left text-xs font-semibold text-foreground/80 uppercase tracking-wider border-b-2 border-primary/20 sticky top-0 bg-content2/95 backdrop-blur-md relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-primary/5 before:to-transparent">
+          <div className="relative z-10">
+            <CitationWrapper>{children}</CitationWrapper>
+          </div>
+        </th>
+      ),
+      td: ({ children, ...props }) => (
+        <TableCell citations={citations} {...props}>{children}</TableCell>
+      ),
+      a: ({ href, children, className, ...props }) => {
+        // Handle mailto, tel, and fragment links normally
+        if (!href || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('#')) {
+          return (
+            <a href={href} className={className || "text-primary hover:text-primary/80 underline"} {...props}>
+              {children}
+            </a>
+          );
+        }
+
+        // For external links, show warning modal
         return (
-          <th {...props} className="px-6 py-4 text-left text-xs font-semibold text-foreground/80 uppercase tracking-wider border-b-2 border-primary/20 sticky top-0 bg-content2/95 backdrop-blur-md relative before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-primary/5 before:to-transparent">
-            <div className="relative z-10">
-              <RecursiveCitationRenderer citations={citations}>{children}</RecursiveCitationRenderer>
-            </div>
-          </th>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              handleLinkClick(href);
+            }}
+            className={`text-primary hover:text-primary/80 underline cursor-pointer inline-flex items-center gap-1 ${className || ''}`}
+          >
+            {children}
+            <ExternalLink className="h-3 w-3 opacity-70" />
+          </button>
         );
       },
-      td: ({ children, ...props }) => {
-        return <TableCell citations={citations} {...props}>{children}</TableCell>;
-      },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [citations, handleLinkClick, CitationWrapper]
   );
 
+  const proseClassName = useMemo(() => `prose max-w-none prose-${fontSize}`, [fontSize]);
+
+  const proseStyle = useMemo<React.CSSProperties>(() => {
+    const mappedFontSize =
+      fontSize === "xs"
+        ? "0.75rem"
+        : fontSize === "sm"
+          ? "0.875rem"
+          : fontSize === "base"
+            ? "1rem"
+            : fontSize === "lg"
+              ? "1.125rem"
+              : "1.25rem";
+
+    return {
+      fontSize: mappedFontSize,
+      // Isolate markdown reflows so pinch-zoom resize events don't trigger
+      // unnecessary paints higher up the tree.
+      contain: "layout paint",
+    };
+  }, [fontSize]);
+
   return (
-    <div
-      className={`prose max-w-none prose-${fontSize}`}
-      style={{
-        // Correctly map the abstract size to a pixel value for the container.
-        // Tailwind's prose plugin uses this to scale all children.
-        fontSize:
-          fontSize === "xs"
-            ? "0.75rem"
-            : fontSize === "sm"
-              ? "0.875rem"
-              : fontSize === "base"
-                ? "1rem"
-                : fontSize === "lg"
-                  ? "1.125rem"
-                  : "1.25rem",
-      }}
-    >
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-      >
-        {preprocessMarkdownContent(content)}
-      </ReactMarkdown>
-    </div>
+    <>
+      <div className={proseClassName} style={proseStyle}>
+        <ReactMarkdown
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={rehypePlugins}
+          components={components}
+        >
+          {processedContent}
+        </ReactMarkdown>
+      </div>
+      
+      <LinkWarningModal
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmNavigation}
+        url={pendingUrl || ''}
+      />
+    </>
   );
 });
 
@@ -617,4 +737,3 @@ MessageContent.displayName = "MessageContent";
 
 export { MessageContent };
 export type { MessageContentProps };
-
