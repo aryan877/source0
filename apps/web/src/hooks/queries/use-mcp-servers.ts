@@ -8,10 +8,13 @@ import {
   duplicateMcpServer,
   getMcpServers,
   updateMcpServer,
-} from "@/services/mcp-servers";
-import { mcpServersKeys } from "@/utils/query-keys";
+} from "@/services/client/mcp-servers";
 import { addToast } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+const mcpServersKeys = {
+  all: ["mcp-servers"] as const,
+};
 
 export function useMcpServers() {
   const queryClient = useQueryClient();

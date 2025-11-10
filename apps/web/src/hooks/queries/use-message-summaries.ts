@@ -1,6 +1,10 @@
-import { getSummariesForSession, type MessageSummary } from "@/services/message-summaries";
-import { messageSummariesKeys } from "@/utils/query-keys";
+import { getSummariesForSession, type MessageSummary } from "@/services/client/message-summaries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+const messageSummariesKeys = {
+  all: ["message-summaries"] as const,
+  bySessionId: (sessionId: string) => [...messageSummariesKeys.all, "session", sessionId] as const,
+};
 
 export const useMessageSummaries = (sessionId: string) => {
   const queryClient = useQueryClient();

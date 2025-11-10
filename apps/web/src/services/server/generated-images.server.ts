@@ -1,12 +1,10 @@
 import { type Database } from "@/types/supabase-types";
-import { type SupabaseClient } from "@supabase/supabase-js";
-
-export type GeneratedImageRecord = Database["public"]["Tables"]["generated_images"]["Insert"];
+import { createClient } from "@/utils/supabase/server";
 
 export async function saveGeneratedImage(
-  supabase: SupabaseClient<Database>,
-  imageRecord: Omit<GeneratedImageRecord, "id" | "created_at">
-): Promise<Database["public"]["Tables"]["generated_images"]["Row"]> {
+  imageRecord: Omit<Database["public"]["Tables"]["generated_images"]["Insert"], "id" | "created_at">
+) {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("generated_images")
     .insert(imageRecord)

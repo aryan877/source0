@@ -1,5 +1,5 @@
 import { type AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
-import { type ReasoningLevel } from "@/config/models";
+import { DEFAULT_MODEL, type ReasoningLevel } from "@/config/models";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useCallback, useState } from "react";
 
@@ -32,8 +32,12 @@ export const useChatState = (chatId: string) => {
     []
   );
 
+  // Select selectedModel - will automatically update when lastSelectedModel changes
   const selectedModel = useModelSelectorStore(
-    useCallback((state) => state.getSelectedModel(chatId), [chatId])
+    useCallback(
+      (state) => state.selectedModels[chatId] || state.lastSelectedModel || DEFAULT_MODEL,
+      [chatId, DEFAULT_MODEL]
+    )
   );
 
   const reasoningLevel = useModelSelectorStore(

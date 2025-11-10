@@ -1,4 +1,6 @@
 // AI SDK v5 Google Provider Metadata Types
+// Note: These types are preserved for metadata compatibility
+// All actual model routing now goes through OpenRouter
 
 // Grounding segment for text that is supported by search results
 export interface GroundingSegment {

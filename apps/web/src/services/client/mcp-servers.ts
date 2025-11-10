@@ -171,13 +171,13 @@ export async function duplicateMcpServer(serverId: string): Promise<McpServer> {
     throw new Error("Server to duplicate not found");
   }
 
-  const { name, url, transport, isActive, headers } = originalServer;
+  const { name, url, transport, is_active, headers } = originalServer;
 
   const newServerData = {
     name: `${name} (Copy)`,
     url,
     transport,
-    isActive,
+    isActive: is_active,
     headers: headers.map(({ key, value }: { key: string; value: string }) => ({
       key,
       value,

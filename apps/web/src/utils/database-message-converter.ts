@@ -1,8 +1,8 @@
 import { ReasoningLevel } from "@/config/models";
-import { type DBChatMessage } from "@/services/chat-messages";
 import { type ProviderMetadata } from "@/types/provider-metadata";
-import { type Json } from "@/types/supabase-types";
-import { type UIMessage, generateId } from "ai";
+import { type Json, type Tables } from "@/types/supabase-types";
+import { type UIMessage } from "ai";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * Prepare a UIMessage for database storage.
@@ -28,10 +28,10 @@ export function prepareMessageForDb({
   searchEnabled?: boolean;
   imageGenerationEnabled?: boolean;
   providerMetadata?: ProviderMetadata;
-}): Omit<DBChatMessage, "updated_at"> {
-  // Use existing ID if present, otherwise generate a new one using AI SDK's generateId
-  // This ensures consistency with the AI SDK v5 ID generation pattern
-  const messageId = message.id || generateId();
+}): Omit<Tables<"chat_messages">, "updated_at"> {
+  // Always generate a new UUID for database consistency
+  // Database requires UUID format, not short IDs
+  const messageId = uuidv4();
 
   const modelConfig = {
     ...(reasoningLevel && { reasoningLevel }),

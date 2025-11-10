@@ -1,5 +1,7 @@
-import { ChatSession } from "@/services";
+import { type Tables } from "@/types/supabase-types";
 import { isToday, isWithinInterval, isYesterday, subDays } from "date-fns";
+
+type ChatSession = Tables<"chat_sessions">;
 
 export interface CategorizedSessions {
   pinned: ChatSession[];

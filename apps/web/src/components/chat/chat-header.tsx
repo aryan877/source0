@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChatSession } from "@/services/chat-sessions";
+import { type Tables } from "@/types/supabase-types";
 import { Cog6ToothIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import {
   Button,
@@ -19,7 +19,7 @@ import { ShareButton } from "./share-button";
 
 interface ChatHeaderProps {
   chatId: string;
-  sessionData?: ChatSession;
+  sessionData?: Tables<"chat_sessions">;
   isSharedView?: boolean;
   showNavigatorButton?: boolean;
   onToggleNavigator?: () => void;

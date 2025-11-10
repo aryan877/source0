@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { saveGeneratedImage } from "@/services/generated-images.server";
+import { saveGeneratedImage } from "@/services/server/generated-images.server";
 import type { ImageGenerationToolData } from "@/types/tools";
 
 interface ImageGenerationOptions {
@@ -116,7 +116,7 @@ export async function executeImageGeneration({
           .getPublicUrl(uploadData.path);
           
         // Save metadata to database
-        const savedImage = await saveGeneratedImage(supabase, {
+        const savedImage = await saveGeneratedImage({
           user_id: userId,
           session_id: sessionId,
           message_id: messageId,

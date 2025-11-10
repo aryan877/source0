@@ -6,11 +6,15 @@ import {
   UploadError,
   uploadFiles as uploadFilesToSupabase,
   UploadResult,
-} from "@/services/storage";
-import { userFilesKeys } from "@/utils/query-keys";
+} from "@/services/client/storage";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuth } from "./use-auth";
+
+const userFilesKeys = {
+  all: ["user-files"] as const,
+  byUser: (userId: string) => [...userFilesKeys.all, "user", userId] as const,
+};
 
 const logError = (error: Error, context: string, data: Record<string, unknown> = {}) => {
   const isDevelopment = process.env.NODE_ENV === "development";

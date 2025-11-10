@@ -1,9 +1,13 @@
 "use client";
 
-import { deleteMessage, getMessages } from "@/services/chat-messages";
+import { deleteMessage, getMessages } from "@/services/client/chat-messages";
 import { CustomUIMessage } from "@/types/custom-ui-message";
-import { chatMessagesKeys } from "@/utils/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+export const chatMessagesKeys = {
+  all: ["chat-messages"] as const,
+  byId: (sessionId: string) => [...chatMessagesKeys.all, "session", sessionId] as const,
+};
 
 // Main hook
 export function useChatMessages(sessionId: string) {

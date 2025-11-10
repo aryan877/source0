@@ -1,7 +1,4 @@
-import { type Database } from "@/types/supabase-types";
 import { createClient } from "@/utils/supabase/client";
-
-export type ModelUsageLog = Database["public"]["Tables"]["model_usage_logs"]["Row"];
 
 export interface UsageLogsFilters {
   startDate?: string;

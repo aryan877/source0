@@ -1,4 +1,4 @@
-import { type UploadResult } from "@/services/storage";
+import { type UploadResult } from "@/services/client/storage";
 
 export interface AttachedFileWithUrl {
   file: File;

@@ -1,4 +1,3 @@
-import { type DBChatMessage } from "@/services/chat-messages";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { type Tables } from "@/types/supabase-types";
 
@@ -6,7 +5,7 @@ import { type Tables } from "@/types/supabase-types";
  * Converts a single DBChatMessage to a CustomUIMessage with full metadata.
  * This is the reusable conversion function used across the app.
  */
-export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
+export function toCustomUIMessage(dbMessage: Tables<"chat_messages">): CustomUIMessage {
   // Parse metadata column
   const metadataFromColumn =
     dbMessage.metadata && typeof dbMessage.metadata === "object"
@@ -54,5 +53,5 @@ export function toCustomUIMessage(dbMessage: DBChatMessage): CustomUIMessage {
 export function convertDbMessagesToUiMessages(
   dbMessages: Tables<"chat_messages">[]
 ): CustomUIMessage[] {
-  return dbMessages.map((msg) => toCustomUIMessage(msg as DBChatMessage));
+  return dbMessages.map((msg) => toCustomUIMessage(msg));
 }

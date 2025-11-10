@@ -1,4 +1,4 @@
-import { type McpServer } from "@/services/mcp-servers.server";
+import { type McpServer } from "@/services/server/mcp-servers.server";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { experimental_createMCPClient as createMCPClient, type Tool } from "ai";
 

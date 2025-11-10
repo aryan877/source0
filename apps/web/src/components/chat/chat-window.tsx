@@ -12,11 +12,10 @@ import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
 import { useChatState } from "@/hooks/use-chat-state";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
-import { createSession, deleteFromPoint, saveAssistantMessage } from "@/services";
-import { markStreamCancelled, getLatestStreamId } from "@/services/chat-streams";
-import { type ChatSession } from "@/services/chat-sessions";
+import { deleteFromPoint, saveAssistantMessage } from "@/services/client/chat-messages";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
+import { type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 
 import { type CustomUIMessage } from "@/types/custom-ui-message";
@@ -54,7 +53,7 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     imageGenerationEnabled,
     setImageGenerationEnabled,
   } = useChatState(chatId);
-  const { transferModelSelection } = useModelSelectorStore();
+  const { pendingChatData, clearPendingChatData, setPendingChatData } = useModelSelectorStore();
   const { user } = useAuth();
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
   const router = useRouter();
@@ -82,19 +81,24 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     // API keys are now handled server-side from database
     const apiKey = undefined;
 
-    return {
+    // Ensure we always have a valid ID
+    const finalId = chatId === "new" ? undefined : chatId;
+
+    const body = {
       model: selectedModel,
       reasoningLevel: reasoningLevel,
       searchEnabled: searchEnabled,
       imageGenerationEnabled: imageGenerationEnabled,
       memoryEnabled: memoryEnabled,
       showChatNavigator: showChatNavigator,
-      id: chatId === "new" ? undefined : chatId,
+      sessionId: finalId,
       isFirstMessage: chatId !== "new" && initialMessages.length === 0,
       apiKey,
       assistantName,
       userTraits,
     };
+
+    return body;
   }, [
     selectedModel,
     reasoningLevel,
@@ -114,158 +118,151 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     handleRemoveFile,
     handleBranchChat,
     handleModelChange,
-  } = useChatHandlers(
-    chatId,
-    state,
-    updateState,
-    updateSessionInCache,
-    transferModelSelection,
-    router,
-    user
-  );
+  } = useChatHandlers(chatId, state, updateState, updateSessionInCache, router, user);
 
   const [input, setInput] = useState("");
 
-  const { messages, status, error, sendMessage, stop, setMessages, resumeStream } =
-    useChat<CustomUIMessage>({
-      transport: new DefaultChatTransport({
-        api: "/api/chat",
-        body: chatBody,
-        prepareReconnectToStreamRequest: ({ id }) => ({
-          api: `/api/chat?chatId=${id}`,
-        }),
-      }),
-      id: chatId === "new" ? undefined : chatId,
-      experimental_throttle: 100,
-      onError: (error) => {
-        // The `useChat` hook's `error` object will be populated.
-        // We log it here for debugging, but we don't need to set a separate `uiError`
-        // state as that would be redundant. `ErrorDisplay` will use the `error` object.
-        console.error("An error occurred in the chat stream:", error);
-      },
-      onFinish: async ({ message }: { message: CustomUIMessage }) => {
-        console.log(message);
-        console.log("onFinish", message);
-        if (process.env.NODE_ENV === "development") {
-          console.log("Chat stream finished", {
-            chatId,
-            selectedModel: selectedModel,
-            messageId: message.id,
-            timestamp: new Date().toISOString(),
-          });
-        }
+  // Create a stable reference to chatBody by including chatId in dependencies
+  const stableChatBody = useMemo(() => {
+    return {
+      ...chatBody,
+      // Explicitly ensure the sessionId is the full chatId, not a short ID
+      sessionId: chatId === "new" ? undefined : chatId,
+    };
+  }, [
+    chatId,
+    chatBody.model,
+    chatBody.reasoningLevel,
+    chatBody.searchEnabled,
+    chatBody.imageGenerationEnabled,
+    chatBody.memoryEnabled,
+    chatBody.showChatNavigator,
+    chatBody.isFirstMessage,
+    chatBody.assistantName,
+    chatBody.userTraits,
+  ]);
 
-        if (messagesContainerRef.current) {
-          const messagesContainer =
-            messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
-          if (messagesContainer) {
-            const messagesContainerElement = messagesContainer as HTMLElement;
-            const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
-            messagesContainerElement.style.paddingBottom = originalPadding;
+  const { messages, status, error, sendMessage, stop, setMessages } = useChat<CustomUIMessage>({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: stableChatBody,
+    }),
+    id: chatId === "new" ? undefined : chatId,
+    experimental_throttle: 100,
+    onError: (error) => {
+      // The `useChat` hook's `error` object will be populated.
+      // We log it here for debugging, but we don't need to set a separate `uiError`
+      // state as that would be redundant. `ErrorDisplay` will use the `error` object.
+      console.error("An error occurred in the chat stream:", error);
+    },
+    onFinish: async ({ message }: { message: CustomUIMessage }) => {
+      if (messagesContainerRef.current) {
+        const messagesContainer = messagesContainerRef.current.querySelector(".mx-auto.max-w-3xl");
+        if (messagesContainer) {
+          const messagesContainerElement = messagesContainer as HTMLElement;
+          const originalPadding = messagesContainerElement.dataset.originalPadding || "2rem";
+          messagesContainerElement.style.paddingBottom = originalPadding;
+        }
+      }
+
+      // Check for grounding and title data in data parts (AI SDK v5)
+      const groundingParts = message.parts?.filter((part) => part.type === "data-grounding") || [];
+      const titleParts = message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
+
+      let hasGrounding = false;
+
+      // Handle grounding data parts
+      if (groundingParts.length > 0) {
+        const latestGrounding = groundingParts[groundingParts.length - 1];
+        if (latestGrounding && latestGrounding.data) {
+          hasGrounding = latestGrounding.data.hasGrounding ?? false;
+        }
+      }
+
+      // Extract metadata from message
+      const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
+        databaseId?: string;
+        messageSaved?: boolean;
+        userId?: string;
+      };
+
+      // Handle title generation data parts
+      if (titleParts.length > 0 && chatId !== "new") {
+        const latestTitle = titleParts[titleParts.length - 1];
+        if (latestTitle && latestTitle.data) {
+          const generatedTitle = latestTitle.data.title;
+
+          if (generatedTitle && userId) {
+            const sessionUpdate: Tables<"chat_sessions"> = {
+              id: chatId,
+              title: generatedTitle,
+              updated_at: new Date().toISOString(),
+            } as Tables<"chat_sessions">;
+
+            updateSessionInCache(sessionUpdate, userId);
           }
         }
+      }
 
-        // Check for grounding and title data in data parts (AI SDK v5)
-        const groundingParts =
-          message.parts?.filter((part) => part.type === "data-grounding") || [];
-        const titleParts =
-          message.parts?.filter((part) => part.type === "data-titleGenerated") || [];
+      if (messageSaved && databaseId) {
+        setMessages((current) =>
+          current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
+        );
+      }
 
-        let hasGrounding = false;
-
-        // Handle grounding data parts
-        if (groundingParts.length > 0) {
-          const latestGrounding = groundingParts[groundingParts.length - 1];
-          if (latestGrounding && latestGrounding.data) {
-            hasGrounding = latestGrounding.data.hasGrounding ?? false;
+      if (message.role === "assistant") {
+        const assistantText = message.parts.find((p) => p.type === "text")?.text;
+        const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
+        if (lastUserMessage && assistantText) {
+          const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
+          if (userText) {
+            fetchSuggestions(userText, assistantText);
           }
         }
+      }
 
-        // Extract metadata from message
-        const { databaseId, messageSaved, userId } = (message.metadata || {}) as {
-          databaseId?: string;
-          messageSaved?: boolean;
-          userId?: string;
-        };
+      if (chatId && chatId !== "new") {
+        const delay = hasGrounding ? 200 : 100;
 
-        // Handle title generation data parts
-        if (titleParts.length > 0 && chatId !== "new") {
-          const latestTitle = titleParts[titleParts.length - 1];
-          if (latestTitle && latestTitle.data) {
-            const generatedTitle = latestTitle.data.title;
+        setTimeout(() => {
+          invalidateMessages();
+        }, delay);
+      }
 
-            if (generatedTitle && userId) {
-              const sessionUpdate: ChatSession = {
-                id: chatId,
-                title: generatedTitle,
-                updated_at: new Date().toISOString(),
-              } as ChatSession;
+      if (showChatNavigator) {
+        invalidateSummaries();
+      }
+    },
+  });
 
-              updateSessionInCache(sessionUpdate, userId);
-            }
-          }
-        }
+  // Check for pending messages to send (for new chat redirects)
+  const hasProcessedPendingMessage = useRef(false);
+  useEffect(() => {
+    if (chatId !== "new" && pendingChatData && !hasProcessedPendingMessage.current) {
+      hasProcessedPendingMessage.current = true;
+      try {
+        const { message, body: pendingChatBody } = pendingChatData;
 
-        if (messageSaved && databaseId) {
-          setMessages((current) =>
-            current.map((msg) => (msg.id === message.id ? { ...msg, id: databaseId } : msg))
-          );
-        }
+        // Send the pending message
+        sendMessage(message, {
+          body: pendingChatBody,
+        });
 
-        if (message.role === "assistant") {
-          const assistantText = message.parts.find((p) => p.type === "text")?.text;
-          const lastUserMessage = messages.filter((m) => m.role === "user").at(-1);
-          if (lastUserMessage && assistantText) {
-            const userText = lastUserMessage.parts.find((p) => p.type === "text")?.text;
-            if (userText) {
-              fetchSuggestions(userText, assistantText);
-            }
-          }
-        }
-
-        if (chatId && chatId !== "new") {
-          const delay = hasGrounding ? 200 : 100;
-
-          setTimeout(() => {
-            invalidateMessages();
-          }, delay);
-        }
-
-        if (showChatNavigator) {
-          invalidateSummaries();
-        }
-      },
-    });
+        // Clear from store
+        clearPendingChatData();
+      } catch (error) {
+        console.error("Error processing pending chat message:", error);
+        clearPendingChatData();
+        hasProcessedPendingMessage.current = false;
+      }
+    }
+  }, [chatId, pendingChatData, clearPendingChatData]);
 
   useEffect(() => {
     if (status === "ready" && initialMessages.length > 0 && messages.length === 0) {
       setMessages(initialMessages);
     }
   }, [initialMessages, messages.length, setMessages, status]);
-
-  // AI SDK v5 Auto-resume effect
-  useEffect(() => {
-    // Only attempt auto-resume for existing chats, not new ones
-    if (chatId === "new" || !chatId) return;
-
-    // Only resume if we have messages loaded and the chat is ready
-    if (status !== "ready") return;
-
-    // Check if we should auto-resume (last message is from user and we're not currently streaming)
-    const lastMessage = messages.at(-1);
-    const shouldAutoResume =
-      lastMessage?.role === "user" && status === "ready";
-
-    if (shouldAutoResume && resumeStream) {
-      console.log(
-        "Auto-resuming stream for chat:",
-        chatId,
-        "last message role:",
-        lastMessage?.role
-      );
-      resumeStream();
-    }
-  }, [chatId, messages, status, resumeStream]);
 
   // Add suggested questions hook after useChat
   const {
@@ -289,23 +286,10 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const handleStop = useCallback(async () => {
     stop();
 
-    // Mark the current stream as cancelled in the database
-    try {
-      const latestStreamId = await getLatestStreamId(chatId);
-      if (latestStreamId) {
-        await markStreamCancelled(latestStreamId);
-        console.log("Marked stream as cancelled:", latestStreamId);
-      }
-    } catch (error) {
-      console.error("Failed to mark stream as cancelled:", error);
-    }
-
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").at(-1);
 
     // Then, if a partial message exists, save it
     if (lastAssistantMessage && chatId !== "new" && user) {
-      console.log("Saving partial message due to user stop:", lastAssistantMessage);
-
       const modelConfig = getModelById(selectedModel);
       const modelProvider = modelConfig?.provider || "Unknown";
 
@@ -377,14 +361,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         const clickedMessageIndex = messages.findIndex((m) => m.id === messageId);
         if (clickedMessageIndex === -1) {
-          console.error("Retry failed: message not found", { messageId });
           updateState({ uiError: "Message to retry not found." });
           return;
         }
 
         const clickedMessage = messages[clickedMessageIndex];
         if (!clickedMessage) {
-          console.error("Retry failed: message object not found", { messageId });
           updateState({ uiError: "Message to retry not found." });
           return;
         }
@@ -470,14 +452,12 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
 
         const messageIndex = messages.findIndex((m) => m.id === messageId);
         if (messageIndex === -1) {
-          console.error("Edit failed: message not found", { messageId });
           updateState({ uiError: "Message to edit not found." });
           return;
         }
 
         const messageToEdit = messages[messageIndex];
         if (!messageToEdit) {
-          console.error("Edit failed: message object not found", { messageId });
           updateState({ uiError: "Message to edit not found." });
           return;
         }
@@ -620,39 +600,34 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
         }
 
         const newSessionId = uuidv4();
+
+        // Save message to store to send after redirect
+        setPendingChatData({
+          message: messageToAppend,
+          body: {
+            ...chatBody,
+            isFirstMessage: true,
+          },
+          attachments: validAttachedFiles,
+          timestamp: Date.now(),
+        });
+
         setMessages([messageToAppend]);
         setJustSubmittedMessageId(messageToAppend.id);
+
+        // Redirect to new chat URL - the new page will send the message
         router.push(`/chat/${newSessionId}`);
-
-        const messageData = {
-          message: messageToAppend,
-          chatRequestOptions: {
-            data: {
-              ...chatBody,
-              isFirstMessage: true,
-              attachments,
-            },
-          },
-          selectedModel,
-          reasoningLevel,
-          searchEnabled,
-          imageGenerationEnabled,
-        };
-        sessionStorage.setItem("pendingFirstMessage", JSON.stringify(messageData));
-
-        createSession(user.id, "New Chat", undefined, newSessionId)
-          .then(() => {
-            invalidateSessions();
-            transferModelSelection("new", newSessionId);
-          })
-          .catch((error: unknown) => {
-            console.error("Failed to create new session in background:", error);
-          });
 
         setInput("");
         updateState({ attachedFiles: [] });
         clearSuggestions();
         return;
+      }
+
+      // For existing chats, if this is the first message, transfer model selection to a new chat if branching
+      if (messages.length === 0) {
+        // This is the first message in an existing chat, but we're not creating a new chat
+        // The model is already set for this chat ID in the store
       }
 
       setJustSubmittedMessageId(messageToAppend.id);
@@ -685,7 +660,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
       imageGenerationEnabled,
       router,
       invalidateSessions,
-      transferModelSelection,
       setMessages,
       status,
       clearSuggestions,
@@ -704,67 +678,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     },
     [handleFormSubmit]
   );
-
-  // Handle pending first message from sessionStorage for new sessions
-  useEffect(() => {
-    if (chatId === "new") return;
-
-    const pendingMessageData = sessionStorage.getItem("pendingFirstMessage");
-    if (!pendingMessageData) return;
-
-    try {
-      const {
-        message,
-        chatRequestOptions,
-        reasoningLevel,
-        searchEnabled,
-        imageGenerationEnabled,
-        selectedModel: storedModel,
-      } = JSON.parse(pendingMessageData);
-
-      sessionStorage.removeItem("pendingFirstMessage");
-
-      if (reasoningLevel !== undefined) {
-        setReasoningLevel(reasoningLevel);
-      }
-      if (searchEnabled !== undefined) {
-        setSearchEnabled(searchEnabled);
-      }
-      if (imageGenerationEnabled !== undefined) {
-        setImageGenerationEnabled(imageGenerationEnabled);
-      }
-
-      if (storedModel && storedModel !== selectedModel) {
-        handleModelChange(storedModel);
-      }
-
-      lastUserMessageForSuggestions.current = message;
-      sendMessage(message, {
-        ...chatRequestOptions,
-        body: {
-          ...chatRequestOptions.data,
-          model: storedModel, // Use the stored model instead of the one in chatBody
-        },
-      });
-      setInput("");
-      updateState({ attachedFiles: [] });
-      setTimeout(() => chatInputRef.current?.focus(), 0);
-    } catch (error) {
-      console.error("Failed to process pending message:", error);
-      sessionStorage.removeItem("pendingFirstMessage");
-    }
-  }, [
-    chatId,
-    sendMessage,
-    setInput,
-    updateState,
-    setReasoningLevel,
-    setSearchEnabled,
-    setImageGenerationEnabled,
-    handleModelChange,
-    selectedModel,
-    clearSuggestions,
-  ]);
 
   const isLoading = status === "submitted" || status === "streaming";
 

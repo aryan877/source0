@@ -3,7 +3,7 @@
 import { SHORTCUTS } from "@/config/shortcuts";
 import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAuth } from "@/hooks/use-auth";
-import { ChatSession } from "@/services";
+import { type Tables } from "@/types/supabase-types";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
@@ -463,7 +463,7 @@ const CategorySection = memo(
     isOnNewChat,
   }: {
     title: string;
-    sessions: ChatSession[];
+    sessions: Tables<"chat_sessions">[];
     selectedChatId: string;
     onSelectChat: (chatId: string) => void;
     onDeleteConfirm: (chatId: string, title: string) => void;

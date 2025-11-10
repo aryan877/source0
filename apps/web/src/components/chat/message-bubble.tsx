@@ -471,9 +471,11 @@ const MessageBubble = memo(
                 );
 
               case "reasoning":
-                // Only render reasoning if it has content
+                // Show reasoning section during streaming even if empty, otherwise only if it has content
                 if (!part.text || part.text.trim() === "") {
-                  return null;
+                  if (!isReasoningStreaming) {
+                    return null;
+                  }
                 }
                 return (
                   <ExpandableSection
@@ -484,17 +486,21 @@ const MessageBubble = memo(
                     isLoading={isReasoningStreaming}
                     autoExpand={true}
                   >
-                    <MessageContent content={part.text} citations={[]} isUser={isUser} />
+                    <MessageContent content={part.text || ""} citations={[]} isUser={isUser} />
                   </ExpandableSection>
                 );
 
               case "file":
                 // Handle file parts (images, documents, etc.)
                 if (part.mediaType?.startsWith("image/")) {
+                  // Only render if there's a valid URL
+                  if (!part.url) {
+                    return null;
+                  }
                   return (
                     <div key={index} className="my-2">
                       <ImageViewer
-                        src={part.url || ""}
+                        src={part.url}
                         alt={part.filename || "Attached image"}
                         filename={part.filename}
                         type="uploaded"

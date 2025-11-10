@@ -2,7 +2,7 @@
 
 import { useMcpServers } from "@/hooks/queries/use-mcp-servers";
 import { McpServerFormValues, mcpServerSchema } from "@/lib/validations/mcp-server";
-import { McpServer } from "@/services/mcp-servers";
+import { McpServer } from "@/services/client/mcp-servers";
 import {
   BoltIcon,
   ChevronDownIcon,

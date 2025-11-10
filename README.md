@@ -1,14 +1,13 @@
 # Source0
 
-Source0 is an advanced AI chat application that pushes the boundaries of conversational AI. Built with enterprise-grade stream management, intelligent multi-provider routing, and sophisticated memory systems, it delivers a seamless chat experience across OpenAI, Anthropic, Google Gemini, XAI Grok, and more. The application features revolutionary stream handling with auto-resume capabilities, comprehensive web search with proper citation pipelines, and persistent cross-session memory that truly understands user context.
+Source0 is an advanced AI chat application that pushes the boundaries of conversational AI. Built with enterprise-grade stream management, intelligent multi-provider routing, and sophisticated memory systems, it delivers a seamless chat experience across OpenAI, Anthropic, Google Gemini, XAI Grok, and more. The application features comprehensive web search with proper citation pipelines and persistent cross-session memory that truly understands user context.
 
 ## Features
 
 ### 🚀 **Advanced Stream Architecture**
 
-- **Bulletproof Stream Management**: Revolutionary handling of interrupted streams with intelligent auto-resume
 - **Real-time State Synchronization**: Complex coordination between React Query cache, local state, and database
-- **Smart Retry System**: Seamless message retry with perfect state consistency across stream interruptions
+- **Smart Retry System**: Seamless message retry with perfect state consistency
 
 ### 🔍 **Intelligent Web Search Engine**
 
@@ -89,7 +88,6 @@ XAI_API_KEY=
 # Services
 TAVILY_API_KEY=your_tavily_key
 MEM0_API_KEY=your_mem0_key
-REDIS_URL=your_redis_url
 ```
 
 ## License

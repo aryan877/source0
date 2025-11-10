@@ -150,7 +150,7 @@ export default function GalleryPage() {
                             src={image.publicUrl}
                             alt={image.prompt}
                             prompt={image.prompt}
-                            createdAt={image.created_at}
+                            createdAt={image.created_at ?? undefined}
                             type="generated"
                             size="small"
                             onDownload={handleDownload}
@@ -168,7 +168,7 @@ export default function GalleryPage() {
                               {image.prompt}
                             </span>
                             <Chip size="sm" variant="flat" className="text-xs">
-                              {formatImageDate(image.created_at)}
+                              {formatImageDate(image.created_at ?? new Date().toISOString())}
                             </Chip>
                           </div>
                         </div>

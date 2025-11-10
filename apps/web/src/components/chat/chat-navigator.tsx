@@ -1,6 +1,6 @@
 "use client";
 
-import { type MessageSummary } from "@/services/message-summaries";
+import { type MessageSummary } from "@/services/client/message-summaries";
 import { Button } from "@heroui/react";
 import { FileText, X } from "lucide-react";
 import { forwardRef } from "react";

@@ -1,6 +1,6 @@
-import { getSession } from "@/services/chat-sessions";
-import { chatSessionsKeys } from "@/utils/query-keys";
+import { getSession } from "@/services/client/chat-sessions";
 import { useQuery } from "@tanstack/react-query";
+import { chatSessionsKeys } from "./use-chat-sessions";
 
 export function useChatSession(sessionId: string) {
   return useQuery({

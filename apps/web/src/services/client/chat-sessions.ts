@@ -1,54 +1,5 @@
-import { type Json, type Tables } from "@/types/supabase-types";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
-
-// Types
-export type ChatSession = Tables<"chat_sessions">;
-
-export interface SessionBranch {
-  branch_id: string;
-  branch_title: string;
-  branch_created_at: string;
-  branch_point_message: Json;
-  branch_point_time: string;
-}
-
-export interface SessionAncestry {
-  session_id: string;
-  title: string;
-  level: number;
-  created_at: string;
-}
-
-/**
- * Create a new chat session
- */
-export async function createSession(
-  userId: string,
-  title: string,
-  systemPrompt?: string,
-  sessionId?: string
-): Promise<ChatSession> {
-  const supabase = createClient();
-  const newSessionId = sessionId || uuidv4();
-
-  const { data, error } = await supabase
-    .from("chat_sessions")
-    .insert({
-      id: newSessionId,
-      user_id: userId,
-      title,
-      system_prompt: systemPrompt || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error creating chat session:", error);
-    throw new Error(`Failed to create chat session: ${error.message}`);
-  }
-  return data;
-}
 
 /**
  * Get all chat sessions for a user
@@ -64,7 +15,7 @@ export async function getUserSessions(
     cursor?: string;
     searchTerm?: string;
   } = {}
-): Promise<{ data: ChatSession[]; nextCursor: string | null }> {
+) {
   const supabase = createClient();
 
   if (searchTerm) {
@@ -101,7 +52,7 @@ export async function getUserSessions(
     throw error;
   }
 
-  const nextCursor = data && data.length === pageSize ? data[data.length - 1]?.updated_at : null;
+  const nextCursor = data && data.length === pageSize ? data[data.length - 1]?.updated_at ?? null : null;
 
   return { data: data || [], nextCursor };
 }
@@ -109,7 +60,7 @@ export async function getUserSessions(
 /**
  * Get a specific chat session
  */
-export async function getSession(sessionId: string): Promise<ChatSession | null> {
+export async function getSession(sessionId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_sessions")
@@ -134,7 +85,7 @@ export async function getSession(sessionId: string): Promise<ChatSession | null>
 /**
  * Update session title
  */
-export async function updateTitle(sessionId: string, title: string): Promise<ChatSession> {
+export async function updateTitle(sessionId: string, title: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_sessions")
@@ -151,25 +102,9 @@ export async function updateTitle(sessionId: string, title: string): Promise<Cha
 }
 
 /**
- * Update system prompt
- */
-export async function updateSystemPrompt(sessionId: string, systemPrompt: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("chat_sessions")
-    .update({ system_prompt: systemPrompt })
-    .eq("id", sessionId);
-
-  if (error) {
-    console.error("Error updating system prompt:", error);
-    throw new Error(`Failed to update system prompt: ${error.message}`);
-  }
-}
-
-/**
  * Delete a chat session
  */
-export async function deleteSession(sessionId: string): Promise<void> {
+export async function deleteSession(sessionId: string) {
   const supabase = createClient();
   const { error } = await supabase.from("chat_sessions").delete().eq("id", sessionId);
 
@@ -180,18 +115,11 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 /**
- * Generate a unique share slug
- */
-export function generateShareSlug(): string {
-  return uuidv4().substring(0, 8);
-}
-
-/**
  * Make a session public and generate share slug
  */
-export async function makePublic(sessionId: string): Promise<string> {
+export async function makePublic(sessionId: string) {
   const supabase = createClient();
-  const shareSlug = generateShareSlug();
+  const shareSlug = uuidv4().substring(0, 8);
 
   const { error } = await supabase
     .from("chat_sessions")
@@ -212,7 +140,7 @@ export async function makePublic(sessionId: string): Promise<string> {
 /**
  * Make a session private
  */
-export async function makePrivate(sessionId: string): Promise<void> {
+export async function makePrivate(sessionId: string) {
   const supabase = createClient();
   const { error } = await supabase
     .from("chat_sessions")
@@ -229,37 +157,18 @@ export async function makePrivate(sessionId: string): Promise<void> {
 }
 
 /**
- * Get public sessions
- */
-export async function getPublicSessions(limit = 50): Promise<ChatSession[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_sessions")
-    .select("*")
-    .eq("is_public", true)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error("Error fetching public sessions:", error);
-    return [];
-  }
-  return data;
-}
-
-/**
  * Branch a session from a specific message
  */
 export async function branchSession(
   originalSessionId: string,
   branchFromMessageId: string,
   newTitle?: string
-): Promise<string> {
+) {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("branch_chat_session", {
     p_original_session_id: originalSessionId,
     p_branch_from_message_id: branchFromMessageId,
-    p_new_title: newTitle || null,
+    p_new_title: newTitle || undefined,
   });
 
   if (error) {
@@ -271,56 +180,9 @@ export async function branchSession(
 }
 
 /**
- * Get all branches of a session
- */
-export async function getSessionBranches(sessionId: string): Promise<SessionBranch[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("get_session_branches", {
-    p_session_id: sessionId,
-  });
-
-  if (error) {
-    console.error("Error fetching session branches:", error);
-    return [];
-  }
-
-  return data;
-}
-
-/**
- * Get branch ancestry (parent chain)
- */
-export async function getBranchAncestry(sessionId: string): Promise<SessionAncestry[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("get_branch_ancestry", {
-    p_session_id: sessionId,
-  });
-
-  if (error) {
-    console.error("Error fetching branch ancestry:", error);
-    return [];
-  }
-
-  return data;
-}
-
-/**
- * Update session metadata
- */
-export async function updateSessionMetadata(sessionId: string, metadata: Json): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase.from("chat_sessions").update({ metadata }).eq("id", sessionId);
-
-  if (error) {
-    console.error("Error updating session metadata:", error);
-    throw new Error(`Failed to update session metadata: ${error.message}`);
-  }
-}
-
-/**
  * Pins a chat session.
  */
-export async function pinSession(sessionId: string): Promise<ChatSession> {
+export async function pinSession(sessionId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_sessions")
@@ -339,7 +201,7 @@ export async function pinSession(sessionId: string): Promise<ChatSession> {
 /**
  * Unpins a chat session.
  */
-export async function unpinSession(sessionId: string): Promise<ChatSession> {
+export async function unpinSession(sessionId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("chat_sessions")
@@ -358,7 +220,7 @@ export async function unpinSession(sessionId: string): Promise<ChatSession> {
 /**
  * Get new or updated sessions since a specific time.
  */
-export async function getNewUserSessions(userId: string, since: string): Promise<ChatSession[]> {
+export async function getNewUserSessions(userId: string, since: string) {
   const supabase = createClient();
 
   const { data, error } = await supabase

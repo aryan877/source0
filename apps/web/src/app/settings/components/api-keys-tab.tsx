@@ -9,7 +9,7 @@ import {
   useSetByokSettings,
   useToggleProvider,
   useUserApiKeys,
-  useUserByokSettings
+  useUserByokSettings,
 } from "@/hooks/queries/use-user-api-keys";
 import { getApiKeySchema } from "@/lib/validations/api-keys";
 import { EyeIcon, EyeSlashIcon, TrashIcon } from "@heroicons/react/24/outline";
@@ -40,14 +40,20 @@ export function ApiKeysTab() {
   // Transform API keys data for easier access
   const apiKeysMap = useMemo(() => {
     const map: Record<string, { key: string; enabled: boolean }> = {};
-    apiKeysData.forEach((key) => {
-      if (key.provider) {
-        map[key.provider] = { 
-          key: key.api_key_encrypted || '',
-          enabled: key.is_enabled ?? true 
-        };
+    apiKeysData.forEach(
+      (key: {
+        provider?: string | null;
+        api_key_encrypted?: string | null;
+        is_enabled?: boolean | null;
+      }) => {
+        if (key.provider) {
+          map[key.provider] = {
+            key: key.api_key_encrypted || "",
+            enabled: key.is_enabled ?? true,
+          };
+        }
       }
-    });
+    );
     return map;
   }, [apiKeysData]);
 
@@ -86,7 +92,7 @@ export function ApiKeysTab() {
     removeApiKeyMutation.mutate(provider, {
       onSuccess: () => {
         setApiKeyInputs((prev) => ({ ...prev, [provider]: "" }));
-      }
+      },
     });
   };
 
@@ -98,7 +104,7 @@ export function ApiKeysTab() {
     clearAllKeysMutation.mutate(undefined, {
       onSuccess: () => {
         setApiKeyInputs({} as Partial<Record<SupportedProvider, string>>);
-      }
+      },
     });
   };
 
@@ -109,7 +115,6 @@ export function ApiKeysTab() {
   const isProviderEnabled = (provider: SupportedProvider) => {
     return apiKeysMap[provider]?.enabled ?? true;
   };
-
 
   return (
     <div className="space-y-8">
@@ -138,8 +143,8 @@ export function ApiKeysTab() {
           <Switch
             isSelected={byokSettings?.global_byok_enabled || false}
             onValueChange={(isSelected) => {
-              setByokMutation.mutate({ 
-                enabled: isSelected
+              setByokMutation.mutate({
+                enabled: isSelected,
               });
             }}
           />
@@ -224,7 +229,9 @@ export function ApiKeysTab() {
                     <div className="mt-4 border-t border-divider pt-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="text-sm font-semibold text-foreground">Enable {provider}</h4>
+                          <h4 className="text-sm font-semibold text-foreground">
+                            Enable {provider}
+                          </h4>
                           <p className="text-xs text-default-500">
                             Toggle to enable/disable all {provider} models at once.
                           </p>

@@ -6,8 +6,17 @@ import {
   type ModelConfig,
   type ReasoningLevel,
 } from "@/config/models";
+import type { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
+import type { CustomUIMessage } from "@/types/custom-ui-message";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+export interface PendingChatData {
+  message: CustomUIMessage;
+  body: any; // Chat body to send with the message
+  attachments: AttachedFileWithUrl[];
+  timestamp: number;
+}
 
 interface ModelSelectorState {
   // UI State
@@ -31,6 +40,12 @@ interface ModelSelectorState {
   selectedSearchEnabled: Record<string, boolean>;
   selectedImageGenerationEnabled: Record<string, boolean>;
 
+  // Last Selected Model (for "new" chat)
+  lastSelectedModel?: string;
+
+  // Pending Chat Data (for new chat redirects)
+  pendingChatData: PendingChatData | null;
+
   // Hydration State
   hasHydrated: boolean;
 
@@ -52,6 +67,8 @@ interface ModelSelectorState {
   getSelectedSearchEnabled: (chatId: string) => boolean;
   setSelectedImageGenerationEnabled: (chatId: string, enabled: boolean) => void;
   getSelectedImageGenerationEnabled: (chatId: string) => boolean;
+  setPendingChatData: (data: PendingChatData | null) => void;
+  clearPendingChatData: () => void;
   transferModelSelection: (fromChatId: string, toChatId: string) => void;
   clearFilters: () => void;
   resetState: () => void;
@@ -74,6 +91,8 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
       selectedReasoningLevels: {},
       selectedSearchEnabled: {},
       selectedImageGenerationEnabled: {},
+      lastSelectedModel: undefined,
+      pendingChatData: null,
       hasHydrated: false,
 
       // Actions
@@ -128,12 +147,20 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
             ...selectedModels,
             [chatId]: modelId,
           },
+          // Also update lastSelectedModel to track the most recently selected model
+          lastSelectedModel: modelId,
         });
       },
 
       getSelectedModel: (chatId) => {
-        const { selectedModels } = get();
-        return selectedModels[chatId] || DEFAULT_MODEL;
+        const { selectedModels, lastSelectedModel } = get();
+        // If we have a model set for this specific chat, use it
+        if (selectedModels[chatId]) {
+          return selectedModels[chatId];
+        }
+        // For "new" chat or any chat without a specific model, use last selected model
+        // This ensures the most recently selected model persists
+        return lastSelectedModel || DEFAULT_MODEL;
       },
 
       setSelectedReasoningLevel: (chatId, level) => {
@@ -181,6 +208,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         const { selectedImageGenerationEnabled } = get();
         return selectedImageGenerationEnabled[chatId] ?? false;
       },
+
+      setPendingChatData: (data) => set({ pendingChatData: data }),
+
+      clearPendingChatData: () => set({ pendingChatData: null }),
 
       transferModelSelection: (fromChatId, toChatId) => {
         const { selectedModels, selectedReasoningLevels, selectedSearchEnabled, selectedImageGenerationEnabled } = get();
@@ -246,6 +277,8 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
           selectedReasoningLevels: {},
           selectedSearchEnabled: {},
           selectedImageGenerationEnabled: {},
+          lastSelectedModel: undefined,
+          pendingChatData: null,
           hasHydrated: false,
         });
       },
@@ -259,7 +292,9 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         selectedReasoningLevels: state.selectedReasoningLevels,
         selectedSearchEnabled: state.selectedSearchEnabled,
         selectedImageGenerationEnabled: state.selectedImageGenerationEnabled,
-      }), // Persist both favorites and selected models per chat
+        lastSelectedModel: state.lastSelectedModel,
+        // Don't persist pendingChatData - it's temporary state for redirects
+      }), // Persist favorites, models, and last selected model
       onRehydrateStorage: () => (state) => {
         // Initialize with default favorites if none exist
         if (state && (!state.favorites || state.favorites.length === 0)) {
@@ -295,6 +330,10 @@ export const useModelSelectorStore = create<ModelSelectorState>()(
         // Initialize selectedImageGenerationEnabled if it doesn't exist
         if (state && !state.selectedImageGenerationEnabled) {
           state.selectedImageGenerationEnabled = {};
+        }
+        // Initialize lastSelectedModel if it doesn't exist
+        if (state && !state.lastSelectedModel) {
+          state.lastSelectedModel = undefined;
         }
         // Mark as hydrated after rehydration
         if (state) {

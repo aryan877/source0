@@ -1,32 +1,8 @@
 import { type Provider } from "@/config/models";
 import { z } from "zod";
 
-// Provider key validation patterns - derived from models config
+// Provider key validation patterns - OpenRouter only
 const PROVIDER_KEY_PATTERNS: Record<Provider, { prefixes: string[]; message: string }> = {
-  OpenAI: {
-    prefixes: ["sk-proj-", "sk-"],
-    message: "Invalid OpenAI key format."
-  },
-  Google: {
-    prefixes: ["AIzaSy"],
-    message: "Invalid Google API key format."
-  },
-  Anthropic: {
-    prefixes: ["sk-ant-"],
-    message: "Invalid Anthropic API key format."
-  },
-  xAI: {
-    prefixes: ["xai-"],
-    message: "Invalid xAI API key format."
-  },
-  Groq: {
-    prefixes: ["gsk_"],
-    message: "Invalid Groq API key format."
-  },
-  DeepSeek: {
-    prefixes: ["sk-"],
-    message: "Invalid DeepSeek API key format."
-  },
   OpenRouter: {
     prefixes: ["sk-or-"],
     message: "Invalid OpenRouter API key format."

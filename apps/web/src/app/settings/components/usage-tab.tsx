@@ -4,7 +4,7 @@ import { ProviderIcon } from "@/components/chat/provider-icon";
 import { MODELS, PROVIDERS, Provider } from "@/config/models";
 import { UsageLogsFilters, useUsageLogs } from "@/hooks/queries/use-usage-logs";
 import { useUsageStats } from "@/hooks/queries/use-usage-stats";
-import { ModelUsageLog } from "@/services/usage-logs";
+import { type Tables } from "@/types/supabase-types";
 import {
   ArrowPathIcon,
   ChartBarIcon,
@@ -202,7 +202,7 @@ export function UsageTab() {
     { key: "date", name: "Date" },
   ];
 
-  const renderCell = (log: ModelUsageLog, columnKey: React.Key) => {
+  const renderCell = (log: Tables<"model_usage_logs">, columnKey: React.Key) => {
     switch (columnKey) {
       case "model":
         return (

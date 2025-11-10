@@ -1,6 +1,6 @@
 "use client";
 
-import { getGeneratedImages } from "@/services/generated-images";
+import { getGeneratedImages } from "@/services/client/generated-images";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -21,9 +21,9 @@ export function useGeneratedImages(filters: GeneratedImagesFilters) {
     refetch,
   } = useInfiniteQuery({
     queryKey: ["generated-images", filters],
-    queryFn: ({ pageParam: cursor }) => getGeneratedImages({ ...filters, cursor }),
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialPageParam: undefined,
+    queryFn: ({ pageParam }) => getGeneratedImages({ ...filters, cursor: pageParam }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
     gcTime: 0,
     staleTime: 0,
   });

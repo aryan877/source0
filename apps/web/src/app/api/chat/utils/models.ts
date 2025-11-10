@@ -1,28 +1,13 @@
 import { PROVIDER_MAPPING, type ModelConfig, type ReasoningLevel } from "@/config/models";
-import { isModelEnabledForUser } from "@/services/user-api-keys.server";
+import { isModelEnabledForUser } from "@/services/server/user-api-keys.server";
 import { type Database } from "@/types/supabase-types";
-import { anthropic } from "@ai-sdk/anthropic";
-import { deepseek } from "@ai-sdk/deepseek";
-import { google } from "@ai-sdk/google";
-import { groq } from "@ai-sdk/groq";
-import { openai } from "@ai-sdk/openai";
-import { xai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type JSONValue, type LanguageModel } from "ai";
 
-const PROVIDERS = { google, openai, anthropic, xai, deepseek, groq } as const;
-
 export interface ModelMappingResult {
   supported: true;
-  provider:
-    | typeof google
-    | typeof openai
-    | typeof anthropic
-    | typeof xai
-    | typeof deepseek
-    | typeof groq
-    | ReturnType<typeof createOpenRouter>;
+  provider: ReturnType<typeof createOpenRouter>;
   model: string;
   providerInfo: {
     name: string;
@@ -47,11 +32,17 @@ export const getModelMapping = (config: ModelConfig, apiKey?: string): ModelMapp
     };
   }
 
-  // Handle OpenRouter
+  // OpenRouter handles all models through unified gateway
   if (providerInfo.name === "openrouter") {
     const openRouterKey = apiKey || process.env.OPENROUTER_API_KEY;
     const openrouter = createOpenRouter({
       apiKey: openRouterKey,
+      // Enable intelligent routing and fallbacks
+      // These options let OpenRouter automatically:
+      // - Load balance across multiple providers
+      // - Fall back to backup providers if primary is unavailable
+      // - Apply data collection policies
+      // - Optimize for cost and performance
     });
 
     return {
@@ -63,18 +54,16 @@ export const getModelMapping = (config: ModelConfig, apiKey?: string): ModelMapp
   }
 
   return {
-    supported: true,
-    provider: PROVIDERS[providerInfo.name as keyof typeof PROVIDERS],
-    model: config.apiModelName,
-    providerInfo,
+    supported: false,
+    message: `Provider ${config.provider} not supported. Only OpenRouter is available.`,
   };
 };
 
 // Enhanced function that checks both model availability and user permissions
 export const getModelMappingWithPermissions = async (
-  config: ModelConfig, 
-  apiKey: string | undefined, 
-  supabase: SupabaseClient<Database>, 
+  config: ModelConfig,
+  apiKey: string | undefined,
+  supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<ModelMapping> => {
   // First check basic model mapping
@@ -85,7 +74,7 @@ export const getModelMappingWithPermissions = async (
 
   // If user has BYOK enabled for this model, check if it's allowed
   try {
-    const isEnabled = await isModelEnabledForUser(supabase, userId, config.id, config.provider);
+    const isEnabled = await isModelEnabledForUser(userId, config.id, config.provider);
     if (!isEnabled) {
       // Check if user is trying to use BYOK but model is disabled
       const hasUserKey = !!apiKey; // apiKey would be from user's database
@@ -98,7 +87,7 @@ export const getModelMappingWithPermissions = async (
     }
   } catch (error) {
     // If permission check fails, continue with basic mapping (fallback to default keys)
-    console.warn('Failed to check model permissions:', error);
+    console.warn("Failed to check model permissions:", error);
   }
 
   return basicMapping;
@@ -109,43 +98,32 @@ export const buildProviderOptions = (
   reasoningLevel: ReasoningLevel,
   apiKey?: string
 ): Record<string, Record<string, JSONValue>> => {
-  const options: Record<string, Record<string, JSONValue>> = {};
-  const providerName = PROVIDER_MAPPING[config.provider].name;
+  // Configure OpenRouter's intelligent provider routing
+  // These options enable automatic:
+  // - Load balancing across providers
+  // - Fallback handling
+  // - Data collection policies
+  // - Cost optimization
+  const openRouterOptions: Record<string, JSONValue> = {};
 
-  if (providerName && providerName !== "openrouter") {
-    const providerSettings: Record<string, JSONValue> = {};
+  // Enable data privacy by default (OpenRouter will only use ZDR-compliant providers)
+  openRouterOptions.provider = {
+    allow_fallbacks: true, // Enable automatic fallbacks for maximum uptime
+    data_collection: "deny", // Don't use providers that may store data
+    require_parameters: false, // Allow providers that support subset of parameters
+    sort: "price", // Optimize for cost-effectiveness
+  };
 
-    if (apiKey) {
-      providerSettings.apiKey = apiKey;
-    }
-
-    if (reasoningLevel && config.reasoningLevels?.includes(reasoningLevel)) {
-      switch (config.provider) {
-        case "Google":
-          providerSettings.thinkingConfig = {
-            thinkingBudget: { low: 1024, medium: 4096, high: 8192 }[reasoningLevel],
-            includeThoughts: true,
-          };
-          break;
-        case "OpenAI":
-        case "xAI":
-          providerSettings.reasoningEffort = reasoningLevel;
-          break;
-        case "Anthropic":
-          providerSettings.thinking = {
-            type: "enabled",
-            budgetTokens: { low: 1024, medium: 4096, high: 8192 }[reasoningLevel],
-          };
-          break;
-      }
-    }
-
-    if (Object.keys(providerSettings).length > 0) {
-      options[providerName] = providerSettings;
-    }
+  // Add reasoning-specific options if supported
+  if (reasoningLevel && config.reasoningLevels?.includes(reasoningLevel)) {
+    // OpenRouter automatically handles reasoning budget allocation
+    // based on the model and provider capabilities
+    openRouterOptions.reasoning_level = reasoningLevel;
   }
 
-  return options;
+  return {
+    openrouter: openRouterOptions,
+  };
 };
 
 export const createModelInstance = (
@@ -154,25 +132,8 @@ export const createModelInstance = (
 ): LanguageModel => {
   const { provider, model } = mapping;
 
-  // Handle OpenRouter models
-  if (mapping.providerInfo.name === "openrouter") {
-    return (provider as ReturnType<typeof createOpenRouter>).chat(
-      model
-    ) as unknown as LanguageModel;
-  }
-
-  // For Google models with search capability, search grounding is now handled
-  // via tools (google.tools.googleSearch({})) in AI SDK v5, not model configuration
-
-  return (
-    provider as
-      | typeof google
-      | typeof openai
-      | typeof anthropic
-      | typeof xai
-      | typeof deepseek
-      | typeof groq
-  )(model);
+  // OpenRouter handles all models through unified gateway
+  return (provider as ReturnType<typeof createOpenRouter>).chat(model) as unknown as LanguageModel;
 };
 
 export const buildSystemMessage = (
@@ -204,13 +165,8 @@ export const buildSystemMessage = (
     "Math: Use `$expression$` for inline and `$$expression$$` for display. Put complex equations on separate lines with `$$`.",
     "For literal dollar amounts, escape the dollar sign: `\\$145.86` (not `$145.86`).",
     "IMPORTANT: Never include generated images in markdown image syntax (![](url)). Images generated via tools are displayed automatically in the UI. Only describe the images you've generated, don't embed them again.",
+    "Wrap filenames with double underscores (e.g., `__init__.py`) in backticks. Use standard markdown lists (* or -).",
   ];
-
-  if (config.provider === "Anthropic") {
-    formattingRules.push(
-      "Wrap filenames with double underscores (e.g., `__init__.py`) in backticks. Use standard markdown lists (* or -)."
-    );
-  }
 
   return [...baseInstructions, ...capabilities, ...formattingRules].filter(Boolean).join(" ");
 };

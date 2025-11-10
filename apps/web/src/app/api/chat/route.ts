@@ -1,32 +1,36 @@
 import { getModelById, type ReasoningLevel } from "@/config/models";
-import { saveAssistantMessageServer, saveUserMessageServer } from "@/services/chat-messages.server";
-import { createOrGetSession } from "@/services/chat-sessions.server";
-import { appendStreamId, loadStreams, markStreamComplete, markStreamCancelled } from "@/services/chat-streams.server";
-import { generateTitleOnly } from "@/services/generate-chat-title";
-import { getActiveMcpServersForUser } from "@/services/mcp-servers.server";
-import { saveMessageSummary } from "@/services/message-summaries";
-import { saveModelUsageLog } from "@/services/usage-logs.server";
-import { getUserApiKey, shouldUseUserApiKey } from "@/services/user-api-keys.server";
+import {
+  saveAssistantMessageServer,
+  saveUserMessageServer,
+} from "@/services/server/chat-messages.server";
+import { createOrGetSession } from "@/services/server/chat-sessions.server";
+import { generateTitleOnly } from "@/services/server/generate-chat-title";
+import { getActiveMcpServersForUser } from "@/services/server/mcp-servers.server";
+import { saveMessageSummary } from "@/services/server/message-summaries.server";
+import { saveModelUsageLog } from "@/services/server/usage-logs.server";
+import { getUserApiKey, shouldUseUserApiKey } from "@/services/server/user-api-keys.server";
 import { CustomUIMessage, type MessageMetadata } from "@/types/custom-ui-message";
 import { type GoogleProviderMetadata, hasGroundingData } from "@/types/provider-metadata";
 import { createClient } from "@/utils/supabase/server";
-import { openai } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   convertToModelMessages,
-  createIdGenerator,
   createUIMessageStream,
-  generateId,
   generateObject,
   JsonToSseTransformStream,
   stepCountIs,
   streamText,
 } from "ai";
-import { after } from "next/server";
-import { createResumableStreamContext } from "resumable-stream";
+import { v4 as uuidv4 } from "uuid";
 import { z } from "zod/v3";
 import { createErrorResponse, getErrorResponse } from "./utils/errors";
 import { discoverMcpTools } from "./utils/mcp-tools";
-import { buildProviderOptions, buildSystemMessage, createModelInstance, getModelMappingWithPermissions } from "./utils/models";
+import {
+  buildProviderOptions,
+  buildSystemMessage,
+  createModelInstance,
+  getModelMappingWithPermissions,
+} from "./utils/models";
 import { getToolsForModel } from "./utils/tools";
 
 const MessageSummarySchema = z.object({
@@ -34,18 +38,20 @@ const MessageSummarySchema = z.object({
 });
 
 async function generateAndSaveSummary(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   message: { id: string; content: string },
   sessionId: string,
   userId: string
 ) {
   try {
+    const openrouter = createOpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
     const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
+      model: openrouter("openai/gpt-4o-mini"),
       schema: MessageSummarySchema,
       prompt: `Generate a very short, concise summary (5-10 words) of the following message content. Capture the core essence of the message.\n\nMessage Content:\n---\n${message.content}\n---`,
     });
-    await saveMessageSummary(supabase, {
+    await saveMessageSummary({
       message_id: message.id,
       session_id: sessionId,
       user_id: userId,
@@ -64,55 +70,14 @@ interface ChatRequest {
   imageGenerationEnabled?: boolean;
   memoryEnabled?: boolean;
   showChatNavigator?: boolean;
-  id?: string;
+  sessionId?: string;
   isFirstMessage?: boolean;
   apiKey?: string;
   assistantName?: string;
   userTraits?: string;
 }
 
-// Create resumable stream context (uses REDIS_URL from environment)
-const streamContext = createResumableStreamContext({
-  waitUntil: after,
-});
-
-// GET handler for resuming streams
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const chatId = searchParams.get("chatId");
-
-  if (!chatId) {
-    return new Response("chatId is required", { status: 400 });
-  }
-
-  const streamIds = await loadStreams(chatId);
-
-  if (!streamIds.length) {
-    console.log(`No active streams found for chat ${chatId} - likely no active stream to resume`);
-    return new Response("No active streams to resume", { status: 404 });
-  }
-
-  const recentStreamId = streamIds.at(-1);
-
-  if (!recentStreamId) {
-    return new Response("No recent stream found", { status: 404 });
-  }
-
-  const emptyDataStream = createUIMessageStream({
-    execute: () => {},
-  });
-
-  return new Response(
-    await streamContext.resumableStream(recentStreamId, () =>
-      emptyDataStream.pipeThrough(new JsonToSseTransformStream())
-    )
-  );
-}
-
 export async function POST(req: Request): Promise<Response> {
-  // Generate a unique stream ID for this request outside try block so it's accessible in catch
-  const streamId = generateId();
-  
   try {
     const body: ChatRequest = await req.json();
     const {
@@ -123,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
       imageGenerationEnabled = false,
       memoryEnabled = true,
       showChatNavigator = false,
-      id: sessionId,
+      sessionId,
       isFirstMessage = false,
       apiKey,
       assistantName,
@@ -139,7 +104,45 @@ export async function POST(req: Request): Promise<Response> {
       return createErrorResponse("User not authenticated", 401, "AUTH_ERROR");
     }
 
-    const { sessionId: finalSessionId } = await createOrGetSession(user.id, sessionId);
+    const { sessionId: finalSessionId, isNewSession } = await createOrGetSession(
+      user.id,
+      sessionId
+    );
+
+    // For new sessions, verify the session exists in the database before proceeding
+    // This prevents foreign key constraint violations due to race conditions
+    if (isNewSession) {
+      let retries = 0;
+      const maxRetries = 3;
+      let sessionExists = false;
+
+      while (retries < maxRetries && !sessionExists) {
+        const { data: session, error } = await supabase
+          .from("chat_sessions")
+          .select("id")
+          .eq("id", finalSessionId)
+          .single();
+
+        if (session && !error) {
+          sessionExists = true;
+          break;
+        }
+
+        if (retries < maxRetries - 1) {
+          // Wait before retrying (exponential backoff: 50ms, 100ms, 200ms)
+          await new Promise((resolve) => setTimeout(resolve, 50 * Math.pow(2, retries)));
+        }
+        retries++;
+      }
+
+      if (!sessionExists) {
+        return createErrorResponse(
+          "Failed to create chat session. Please try again.",
+          500,
+          "SESSION_CREATION_ERROR"
+        );
+      }
+    }
 
     const mcpServerList = await getActiveMcpServersForUser(user.id);
     const { tools: consolidatedMcpTools, errors: mcpConnectionErrors } =
@@ -160,14 +163,19 @@ export async function POST(req: Request): Promise<Response> {
 
     // Check if user should use their own API key for this provider
     let effectiveApiKey = apiKey;
-    if (await shouldUseUserApiKey(supabase, user.id, modelConfig.provider)) {
-      const userApiKeyData = await getUserApiKey(supabase, user.id, modelConfig.provider);
+    if (await shouldUseUserApiKey(user.id, modelConfig.provider)) {
+      const userApiKeyData = await getUserApiKey(user.id, modelConfig.provider);
       if (userApiKeyData) {
         effectiveApiKey = userApiKeyData.api_key_encrypted; // Already decrypted by the service
       }
     }
 
-    const mapping = await getModelMappingWithPermissions(modelConfig, effectiveApiKey, supabase, user.id);
+    const mapping = await getModelMappingWithPermissions(
+      modelConfig,
+      effectiveApiKey,
+      supabase,
+      user.id
+    );
     if (!mapping.supported) {
       return createErrorResponse(mapping.message, 400);
     }
@@ -177,27 +185,16 @@ export async function POST(req: Request): Promise<Response> {
     // Save the user message (last message in the array)
     const userMessageToSave = messages.at(-1);
     if (userMessageToSave && userMessageToSave.role === "user") {
-      console.log("Saving user message:", {
-        messageId: userMessageToSave.id,
-        sessionId: finalSessionId,
-        userId: user.id,
-        partsCount: userMessageToSave.parts?.length || 0,
-      });
-
       const savedUserMessage = await saveUserMessageServer(
-        supabase,
         userMessageToSave,
         finalSessionId,
         user.id
       );
 
-      console.log("User message saved with DB ID:", savedUserMessage.id);
-
       if (showChatNavigator) {
         const textPart = userMessageToSave.parts.find((p) => p.type === "text");
         const userMessageText = textPart?.text || JSON.stringify(userMessageToSave.parts);
         await generateAndSaveSummary(
-          supabase,
           {
             id: savedUserMessage.id,
             content: userMessageText,
@@ -217,9 +214,6 @@ export async function POST(req: Request): Promise<Response> {
     );
 
     const modelInstance = createModelInstance(modelConfig, mapping);
-
-    // Record this new stream so we can resume later
-    await appendStreamId({ chatId: finalSessionId, streamId });
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -243,78 +237,74 @@ export async function POST(req: Request): Promise<Response> {
             ),
             stopWhen: stepCountIs(10),
             providerOptions: buildProviderOptions(modelConfig, reasoningLevel, effectiveApiKey),
-          onFinish: async ({ providerMetadata, text }) => {
-            // Stream grounding data if available
-            const googleMetadata = providerMetadata?.google as GoogleProviderMetadata | undefined;
-            if (googleMetadata?.groundingMetadata) {
-              writer.write({
-                type: "data-grounding",
-                data: {
-                  hasGrounding: hasGroundingData(googleMetadata.groundingMetadata),
-                  grounding: googleMetadata.groundingMetadata,
-                  timestamp: Date.now(),
-                },
-              });
-            }
-
-            // Stream title for first message
-            if (isFirstMessage && text) {
-              try {
-                const title = await generateTitleOnly(text);
+            onError: ({ error }) => {
+              console.error("streamText error:", error);
+            },
+            onFinish: async ({ providerMetadata, text }) => {
+              // Stream grounding data if available
+              const googleMetadata = providerMetadata?.google as GoogleProviderMetadata | undefined;
+              if (googleMetadata?.groundingMetadata) {
                 writer.write({
-                  type: "data-titleGenerated",
-                  data: { title, timestamp: Date.now() },
+                  type: "data-grounding",
+                  data: {
+                    hasGrounding: hasGroundingData(googleMetadata.groundingMetadata),
+                    grounding: googleMetadata.groundingMetadata,
+                    timestamp: Date.now(),
+                  },
                 });
-              } catch (error) {
-                console.error("Title generation failed:", error);
               }
-            }
-          },
+
+              // Stream title for first message
+              if (isFirstMessage && text) {
+                try {
+                  const title = await generateTitleOnly(text);
+                  writer.write({
+                    type: "data-titleGenerated",
+                    data: { title, timestamp: Date.now() },
+                  });
+                } catch (error) {
+                  console.error("Title generation failed:", error);
+                }
+              }
+            },
           });
 
-          result.consumeStream();
+          const uiMessageStream = result.toUIMessageStream({
+            generateMessageId: () => uuidv4(),
+            sendReasoning: true, // Enable reasoning tokens streaming
+            messageMetadata: ({ part }) => {
+              if (part.type === "start") {
+                return {
+                  model: modelConfig.id,
+                  modelProvider: modelConfig.provider,
+                  createdAt: Date.now(),
+                  reasoningLevel,
+                  searchEnabled,
+                  imageGenerationEnabled,
+                };
+              }
+              if (part.type === "finish") {
+                return {
+                  model: modelConfig.id,
+                  modelProvider: modelConfig.provider,
+                  totalTokens: part.totalUsage?.totalTokens,
+                  promptTokens: part.totalUsage?.inputTokens,
+                  completionTokens: part.totalUsage?.outputTokens,
+                  reasoningTokens: part.totalUsage?.reasoningTokens,
+                  userId: user.id,
+                };
+              }
+            },
+          });
 
-          writer.merge(
-            result.toUIMessageStream({
-              generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
-              sendReasoning: true, // Enable reasoning tokens streaming
-              messageMetadata: ({ part }) => {
-                if (part.type === "start") {
-                  return {
-                    model: modelConfig.id,
-                    modelProvider: modelConfig.provider,
-                    createdAt: Date.now(),
-                    reasoningLevel,
-                    searchEnabled,
-                    imageGenerationEnabled,
-                  };
-                }
-                if (part.type === "finish") {
-                  return {
-                    model: modelConfig.id,
-                    modelProvider: modelConfig.provider,
-                    totalTokens: part.totalUsage?.totalTokens,
-                    promptTokens: part.totalUsage?.inputTokens,
-                    completionTokens: part.totalUsage?.outputTokens,
-                    reasoningTokens: part.totalUsage?.reasoningTokens,
-                    userId: user.id,
-                  };
-                }
-              },
-            })
-          );
+          try {
+            writer.merge(uiMessageStream);
+          } catch (mergeError) {
+            console.error("Error during stream merge:", mergeError);
+            throw mergeError;
+          }
         } catch (streamError) {
           console.error("Stream execution error:", streamError);
-          
-          // Mark stream as cancelled due to execution error
-          try {
-            await markStreamCancelled(streamId);
-            console.log("Marked stream as cancelled due to stream execution error:", streamId);
-          } catch (cancelError) {
-            console.error("Failed to mark stream as cancelled after stream error:", cancelError);
-          }
-          
-          // Re-throw the error to propagate it
           throw streamError;
         }
       },
@@ -325,7 +315,6 @@ export async function POST(req: Request): Promise<Response> {
         try {
           // Save assistant message
           const savedMessage = await saveAssistantMessageServer(
-            supabase,
             responseMessage as CustomUIMessage,
             finalSessionId,
             user.id,
@@ -337,7 +326,7 @@ export async function POST(req: Request): Promise<Response> {
           // Save token usage log
           const tokenUsage = responseMessage.metadata as MessageMetadata;
           if (tokenUsage?.totalTokens && tokenUsage?.promptTokens && tokenUsage?.completionTokens) {
-            await saveModelUsageLog(supabase, {
+            await saveModelUsageLog({
               user_id: user.id,
               session_id: finalSessionId,
               model_id: model,
@@ -354,7 +343,6 @@ export async function POST(req: Request): Promise<Response> {
             const textPart = responseMessage.parts?.find((p) => p.type === "text");
             if (textPart && "text" in textPart) {
               await generateAndSaveSummary(
-                supabase,
                 { id: savedMessage.id, content: textPart.text },
                 finalSessionId,
                 user.id
@@ -385,52 +373,29 @@ export async function POST(req: Request): Promise<Response> {
         } catch (error) {
           console.error("Failed to save response:", error);
           finishError = true;
-        } finally {
-          // Mark stream as cancelled or complete based on whether errors occurred
-          try {
-            if (finishError) {
-              await markStreamCancelled(streamId);
-              console.log("Marked stream as cancelled due to response save error:", streamId);
-            } else {
-              await markStreamComplete(streamId);
-            }
-          } catch (error) {
-            console.error("Failed to update stream status:", error);
-          }
         }
       },
     });
 
-    // Create resumable stream and convert to SSE format
-    const resumableStream = await streamContext.resumableStream(streamId, () =>
-      stream.pipeThrough(new JsonToSseTransformStream())
-    );
+    // Convert to SSE format immediately for direct response
+    const sseStream = stream.pipeThrough(new JsonToSseTransformStream());
 
-    return new Response(resumableStream, {
+    return new Response(sseStream, {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-Vercel-AI-Data-Stream": "v1",
         "Content-Encoding": "none",
-        "Transfer-Encoding": "chunked", 
-        "Connection": "keep-alive",
+        "Transfer-Encoding": "chunked",
+        Connection: "keep-alive",
+        "Cache-Control": "no-cache",
       },
     });
   } catch (error) {
+    console.error("Fatal error in POST:", error);
     const err = error instanceof Error ? error : new Error(String(error));
-    
-    // If we had started a stream, mark it as cancelled due to error
-    try {
-      if (streamId) {
-        await markStreamCancelled(streamId);
-        console.log("Marked stream as cancelled due to error:", streamId, err.message);
-      }
-    } catch (cancelError) {
-      console.error("Failed to mark stream as cancelled after error:", cancelError);
-    }
-    
+
     return getErrorResponse(err, {
-      body: await req.text(),
       headers: req.headers,
     });
   }

@@ -1,8 +1,8 @@
 "use client";
 
-import { getUsageStats } from "@/services/usage-logs";
-import { usageLogsKeys } from "@/utils/query-keys";
+import { getUsageStats } from "@/services/client/usage-logs";
 import { useQuery } from "@tanstack/react-query";
+import { usageLogsKeys } from "./use-usage-logs";
 
 export interface UsageStatsFilters {
   startDate?: string;

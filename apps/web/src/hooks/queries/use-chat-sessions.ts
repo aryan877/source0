@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  type ChatSession,
   deleteSession,
   getNewUserSessions,
   getUserSessions,
   pinSession,
   unpinSession,
-} from "@/services/chat-sessions";
-import { chatSessionsKeys } from "@/utils/query-keys";
+} from "@/services/client/chat-sessions";
+import { type Tables } from "@/types/supabase-types";
 import {
   type InfiniteData,
   useInfiniteQuery,
@@ -18,7 +17,15 @@ import {
 import { useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "../use-auth";
 
-type Page = { data: ChatSession[]; nextCursor: string | null };
+export const chatSessionsKeys = {
+  all: ["chat-sessions"] as const,
+  byUser: (userId: string) => [...chatSessionsKeys.all, "user", userId] as const,
+  search: (userId: string, searchTerm: string) =>
+    [...chatSessionsKeys.byUser(userId), "search", searchTerm] as const,
+  byId: (sessionId: string) => [...chatSessionsKeys.all, "session", sessionId] as const,
+};
+
+type Page = { data: Tables<"chat_sessions">[]; nextCursor: string | null };
 
 export function useChatSessions(searchTerm = "") {
   const { user } = useAuth();
@@ -154,7 +161,7 @@ export function useChatSessions(searchTerm = "") {
       queryClient.setQueryData<InfiniteData<Page> | undefined>(queryKey, (oldData) => {
         if (!oldData) return oldData;
 
-        let sessionToMove: ChatSession | undefined;
+        let sessionToMove: Tables<"chat_sessions"> | undefined;
         const pagesWithoutSession = oldData.pages.map((page) => {
           const session = page.data.find((s) => s.id === sessionId);
           if (session) {
@@ -202,7 +209,7 @@ export function useChatSessions(searchTerm = "") {
   });
 
   const updateSessionInCache = useCallback(
-    (updatedSession: ChatSession, userId?: string) => {
+    (updatedSession: Tables<"chat_sessions">, userId?: string) => {
       const targetUserId = userId || user?.id;
       if (!targetUserId) {
         console.error("Cannot update session cache: no user ID available");

@@ -8,7 +8,7 @@ import {
   setUserApiKey,
   setUserByokSettings,
   toggleProviderEnabled
-} from "@/services/user-api-keys";
+} from "@/services/client/user-api-keys";
 import { addToast } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 

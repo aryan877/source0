@@ -1,5 +1,5 @@
 import { ChatWindow } from "@/components";
-import { getSessionByShareSlug } from "@/services/chat-sessions.server";
+import { getSessionByShareSlug } from "@/services/server/chat-sessions.server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 

@@ -1,18 +1,15 @@
 import { type Tables } from "@/types/supabase-types";
 import { createClient } from "@/utils/supabase/client";
-import { type SupabaseClient } from "@supabase/supabase-js";
 
-// Types
-export type DBMessageSummary = Tables<"message_summaries">;
-
-export type MessageSummary = Omit<DBMessageSummary, "created_at"> & {
+// Custom type that transforms the database type
+export type MessageSummary = Omit<Tables<"message_summaries">, "created_at"> & {
   created_at: string;
 };
 
 /**
  * Get all summaries for a session
  */
-export async function getSummariesForSession(sessionId: string): Promise<MessageSummary[]> {
+export async function getSummariesForSession(sessionId: string) {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -36,9 +33,9 @@ export async function getSummariesForSession(sessionId: string): Promise<Message
  * Saves a message summary to the database.
  */
 export async function saveMessageSummary(
-  supabase: SupabaseClient,
   summary: Omit<MessageSummary, "id" | "created_at">
-): Promise<DBMessageSummary> {
+) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("message_summaries")
     .insert(summary)

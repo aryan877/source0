@@ -1,12 +1,10 @@
 import { type Database } from "@/types/supabase-types";
-import { type SupabaseClient } from "@supabase/supabase-js";
-
-export type ModelUsageLog = Database["public"]["Tables"]["model_usage_logs"]["Insert"];
+import { createClient } from "@/utils/supabase/server";
 
 export async function saveModelUsageLog(
-  supabase: SupabaseClient<Database>,
-  usageLog: Omit<ModelUsageLog, "id" | "created_at">
-): Promise<Database["public"]["Tables"]["model_usage_logs"]["Row"]> {
+  usageLog: Omit<Database["public"]["Tables"]["model_usage_logs"]["Insert"], "id" | "created_at">
+) {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("model_usage_logs")
     .insert(usageLog)

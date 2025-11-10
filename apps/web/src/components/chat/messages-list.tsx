@@ -1,9 +1,8 @@
 "use client";
 
-import { hasActiveStream } from "@/services/chat-streams";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { motion } from "framer-motion";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { ErrorDisplay } from "./error-display";
 import MessageBubble from "./message-bubble";
 import { SuggestedQuestions } from "./suggested-questions";
@@ -271,21 +270,9 @@ export const MessagesList = memo(
     questionsError,
     onQuestionSelect,
   }: MessagesListProps) => {
-    const [hasActiveStreamState, setHasActiveStreamState] = useState(true);
-
-    // Check if there's an active stream when loading state changes
-    useEffect(() => {
-      if (isLoading && chatId !== "new") {
-        hasActiveStream(chatId).then(setHasActiveStreamState);
-      }
-    }, [isLoading, chatId]);
-
-    // If we're supposedly loading but there's no active stream, don't show loading
-    const actualIsLoading = isLoading && hasActiveStreamState;
-
     const shouldShowSuggestions = useMemo(
-      () => !actualIsLoading && !isLoadingMessages,
-      [actualIsLoading, isLoadingMessages]
+      () => !isLoading && !isLoadingMessages,
+      [isLoading, isLoadingMessages]
     );
 
     const shouldShowLoadingMessages = useMemo(
@@ -304,7 +291,7 @@ export const MessagesList = memo(
                 key={`${message.id}-${index}`}
                 message={message}
                 index={index}
-                isLoading={actualIsLoading}
+                isLoading={isLoading}
                 onRetryMessage={onRetryMessage}
                 onBranchChat={onBranchChat}
                 onEditMessage={onEditMessage}

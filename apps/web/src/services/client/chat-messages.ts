@@ -1,11 +1,8 @@
 import { toCustomUIMessage } from "@/app/api/chat/utils/message-conversion";
 import { ReasoningLevel } from "@/config/models";
 import { type CustomUIMessage } from "@/types/custom-ui-message";
-import { type Json, type Tables } from "@/types/supabase-types";
 import { prepareMessageForDb } from "@/utils/database-message-converter";
 import { createClient } from "@/utils/supabase/client";
-
-export type DBChatMessage = Tables<"chat_messages">;
 
 /**
  * Adds a UIMessage to the database.
@@ -14,7 +11,7 @@ async function addMessage(
   message: CustomUIMessage,
   sessionId: string,
   userId: string
-): Promise<DBChatMessage> {
+) {
   const supabase = createClient();
   const preparedMessage = prepareMessageForDb({ message, sessionId, userId });
   const { data, error } = await supabase
@@ -33,7 +30,7 @@ async function addMessage(
 /**
  * Get all messages for a session as CustomUIMessages with full metadata.
  */
-export async function getMessages(sessionId: string): Promise<CustomUIMessage[]> {
+export async function getMessages(sessionId: string) {
   if (!sessionId || sessionId === "new") {
     return [];
   }
@@ -54,28 +51,9 @@ export async function getMessages(sessionId: string): Promise<CustomUIMessage[]>
 }
 
 /**
- * Get a specific message by ID as a CustomUIMessage.
- */
-export async function getMessage(messageId: string): Promise<CustomUIMessage | null> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .eq("id", messageId)
-    .single();
-
-  if (error) {
-    console.error(`Error fetching message ${messageId}:`, error);
-    return null;
-  }
-
-  return toCustomUIMessage(data);
-}
-
-/**
  * Deletes a specific message.
  */
-export async function deleteMessage(messageId: string): Promise<void> {
+export async function deleteMessage(messageId: string) {
   const supabase = createClient();
   const { error } = await supabase.from("chat_messages").delete().eq("id", messageId);
   if (error) {
@@ -89,7 +67,7 @@ export async function deleteMessage(messageId: string): Promise<void> {
 export async function deleteFromPoint(
   messageId: string,
   inclusive: boolean = false
-): Promise<boolean> {
+) {
   const supabase = createClient();
   const { data: message, error: fetchError } = await supabase
     .from("chat_messages")
@@ -116,31 +94,13 @@ export async function deleteFromPoint(
 }
 
 /**
- * Updates the parts of a specific message.
- */
-export async function updateMessageParts(
-  messageId: string,
-  parts: CustomUIMessage["parts"]
-): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("chat_messages")
-    .update({ parts: parts as Json })
-    .eq("id", messageId);
-  if (error) {
-    console.error(`Error updating message parts for ${messageId}:`, error);
-    throw new Error(`Failed to update message parts: ${error.message}`);
-  }
-}
-
-/**
  * Saves a user's message.
  */
 export async function saveUserMessage(
   userMessage: CustomUIMessage,
   sessionId: string,
   userId: string
-): Promise<DBChatMessage> {
+) {
   return addMessage(userMessage, sessionId, userId);
 }
 
@@ -155,7 +115,7 @@ export async function saveAssistantMessage(
   modelProvider: string,
   modelConfig: { reasoningLevel?: string; searchEnabled?: boolean; imageGenerationEnabled?: boolean },
   options: { fireAndForget?: boolean } = {}
-): Promise<DBChatMessage | void> {
+) {
   const preparedMessage = prepareMessageForDb({
     message,
     sessionId,

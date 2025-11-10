@@ -1,9 +1,9 @@
 "use client";
 
-import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
+import { chatSessionsKeys, useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useAuth } from "@/hooks/use-auth";
-import { makePrivate, makePublic, type ChatSession } from "@/services/chat-sessions";
-import { chatSessionsKeys } from "@/utils/query-keys";
+import { makePrivate, makePublic } from "@/services/client/chat-sessions";
+import { type Tables } from "@/types/supabase-types";
 import {
   CheckIcon,
   ClipboardDocumentIcon,
@@ -28,7 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 interface ShareButtonProps {
-  session: ChatSession;
+  session: Tables<"chat_sessions">;
   className?: string;
 }
 
@@ -57,7 +57,7 @@ export function ShareButton({ session, className = "" }: ShareButtonProps) {
     setIsSharing(true);
     try {
       const shareSlug = await makePublic(session.id);
-      const updatedSession: ChatSession = {
+      const updatedSession: Tables<"chat_sessions"> = {
         ...session,
         is_public: true,
         share_slug: shareSlug,
@@ -79,7 +79,7 @@ export function ShareButton({ session, className = "" }: ShareButtonProps) {
     setIsSharing(true);
     try {
       await makePrivate(session.id);
-      const updatedSession: ChatSession = {
+      const updatedSession: Tables<"chat_sessions"> = {
         ...session,
         is_public: false,
         share_slug: null,

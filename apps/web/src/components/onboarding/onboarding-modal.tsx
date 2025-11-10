@@ -35,13 +35,6 @@ const features: Feature[] = [
     visual: "settings",
   },
   {
-    id: "streaming",
-    title: "Bulletproof Resumable Streaming",
-    description:
-      "Never lose your place. Our resilient architecture ensures your chat resumes perfectly, even with network interruptions.",
-    visual: "streaming",
-  },
-  {
     id: "themes",
     title: "Customizable Themes",
     description: "Personalize your experience with a variety of themes to suit your style.",

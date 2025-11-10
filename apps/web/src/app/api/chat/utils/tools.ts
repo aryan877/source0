@@ -1,5 +1,4 @@
 import { type ModelCapability } from "@/config/models";
-import { google } from "@ai-sdk/google";
 import { tool, type Tool } from "ai";
 import { z } from "zod";
 import { executeImageGeneration } from "./image-generation";
@@ -325,18 +324,12 @@ export function getToolsForModel(
     return tools;
   }
 
-  // Handle search tools based on provider
+  // Handle search tools based on model capabilities
   if (searchEnabled) {
-    // For Google models, use native Google search grounding
-    if (modelConfig?.provider === "Google") {
-      tools.google_search = google.tools.googleSearch({});
-      console.log("Using Google native search grounding for Google model");
-    }
-    // For all other models that support function calling, use custom web search
-    else {
-      tools.webSearch = webSearchTool;
-      console.log("Using custom web search tool for non-Google model");
-    }
+    // For models with native search capability, use custom web search
+    // OpenRouter handles provider-specific optimizations internally
+    tools.webSearch = webSearchTool;
+    console.log("Using web search tool for model with search capability");
   }
 
   // Add image generation tool if enabled (it's now purely tool-based)
