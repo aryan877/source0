@@ -4,7 +4,7 @@ import { type CustomUIMessage } from "@/types/custom-ui-message";
 import { motion } from "framer-motion";
 import { memo, useMemo } from "react";
 import { ErrorDisplay } from "./error-display";
-import MessageBubble from "./message-bubble";
+import ChatMessage from "./chat-message";
 import { SuggestedQuestions } from "./suggested-questions";
 
 const LoadingMessages = memo(() => (
@@ -233,7 +233,7 @@ const MessageItem = memo(
         data-message-id={message.id}
         className="w-full max-w-full"
       >
-        <MessageBubble
+        <ChatMessage
           message={message}
           onRetry={onRetryMessage}
           onBranch={onBranchChat}

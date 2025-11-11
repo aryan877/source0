@@ -33,7 +33,7 @@ const preprocessMarkdownContent = (content: string): string => {
   return processed;
 };
 
-interface MessageContentProps {
+interface MarkdownRendererProps {
   content: string;
   citations?: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][];
   isUser?: boolean;
@@ -544,7 +544,7 @@ const TableCell = memo(({ children, citations, ...props }: { children: React.Rea
 
 TableCell.displayName = "TableCell";
 
-const MessageContent = memo(({ content, citations }: MessageContentProps) => {
+const MarkdownRenderer = memo(({ content, citations }: MarkdownRendererProps) => {
   const { fontSize } = useUserPreferencesStore();
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -733,7 +733,7 @@ const MessageContent = memo(({ content, citations }: MessageContentProps) => {
   );
 });
 
-MessageContent.displayName = "MessageContent";
+MarkdownRenderer.displayName = "MarkdownRenderer";
 
-export { MessageContent };
-export type { MessageContentProps };
+export { MarkdownRenderer };
+export type { MarkdownRendererProps };

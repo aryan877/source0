@@ -4,7 +4,7 @@ import { type GroundingChunk, type GroundingMetadata } from "@/types/provider-me
 import { LinkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { memo } from "react";
 import { ExpandableSection } from "./expandable-section";
-import { MessageContent } from "./message-content";
+import { MarkdownRenderer } from "./markdown-renderer";
 
 interface GroundingDisplayProps {
   grounding: GroundingMetadata;
@@ -78,7 +78,7 @@ const GroundingDisplay = memo(({ grounding }: GroundingDisplayProps) => {
                   <div key={idx} className="rounded-lg bg-content1/60 p-3">
                     {support.segment?.text && (
                       <div className="mb-2 text-sm leading-relaxed text-foreground/80">
-                        <MessageContent content={support.segment.text} />
+                        <MarkdownRenderer content={support.segment.text} />
                       </div>
                     )}
 

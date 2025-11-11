@@ -20,7 +20,7 @@ import { BranchOptionsPanel } from "./branch-options-panel";
 import { ExpandableSection } from "./expandable-section";
 import { GroundingDisplay } from "./grounding-display";
 import ImageGallery from "./image-gallery";
-import { MessageContent } from "./message-content";
+import { MarkdownRenderer } from "./markdown-renderer";
 import { StreamingIndicator } from "./streaming-indicator";
 import { WebSearchDisplay } from "./web-search-display";
 
@@ -68,7 +68,7 @@ function getWebSearchData(toolPart: {
   return null;
 }
 
-interface MessageBubbleProps {
+interface ChatMessageProps {
   message: CustomUIMessage;
   onRetry: (messageId: string) => void;
   onBranch: (messageId: string, modelId?: string) => void;
@@ -109,7 +109,7 @@ function getCitationsFromMessage(
   return citations;
 }
 
-const MessageBubble = memo(
+const ChatMessage = memo(
   ({
     message,
     onRetry,
@@ -120,7 +120,7 @@ const MessageBubble = memo(
     isDeleting = false,
     chatId,
     onBranchOptionsToggle,
-  }: MessageBubbleProps) => {
+  }: ChatMessageProps) => {
     const [showActions, setShowActions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -465,7 +465,7 @@ const MessageBubble = memo(
               case "text":
                 return (
                   <div key={index} className="flex-1">
-                    <MessageContent
+                    <MarkdownRenderer
                       content={part.text}
                       citations={getCitationsFromMessage(message)}
                       isUser={isUser}
@@ -489,7 +489,7 @@ const MessageBubble = memo(
                     isLoading={isReasoningStreaming}
                     autoExpand={true}
                   >
-                    <MessageContent content={part.text || ""} citations={[]} isUser={isUser} />
+                    <MarkdownRenderer content={part.text || ""} citations={[]} isUser={isUser} />
                   </ExpandableSection>
                 );
 
@@ -824,6 +824,6 @@ const MessageBubble = memo(
   }
 );
 
-MessageBubble.displayName = "MessageBubble";
+ChatMessage.displayName = "ChatMessage";
 
-export default MessageBubble;
+export default ChatMessage;
