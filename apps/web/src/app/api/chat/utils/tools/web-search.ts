@@ -1,10 +1,55 @@
-import type { WebSearchToolData } from "@/types/tools";
-import type {
-  TavilyResponse,
-  WebSearchOptions,
-  WebSearchRequest,
-  WebSearchResult,
-} from "@/types/web-search";
+/**
+ * Types for web search functionality
+ * Co-located with tool implementation for better organization
+ */
+
+// API Types from Tavily
+export interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+  published_date?: string;
+  raw_content?: string;
+}
+
+export interface TavilyImage {
+  url: string;
+  description?: string;
+}
+
+export interface TavilyResponse {
+  query: string;
+  answer?: string;
+  images?: TavilyImage[];
+  results: TavilySearchResult[];
+  response_time: number;
+}
+
+export interface WebSearchOptions {
+  topic?: "general" | "news";
+  search_depth?: "basic" | "advanced";
+  max_results?: number;
+  time_range?: "day" | "week" | "month" | "year" | "d" | "w" | "m" | "y";
+  include_answer?: boolean;
+  include_images?: boolean;
+  include_raw_content?: boolean;
+  country?: string;
+}
+
+export interface WebSearchResult {
+  query: string;
+  answer?: string;
+  results: TavilySearchResult[];
+  images?: TavilyImage[];
+  response_time: number;
+  error?: string;
+}
+
+export interface WebSearchRequest {
+  queries: string[];
+  options?: WebSearchOptions;
+}
 
 /**
  * Generates intelligent search queries from a user's message.
@@ -152,12 +197,13 @@ export async function performWebSearch(request: WebSearchRequest): Promise<WebSe
 
 /**
  * Creates structured web search data for UI display
+ * Type is auto-inferred by AI SDK from webSearchTool execute function
  */
 export function createWebSearchToolData(
   originalQuery: string,
   generatedQueries: string[],
   searchResults: WebSearchResult[]
-): WebSearchToolData {
+) {
   const errors: string[] = [];
   let totalResults = 0;
 

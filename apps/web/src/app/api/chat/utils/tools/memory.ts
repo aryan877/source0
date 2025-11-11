@@ -3,8 +3,6 @@
  * Handles saving and retrieving user memories for personalized AI interactions
  */
 
-import type { MemoryRetrieveToolData, MemorySaveToolData } from "@/types/tools";
-
 // =============================================================================
 // Types
 // =============================================================================
@@ -45,8 +43,9 @@ export interface MemoryResult {
 
 /**
  * Saves memories using the Mem0 API
+ * Type auto-inferred by AI SDK from memorySaveTool execute function
  */
-export async function saveMemory(request: SaveMemoryRequest): Promise<MemorySaveToolData> {
+export async function saveMemory(request: SaveMemoryRequest) {
   const { messages, userId, sessionId, metadata = {} } = request;
 
   try {
@@ -117,10 +116,11 @@ export async function saveMemory(request: SaveMemoryRequest): Promise<MemorySave
 
 /**
  * Retrieves memories using the Mem0 API
+ * Type auto-inferred by AI SDK from memoryRetrieveTool execute function
  */
 export async function retrieveMemory(
   request: RetrieveMemoryRequest
-): Promise<MemoryRetrieveToolData> {
+) {
   const { query, userId, sessionId, limit = 5, threshold = 0.1 } = request;
 
   try {

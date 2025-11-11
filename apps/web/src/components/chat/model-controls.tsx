@@ -9,7 +9,12 @@ import {
   TEXT_EXTENSIONS,
   TEXT_MIME_TYPES,
 } from "@/config/supported-files";
-import { ChevronDownIcon, GlobeAltIcon, PaperClipIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  GlobeAltIcon,
+  PaperClipIcon,
+  PhotoIcon,
+} from "@heroicons/react/24/outline";
 import {
   CpuChipIcon as CpuChipIconSolid,
   GlobeAltIcon as GlobeAltIconSolid,
@@ -97,7 +102,8 @@ export const ModelControls = ({
 
     const fileAccept = [...new Set([...acceptedMimeTypes, ...acceptedExtensions])].join(",");
     const showAttachment = true; // Always show the control area
-    const showControls = hasReasoning || hasSearch || modelConfig.supportsFunctions || showAttachment;
+    const showControls =
+      hasReasoning || hasSearch || modelConfig.supportsFunctions || showAttachment;
 
     return {
       hasReasoning,
@@ -150,9 +156,7 @@ export const ModelControls = ({
       {computedValues.hasReasoning && computedValues.availableReasoningLevels.length > 0 && (
         <Dropdown placement="top-start">
           <DropdownTrigger>
-            <button
-              className="flex items-center gap-1.5 rounded-full border border-content3/50 bg-content2/60 px-2.5 py-1 text-xs font-medium text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80"
-            >
+            <button className="flex items-center gap-1.5 rounded-full border border-content3/50 bg-content2/60 px-2.5 py-1 text-xs font-medium text-foreground/70 transition-all duration-200 hover:border-primary/20 hover:bg-primary/5 hover:text-primary/80">
               <CpuChipIconSolid className="h-3.5 w-3.5" />
               <span>{reasoningLevelLabels[reasoningLevel]}</span>
               <ChevronDownIcon className="h-3 w-3" />
@@ -279,7 +283,7 @@ export const ModelControls = ({
             ) : (
               <PhotoIcon className="h-3.5 w-3.5" />
             )}
-            <span>Create Image</span>
+            <span>Create</span>
           </button>
         </Tooltip>
       )}

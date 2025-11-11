@@ -1,6 +1,10 @@
 import { UIMessage } from "ai";
 import { z } from "zod";
 import type { GroundingMetadata } from "./provider-metadata";
+import type { ToolTypes } from "@/app/api/chat/utils/tools";
+
+// Re-export ToolTypes for use in components
+export type { ToolTypes };
 
 // Clean message metadata schema - only what AI SDK v5 officially supports
 export const messageMetadataSchema = z.object({
@@ -60,7 +64,7 @@ export type DataPartTypes = {
   [K in keyof typeof dataPartSchemas]: z.infer<(typeof dataPartSchemas)[K]>;
 };
 
-// Custom UIMessage type with proper data part support (AI SDK v5)
-export type CustomUIMessage = UIMessage<MessageMetadata, DataPartTypes>;
+// Custom UIMessage type with proper data part support and auto-inferred tool types (AI SDK v5)
+export type CustomUIMessage = UIMessage<MessageMetadata, DataPartTypes, ToolTypes>;
 
 export type { UIMessage } from "ai";

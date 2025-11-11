@@ -1,8 +1,6 @@
 "use client";
 
-import { type CustomUIMessage } from "@/types/custom-ui-message";
-import type { ImageGenerationToolData, WebSearchToolData } from "@/types/tools";
-import type { TavilySearchResult } from "@/types/web-search";
+import { type CustomUIMessage, type ToolTypes } from "@/types/custom-ui-message";
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -36,7 +34,8 @@ export interface ImageErrorData {
 }
 
 /**
- * Safely extracts WebSearchToolData from a tool part.
+ * Safely extracts WebSearch tool data from a tool part.
+ * Type is auto-inferred from ToolTypes["webSearch"]["output"]
  */
 function getWebSearchData(toolPart: {
   type: string;
@@ -44,7 +43,7 @@ function getWebSearchData(toolPart: {
   output?: unknown;
   input?: unknown;
   toolName?: string;
-}): WebSearchToolData | null {
+}): ToolTypes["webSearch"]["output"] | null {
   // Handle both AI SDK v4 and v5 tool types
   const isWebSearchTool =
     toolPart.type === "tool-webSearch" ||
@@ -57,7 +56,7 @@ function getWebSearchData(toolPart: {
     "output" in toolPart &&
     toolPart.output
   ) {
-    const result = toolPart.output as WebSearchToolData;
+    const result = toolPart.output as ToolTypes["webSearch"]["output"];
     if (
       result.toolName === "webSearch" &&
       typeof result.originalQuery === "string" &&
@@ -83,11 +82,14 @@ interface MessageBubbleProps {
 
 /**
  * Extract citations from web search tool invocations in the message
+ * Type is auto-inferred from ToolTypes["webSearch"]["output"]
  */
-function getCitationsFromMessage(message: CustomUIMessage): TavilySearchResult[] {
+function getCitationsFromMessage(
+  message: CustomUIMessage
+): ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][] {
   if (!message.parts) return [];
 
-  const citations: TavilySearchResult[] = [];
+  const citations: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][] = [];
 
   for (const part of message.parts) {
     if (part.type === "tool-webSearch") {
@@ -350,7 +352,7 @@ const MessageBubble = memo(
         )
         .map((part) => {
           if ("output" in part) {
-            const output = part.output as ImageGenerationToolData;
+            const output = part.output as ToolTypes["imageGeneration"]["output"];
             if (output.success && "imageUrl" in output) {
               return {
                 url: output.imageUrl,
@@ -415,8 +417,9 @@ const MessageBubble = memo(
                 part.toolName === "imageGeneration")
             ) {
               if ("state" in part && part.state === "output-available" && "output" in part) {
-                const output = part.output as ImageGenerationToolData;
-                if (output.success === false) {
+                const output = part.output as ToolTypes["imageGeneration"]["output"];
+                // Check if this is an error case (has error property and success is false)
+                if ("error" in output && "success" in output && output.success === false) {
                   // Show error state
                   return (
                     <div key={index} className="my-4">

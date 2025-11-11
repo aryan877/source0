@@ -8,9 +8,8 @@ import { useChatSessions } from "@/hooks/queries/use-chat-sessions";
 import { useMessageSummaries } from "@/hooks/queries/use-message-summaries";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useChatHandlers } from "@/hooks/use-chat-handlers";
 import { useChatScrollManager } from "@/hooks/use-chat-scroll-manager";
-import { useChatState } from "@/hooks/use-chat-state";
+import { useChat as useChatUI } from "@/hooks/use-chat-ui";
 import { useSuggestedQuestions } from "@/hooks/use-suggested-questions";
 import { deleteFromPoint, saveAssistantMessage } from "@/services/client/chat-messages";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
@@ -42,17 +41,6 @@ interface ChatWindowProps {
 
 const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { isSidebarOpen } = useSidebarContext();
-  const {
-    state,
-    updateState,
-    selectedModel,
-    reasoningLevel,
-    setReasoningLevel,
-    searchEnabled,
-    setSearchEnabled,
-    imageGenerationEnabled,
-    setImageGenerationEnabled,
-  } = useChatState(chatId);
   const { pendingChatData, clearPendingChatData, setPendingChatData } = useModelSelectorStore();
   const { user } = useAuth();
   const { assistantName, userTraits, memoryEnabled, showChatNavigator } = useUserPreferencesStore();
@@ -76,6 +64,24 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
   const { summaries, invalidateSummaries } = useMessageSummaries(chatId);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // chat hook with all state and handlers
+  const {
+    state,
+    updateState,
+    selectedModel,
+    reasoningLevel,
+    setReasoningLevel,
+    searchEnabled,
+    setSearchEnabled,
+    imageGenerationEnabled,
+    setImageGenerationEnabled,
+    handleFileAttach,
+    handleFileDrop,
+    handleRemoveFile,
+    handleBranchChat,
+    handleModelChange,
+  } = useChatUI(chatId, updateSessionInCache, router, user);
 
   const chatBody = useMemo(() => {
     // API keys are now handled server-side from database
@@ -111,14 +117,6 @@ const ChatWindow = memo(({ chatId, isSharedView = false }: ChatWindowProps) => {
     assistantName,
     userTraits,
   ]);
-
-  const {
-    handleFileAttach,
-    handleFileDrop,
-    handleRemoveFile,
-    handleBranchChat,
-    handleModelChange,
-  } = useChatHandlers(chatId, state, updateState, updateSessionInCache, router, user);
 
   const [input, setInput] = useState("");
 

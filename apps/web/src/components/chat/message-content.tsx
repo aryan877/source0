@@ -1,7 +1,7 @@
 "use client";
 
 import { useUserPreferencesStore } from "@/stores/user-preferences-store";
-import type { TavilySearchResult } from "@/types/web-search";
+import { type ToolTypes } from "@/types/custom-ui-message";
 import { addToast, Button, Chip, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Tooltip, useDisclosure } from "@heroui/react";
 import "katex/dist/katex.min.css";
 import { AlertTriangle, ChevronDown, Copy, Download, ExternalLink, FileText, Maximize2 } from "lucide-react";
@@ -35,7 +35,7 @@ const preprocessMarkdownContent = (content: string): string => {
 
 interface MessageContentProps {
   content: string;
-  citations?: TavilySearchResult[];
+  citations?: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][];
   isUser?: boolean;
 }
 
@@ -43,7 +43,7 @@ interface MessageContentProps {
  * Citation component using HeroUI
  */
 const CitationPill = memo(
-  ({ number, citation }: { number: number; citation: TavilySearchResult }) => (
+  ({ number, citation }: { number: number; citation: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number] }) => (
     <Tooltip
       content={
         <div className="max-w-xs space-y-2 p-1">
@@ -155,7 +155,7 @@ LinkWarningModal.displayName = "LinkWarningModal";
  * A recursive renderer that processes citations in text nodes while preserving nested React components.
  */
 const RecursiveCitationRenderer = memo(
-  ({ children, citations }: { children: React.ReactNode; citations?: TavilySearchResult[] }) => {
+  ({ children, citations }: { children: React.ReactNode; citations?: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][] }) => {
     if (!citations || citations.length === 0) {
       return <>{children}</>;
     }
@@ -531,7 +531,7 @@ TableRenderer.displayName = "TableRenderer";
 const TableContext = React.createContext<{ isRowsExpanded: boolean }>({ isRowsExpanded: false });
 
 // Table cell component to handle row expansion
-const TableCell = memo(({ children, citations, ...props }: { children: React.ReactNode; citations?: TavilySearchResult[] } & React.TdHTMLAttributes<HTMLTableCellElement>) => {
+const TableCell = memo(({ children, citations, ...props }: { children: React.ReactNode; citations?: ToolTypes["webSearch"]["output"]["searchResults"][number]["results"][number][] } & React.TdHTMLAttributes<HTMLTableCellElement>) => {
   const { isRowsExpanded } = React.useContext(TableContext);
   return (
     <td {...props} className="px-6 py-4 text-sm text-foreground/90 leading-normal align-top group-hover:text-foreground transition-colors duration-300">

@@ -1,13 +1,13 @@
 import { PROVIDER_MAPPING, type ModelConfig, type ReasoningLevel } from "@/config/models";
 import { isModelEnabledForUser } from "@/services/server/user-api-keys.server";
 import { type Database } from "@/types/supabase-types";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenRouter, type OpenRouterProvider } from "@openrouter/ai-sdk-provider";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { type JSONValue, type LanguageModel } from "ai";
 
 export interface ModelMappingResult {
   supported: true;
-  provider: ReturnType<typeof createOpenRouter>;
+  provider: OpenRouterProvider;
   model: string;
   providerInfo: {
     name: string;
@@ -133,7 +133,12 @@ export const createModelInstance = (
   const { provider, model } = mapping;
 
   // OpenRouter handles all models through unified gateway
-  return (provider as ReturnType<typeof createOpenRouter>).chat(model) as unknown as LanguageModel;
+  // Enable usage tracking for analytics and cost monitoring
+  return (provider as ReturnType<typeof createOpenRouter>).chat(model, {
+    usage: {
+      include: true,
+    },
+  }) as LanguageModel;
 };
 
 export const buildSystemMessage = (

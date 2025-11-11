@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { saveGeneratedImage } from "@/services/server/generated-images.server";
-import type { ImageGenerationToolData } from "@/types/tools";
 
 interface ImageGenerationOptions {
   prompt: string;
@@ -14,6 +13,7 @@ interface ImageGenerationOptions {
 
 /**
  * Execute image generation using OpenAI's REST API directly
+ * Type auto-inferred by AI SDK from imageGenerationTool execute function
  */
 export async function executeImageGeneration({
   prompt,
@@ -22,7 +22,7 @@ export async function executeImageGeneration({
   userId,
   sessionId,
   messageId,
-}: ImageGenerationOptions): Promise<ImageGenerationToolData> {
+}: ImageGenerationOptions) {
   try {
     console.log(`Generating image with prompt: "${prompt}" (${size}, ${style})`);
 

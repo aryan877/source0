@@ -1,9 +1,9 @@
 import { type ModelCapability } from "@/config/models";
-import { tool, type Tool } from "ai";
+import { tool, type Tool, type InferUITools } from "ai";
 import { z } from "zod";
-import { executeImageGeneration } from "./image-generation";
-import { retrieveMemory, saveMemory } from "./memory";
-import { createWebSearchToolData, generateSearchQueries, performWebSearch } from "./web-search";
+import { executeImageGeneration } from "./tools/image-generation";
+import { retrieveMemory, saveMemory } from "./tools/memory";
+import { createWebSearchToolData, generateSearchQueries, performWebSearch } from "./tools/web-search";
 
 /**
  * Web search tool that allows the AI to search the internet for current information.
@@ -412,3 +412,18 @@ export function getToolsForModel(
 
   return finalTools;
 }
+
+// =============================================================================
+// Type Inference with AI SDK
+// =============================================================================
+
+/**
+ * Auto-inferred tool types from the tools object
+ * Use this in your UIMessage type for type-safe tool parts
+ *
+ * Example usage:
+ * ```typescript
+ * export type CustomUIMessage = UIMessage<MessageMetadata, DataPartTypes, ToolTypes>;
+ * ```
+ */
+export type ToolTypes = InferUITools<typeof availableTools>;

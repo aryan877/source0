@@ -1,6 +1,6 @@
 "use client";
 
-import type { WebSearchToolData } from "@/types/tools";
+import type { ToolTypes } from "@/types/custom-ui-message";
 import {
   ArrowTopRightOnSquareIcon,
   GlobeAltIcon,
@@ -12,7 +12,7 @@ import { memo, useMemo } from "react";
 
 interface WebSearchDisplayProps {
   state: "output-available" | "input-streaming" | "input-available" | "output-error";
-  data?: WebSearchToolData | null;
+  data?: ToolTypes["webSearch"]["output"] | null;
   args?: unknown;
 }
 
@@ -131,11 +131,12 @@ export const WebSearchDisplay = memo(({ state, data, args }: WebSearchDisplayPro
   );
 
   const processedData = useMemo(() => {
-    if (!data?.searchResults) return { allSources: [], queries: [] };
+    if (!data || !("searchResults" in data)) return { allSources: [], queries: [] };
 
-    const successfulResults = data.searchResults.filter((result) => !result.error);
+    const searchResults = data.searchResults as any[];
+    const successfulResults = searchResults.filter((result) => !result.error);
     const allSources = successfulResults.flatMap((result) =>
-      result.results.map((source) => ({
+      result.results.map((source: any) => ({
         ...source,
         query: result.query,
       }))

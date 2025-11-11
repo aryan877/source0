@@ -1,33 +1,103 @@
-import { AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
-import { getModelById } from "@/config/models";
-import { type ChatState } from "@/hooks/use-chat-state";
+import { type AttachedFileWithUrl } from "@/components/chat/utils/file-utils";
+import { DEFAULT_MODEL, type ReasoningLevel, getModelById } from "@/config/models";
 import { useStorage } from "@/hooks/use-storage";
 import { branchSession, getSession } from "@/services/client/chat-sessions";
 import { useModelSelectorStore } from "@/stores/model-selector-store";
 import { type Tables } from "@/types/supabase-types";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
-export const useChatHandlers = (
+export interface ChatState {
+  attachedFiles: AttachedFileWithUrl[];
+  showScrollToBottom: boolean;
+  uiError: string | null;
+}
+
+export const useChat = (
   chatId: string,
-  state: ChatState,
-  updateState: (
-    updates: Partial<ChatState> | ((prevState: ChatState) => Partial<ChatState>)
-  ) => void,
   updateSessionInCache?: (session: Tables<"chat_sessions">, userId: string) => void,
   router?: { push: (path: string) => void },
   user?: { id: string } | null
 ) => {
+  // Local state management
+  const [state, setState] = useState<ChatState>({
+    attachedFiles: [],
+    showScrollToBottom: false,
+    uiError: null,
+  });
+
+  const updateState = useCallback(
+    (
+      updates:
+        | Partial<ChatState>
+        | ((prevState: ChatState) => Partial<ChatState>)
+    ) => {
+      setState((prev) => {
+        const newUpdates = typeof updates === "function" ? updates(prev) : updates;
+        return { ...prev, ...newUpdates };
+      });
+    },
+    []
+  );
+
+  // Model selector store access
   const {
     setSelectedModel,
     getSelectedReasoningLevel,
     setSelectedReasoningLevel,
     transferModelSelection,
+    setSelectedSearchEnabled,
+    setSelectedImageGenerationEnabled,
   } = useModelSelectorStore();
+
+  // Model selector state
+  const selectedModel = useModelSelectorStore(
+    useCallback(
+      (state) => state.selectedModels[chatId] || state.lastSelectedModel || DEFAULT_MODEL,
+      [chatId, DEFAULT_MODEL]
+    )
+  );
+
+  const reasoningLevel = useModelSelectorStore(
+    useCallback((state) => state.getSelectedReasoningLevel(chatId), [chatId])
+  );
+
+  const searchEnabled = useModelSelectorStore(
+    useCallback((state) => state.getSelectedSearchEnabled(chatId), [chatId])
+  );
+
+  const imageGenerationEnabled = useModelSelectorStore(
+    useCallback((state) => state.getSelectedImageGenerationEnabled(chatId), [chatId])
+  );
+
+  // Model selector setters
+  const setReasoningLevel = useCallback(
+    (level: ReasoningLevel) => {
+      setSelectedReasoningLevel(chatId, level);
+    },
+    [chatId, setSelectedReasoningLevel]
+  );
+
+  const setSearchEnabled = useCallback(
+    (enabled: boolean) => {
+      setSelectedSearchEnabled(chatId, enabled);
+    },
+    [chatId, setSelectedSearchEnabled]
+  );
+
+  const setImageGenerationEnabled = useCallback(
+    (enabled: boolean) => {
+      setSelectedImageGenerationEnabled(chatId, enabled);
+    },
+    [chatId, setSelectedImageGenerationEnabled]
+  );
+
+  // Storage hook for file uploads
   const { uploadFiles: uploadFilesToStorage } = useStorage({
     chatId,
     onUploadError: (error) => updateState({ uiError: error }),
   });
 
+  // Helper function to get image dimensions
   const getImageDimensions = useCallback(
     (file: File): Promise<{ width: number; height: number } | null> => {
       return new Promise((resolve) => {
@@ -55,6 +125,7 @@ export const useChatHandlers = (
     []
   );
 
+  // File attachment handler
   const handleFileAttach = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
@@ -104,6 +175,7 @@ export const useChatHandlers = (
     [updateState, uploadFilesToStorage, getImageDimensions]
   );
 
+  // File drop handler
   const handleFileDrop = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -150,6 +222,7 @@ export const useChatHandlers = (
     [updateState, uploadFilesToStorage, getImageDimensions]
   );
 
+  // Remove file handler
   const handleRemoveFile = useCallback(
     (index: number) => {
       updateState((prev) => ({
@@ -159,6 +232,7 @@ export const useChatHandlers = (
     [updateState]
   );
 
+  // Branch chat handler
   const handleBranchChat = useCallback(
     async (messageId: string, modelId?: string) => {
       if (!user || !updateSessionInCache || !router) {
@@ -226,6 +300,7 @@ export const useChatHandlers = (
     ]
   );
 
+  // Model change handler
   const handleModelChange = useCallback(
     (modelId: string) => {
       setSelectedModel(chatId, modelId);
@@ -249,7 +324,20 @@ export const useChatHandlers = (
     [chatId, setSelectedModel, getSelectedReasoningLevel, setSelectedReasoningLevel]
   );
 
+  // Return all state and handlers
   return {
+    // State
+    state,
+    updateState,
+    selectedModel,
+    reasoningLevel,
+    setReasoningLevel,
+    searchEnabled,
+    setSearchEnabled,
+    imageGenerationEnabled,
+    setImageGenerationEnabled,
+
+    // Handlers
     handleFileAttach,
     handleFileDrop,
     handleRemoveFile,
